@@ -33,11 +33,18 @@ document.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>{profile=b.
 function objective(){
  const m=missions[s.stage];if(!m)return race?{obj:world.gates[race.hit],name:'Tijdrit · windring '+(race.hit+1)}:null;
  let need=s.hout<m[1]?'hout':s.steen<m[2]?'steen':null;
- if(need){const list=world.nodes.filter(n=>n.type===need&&world.islands.findIndex(i=>Math.hypot(i.x-n.x,i.z-n.z)<i.r)<=s.stage&&!(s.harvest[n.i]>Date.now()));if(list.length)return {obj:list.sort((a,b)=>dist(a)-dist(b))[0],name:need==='hout'?'Houtstapel':'Steengroeve'}}
+ if(need){const list=world.nodes.filter(n=>n.type===need&&world.islands.findIndex(i=>Math.hypot(i.x-n.x,i.z-n.z)<i.r)<=s.stage&&!(s.harvest[n.i]-Date.now()>9e4));if(list.length)return {obj:list.sort((a,b)=>dist(a)-dist(b))[0],name:need==='hout'?'Houtstapel':'Steengroeve'}}
  if(s.stage===2&&s.rings.length<3)return {obj:world.gates.find((_,i)=>!s.rings.includes(i)),name:'Windring · spring'};
  return {obj:repair[s.stage],name:s.stage===2?'Baken':'Brugwerf'}
 }
-function updateHUD(){if(!playing)return;
+// Safety net: only when the current mission can no longer be finished does one pile regrow, so nobody gets stuck.
+function replenish(){const m=missions[s.stage];if(!m||currentRoom)return;const now=Date.now(),home=Math.min(s.stage,2);
+ for(const type of ['hout','steen']){if(s[type]>=(type==='hout'?m[1]:m[2]))continue;
+  const here=world.nodes.filter(n=>n.type===type&&world.islands.findIndex(i=>Math.hypot(i.x-n.x,i.z-n.z)<i.r)<=home);
+  if(!here.length||here.some(n=>!(s.harvest[n.i]>now)||s.harvest[n.i]-now<9e4))continue;
+  const n=here.sort((a,b)=>dist(a)-dist(b))[0];s.harvest[n.i]=now+45000;persist();
+  notify(type==='hout'?'Er groeit nieuw hout aan bij een houtstapel. Nog even geduld.':'Er komt nieuwe steen vrij bij een steengroeve. Nog even geduld.')}}
+function updateHUD(){if(!playing)return;replenish();
  $('build').hidden=!!currentRoom;
  if(currentRoom){
   const {house,exit,npc}=currentRoom,nearExit=dist(exit)<1.35,nearNpc=dist(npc)<2.65;
@@ -69,7 +76,9 @@ function act(){if(!playing||$('panel').open)return;updateHUD();if(!context)retur
  if(context.kind==='place'){place();return}
  if(context.kind==='resource'){harvest(context.n);return}
  workshop()}
-function harvest(n,touched=false){world.reach();s[n.type]+=2;s.harvest[n.i]=Date.now()+18000;notify((touched?'Ring gepakt! ':'')+'+2 '+n.type);persist();updateHUD()}
+// Taken is taken: a harvested pile stays gone (for about 30 years of play).
+const GONE=1e12;
+function harvest(n,touched=false){world.reach();s[n.type]+=2;s.harvest[n.i]=Date.now()+GONE;notify((touched?'Ring gepakt! ':'')+'+2 '+n.type);persist();updateHUD()}
 // The golden ring above each pile is the pickup: touch the pile or jump into the ring to collect it.
 function touchRings(){if(currentRoom)return;const now=Date.now();
  for(const n of world.nodes){if(s.harvest[n.i]>now)continue;if(Math.hypot(n.x-p.x,n.z-p.z)<2.05&&p.y<4){harvest(n,true);return}}}

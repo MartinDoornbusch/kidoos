@@ -32,31 +32,44 @@ function embodiedPerson(parent,name){
   })
  });
  let stamp='';
- function animate(a,b,mix,weight){
-  const mark=[a,b,Math.round(mix*32),Math.round(weight*24)].join('/');if(mark===stamp||!parts.length)return;stamp=mark;
+ // Layers add baked poses on top of the rest pose: [[frame,weight],...]. Negative weights move away from a pose.
+ function blend(layers){
+  const mark=layers.map(([f,w])=>f+':'+Math.round(w*240)).join('/');if(mark===stamp||!parts.length)return;stamp=mark;
   for(const {pos,geo,poses} of parts){
-   const idle=poses[0],from=poses[a],to=poses[b],dst=pos.array;
-   for(let i=0;i<dst.length;i++)dst[i]=(idle[i]+weight*(from[i]+(to[i]-from[i])*mix-idle[i]))/8000;
+   const idle=poses[0],dst=pos.array,used=layers.filter(([f,w])=>f&&w);
+   for(let i=0;i<dst.length;i++){let v=idle[i];for(const [f,w] of used)v+=w*(poses[f][i]-idle[i]);dst[i]=v/8000}
    pos.needsUpdate=true;geo.computeVertexNormals()
   }
  }
- return {root,ready,animate}
+ function animate(a,b,mix,weight){blend([[a,weight*(1-mix)],[b,weight*mix]])}
+ return {root,ready,animate,blend}
+}
+// Standing still is never a statue: arms relax against the body, the chest breathes,
+// the arms sway a little and the weight shifts. Shared by the pilot and the villagers.
+function idleLayers(t){
+ const breathe=Math.sin(t*1.55),sway=Math.sin(t*.62);
+ return [[9,-.46+.05*breathe],[2,.06+.05*sway],[6,.06-.05*sway],[10,.035+.03*Math.max(0,Math.sin(t*.23))]]
 }
 function expeditionPilot(scene){
- const root=new THREE.Group();scene.add(root);const models={};let selected,heading=0,reachAt=-10;
+ const root=new THREE.Group();scene.add(root);const models={};let selected,heading=0,reachAt=-10,still=0,look=0;
  function outfit(name){
   const key=name==='Nova'?'floor':'niek';selected=models[key]??=embodiedPerson(root,key);
   for(const model of Object.values(models))model.root.visible=model===selected;
   selected.ready.catch(()=>{document.getElementById('toast').textContent='Personage laden mislukt. Vernieuw de pagina.'})
  }
  function pose(t,p,dt){
-  root.position.set(p.x,p.y,p.z);heading+=Math.atan2(Math.sin(p.heading-heading),Math.cos(p.heading-heading))*(1-Math.exp(-15*dt));root.rotation.y=heading;
+  root.position.set(p.x,p.y,p.z);heading+=Math.atan2(Math.sin(p.heading-heading),Math.cos(p.heading-heading))*(1-Math.exp(-15*dt));
+  const resting=!(p.speed>.02)&&p.on!==false&&!p.glide;still=resting?still+Math.min(dt,.1):0;
+  // After a few seconds of standing, the pilot glances left and right now and then.
+  const beat=Math.floor((still-3)/3.4),glance=still>3&&beat%3!==2?.5*Math.sin(beat*2.1+1):0;
+  look+=(glance-look)*(1-Math.exp(-2.4*Math.min(dt,.1)));root.rotation.y=heading+look;
   if(!selected)return;
-  const phase=(p.walk||0)*4/Math.PI,index=Math.floor(phase)%8,reach=Math.max(0,1-Math.abs(t-reachAt-.21)/.28);
-  if(reach>0)selected.animate(10,10,0,reach);
+  const phase=(p.walk||0)*4/Math.PI,index=Math.floor(phase)%8,reach=Math.max(0,1-Math.abs(t-reachAt-.21)/.28),w=Math.min(1,p.speed||0),m=phase%1;
+  if(reach>0)selected.blend([[10,reach],[9,-.46*(1-reach)]]);
   else if(p.glide||p.on===false)selected.animate(9,9,0,p.glide?1:.55);
-  else selected.animate(1+index,1+(index+1)%8,phase%1,Math.min(1,p.speed||0));
-  selected.root.position.y=.018*Math.sin(t*1.75)+.036*Math.abs(Math.sin(p.walk||0))*(p.speed||0)
+  else if(w>.02)selected.blend([[1+index,w*(1-m)],[1+(index+1)%8,w*m],[9,-.34*w-.46*(1-w)]]);
+  else selected.blend(idleLayers(t));
+  selected.root.position.y=.012*Math.sin(t*1.55)+.036*Math.abs(Math.sin(p.walk||0))*w;selected.root.rotation.z=resting?.012*Math.sin(t*.62):0
  }
  return {root,outfit,pose,reach(){reachAt=performance.now()/1000}}
 }
