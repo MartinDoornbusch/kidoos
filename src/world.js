@@ -140,6 +140,21 @@ function createWorld(canvas) {
  const ember=withSurface(cube.clone(),new T.MeshStandardMaterial({color:0x2b140a,emissive:0xff6a1f,emissiveIntensity:3.2,roughness:.6}));
  const planks=withSurface(cube.clone(),new T.MeshStandardMaterial({map:loadSurface('board.jpg'),roughness:.9}));
  const blossom=withSurface(new T.IcosahedronGeometry(1,1),new T.MeshStandardMaterial({roughness:.7}));
+ // Real plants for window boxes, hedges and planters: folded leaves on arching stems and flower heads
+ // with cupped petals, instead of beads.
+ const plantRand=(()=>{let q=97;return ()=>(q=(q*16807)%2147483647)/2147483647})();
+ function leafSet(pos,idx,ox,oy,oz,a,tilt,L,W){const ca=Math.cos(a),sa=Math.sin(a),ct=Math.cos(tilt),st=Math.sin(tilt);
+  const pt=(u,v,lift)=>{const d=u*L,rad=d*ct;return [ox+ca*rad-sa*v,oy+d*st+lift-u*u*L*.3,oz+sa*rad+ca*v]};const b=pos.length/3;
+  for(const p of [pt(0,0,0),pt(.42,-W/2,.015),pt(1,0,0),pt(.42,W/2,.015),pt(.42,0,-.01)])pos.push(...p);idx.push(b,b+1,b+4,b+1,b+2,b+4,b+2,b+3,b+4,b+3,b,b+4)}
+ function plantGeo(fill,mat){const pos=[],idx=[];fill(pos,idx);const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();g.userData.surface=mat;return g}
+ const plantHeads=[[-.07,.2,.02],[.06,.24,-.03],[.0,.28,.05],[.09,.19,.06],[-.05,.23,-.06],[.03,.21,.09]];
+ const leafGeo=plantGeo((pos,idx)=>{for(let i=0;i<22;i++){const a=i*2.4+plantRand()*.5,up=i<8?.08:0;leafSet(pos,idx,Math.cos(a)*.03,up,Math.sin(a)*.03,a,.15+plantRand()*.85,.13+plantRand()*.07,.12)}
+   for(const [hx,hy,hz] of plantHeads){const b=pos.length/3;pos.push(hx*.3-.006,0,hz*.3,hx*.3+.006,0,hz*.3,hx+.006,hy,hz,hx-.006,hy,hz);idx.push(b,b+1,b+2,b,b+2,b+3)}},
+  new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.75}));
+ const flowerGeo=plantGeo((pos,idx)=>{for(const [hx,hy,hz] of plantHeads)for(let f=0;f<3;f++){const fx=hx+(f-1)*.022,fz=hz+(f%2)*.02,fy=hy+(f===1?.012:0);for(let k=0;k<5;k++){const a=k*1.2566+f;leafSet(pos,idx,fx,fy,fz,a,.35,.05,.042)}}},
+  new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.6}));
+ const bushGeo=plantGeo((pos,idx)=>{for(let i=0;i<110;i++){const a=plantRand()*6.283,el=Math.asin(plantRand()*1.1-.15),r=.92,x=Math.cos(a)*Math.cos(el)*r,y=.15+Math.sin(el)*r*.85,z=Math.sin(a)*Math.cos(el)*r;leafSet(pos,idx,x*.82,y,z*.82,a,el+.35,.34,.24)}},
+  new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.8}));
  const ridge=withSurface(new T.CylinderGeometry(1,1,1,10),new T.MeshStandardMaterial({map:tileMap,roughness:.9}));
  function gableGeometry(w,rise){const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute([-w/2,0,0,w/2,0,0,0,rise,0],3));
   g.setAttribute('uv',new T.Float32BufferAttribute([0,0,w/4,0,w/8,rise/4],2));g.computeVertexNormals();g.userData={surface:plasterBox.userData.surface};return g}
@@ -166,7 +181,7 @@ function createWorld(canvas) {
   if(!flowers)return;
   P(planks,0x7a5536,lx,y-h/2-.25,out+.2,w+.18,.2,.24);
   const tones=[0xe2475b,0xf6c443,0xf4f0f2,0xd45a9b,0xe2475b];
-  for(let i=0;i<9;i++){const fx=lx-w/2+.08+i*(w-.16)/8;P(blossom,i%2?0x4f7d32:tones[i%5],fx,y-h/2-.08+(i%3)*.03,out+.2+(i%2?.04:-.03),i%2?.09:.065,i%2?.07:.065,i%2?.09:.065)}}
+  const nP=w>.75?3:2;for(let i=0;i<nP;i++){const fx=lx-w/2+(i+.5)*w/nP,sc=(w/nP)*2.6*(i%2?.92:1),fl=i%2?-1:1;P(leafGeo,0x4f7d32,fx,y-h/2-.16,out+.2,sc*fl,sc,sc);P(flowerGeo,tones[(i+Math.round(lx*3+y*5))%5&4?(i+2)%5:(i+Math.abs(Math.round(lx*3)))%5],fx,y-h/2-.16,out+.2,sc*fl,sc,sc)}}
  // Doorways are sized for the people: 1.25 wide and 2.95 high.
  function doorAt(P,lx,y0,out,color){
   const {x,z,ry,c,s}=P.at,W=1.25,H=2.95,hx=lx-W/2;
@@ -288,7 +303,7 @@ function createWorld(canvas) {
   shape(tiles,0xffffff,wx+.2,y0+wh+.42,wz,ww+.9,.16,wd+.8,0,-.27);
   solids.add({x,z,w:w*.52+.15,d:d*.52+.15,base:0,top:yTop+rise});solids.add({x:wx,z:wz,w:ww*.52,d:wd*.52,base:0,top:y0+wh+.9});
   lantern(x-.95,y0+2.95,front+.35);lantern(x+.95,y0+2.95,front+.35);
-  for(let i=0;i<7;i++){const hx=x-w/2+.6+i*1.25;if(Math.abs(hx-x)<2)continue;shape(blossom,0x3f6a34,hx,.45,front+1.1,.55,.5,.4)}
+  for(let i=0;i<7;i++){const hx=x-w/2+.6+i*1.25;if(Math.abs(hx-x)<2)continue;{shape(blossom,0x2c4a24,hx,.4,front+1.1,.4,.34,.28);shape(bushGeo,0x4f7d32,hx,.1,front+1.1,.6,.55,.45,hx*3)}}
  }
  const lathe=(points,n=16)=>new T.LatheGeometry(points.map(([r,h])=>new T.Vector2(r,h)),n);
  const column=lathe([[.21,0],[.235,.05],[.23,.15],[.174,.19],[.165,.33],[.13,.39],[.095,.47],[.082,2.46],[.13,2.50],[.125,2.56],[.08,2.59],[.06,2.76],[0,2.83]]);
@@ -562,6 +577,7 @@ void main(){float y=vUv.y;
  hut(12,-60,5,1);pennants(0,-58,9);mill(-12,-68,true);
  tradingPost(13,-6.36);manor(-13,-52.94);
  for(let i=0;i<30;i++){let s=i%2?1:-1,x=s*(48+rnd()*88),z=32-rnd()*205,r=4+rnd()*12,h=-6+rnd()*15;while(extraIslands.some(E=>Math.hypot(x-E.x,z-E.z)<E.r+r+9))x+=s*24;island(x,z,r,land[i%3],r*.85,h);for(let j=0;j<3;j++)pine(x+rnd()*r*.6,z+rnd()*r*.55,3+rnd()*4,h)}
+ let farmRotor=null,craneHook=null,signalFire=null;
  // ---- The new islands. Own random stream and a saved seed, so every earlier placement stays where it was.
  {const keep=seed,R=Nature.rng(5150),pick2=(a,b)=>a+R()*(b-a);
   function ribbon(pts,y,w=1.35){const v=[],uv=[],f=[];for(let i=0;i<pts.length;i++){const p0=pts[Math.max(0,i-1)],p1=pts[Math.min(pts.length-1,i+1)];let tx=p1[0]-p0[0],tz=p1[1]-p0[1];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;
@@ -597,8 +613,8 @@ void main(){float y=vUv.y;
   for(let i=0;i<36;i++)tree(den,5,10);for(let i=0;i<9;i++)boulder(den,0x8f9184,.7,1.5);tufts(den,60);waterfall(den,2.35,7);
 
   // Molenhoeve: a windmill, a barn, a well and two fenced fields.
-  trail(farm,[g0(farm),[-45,-59.2],[-52,-58.6],[-58,-57.2],[-63,-58.8],[-66,-61]]);
-  mill(-68,-62);solids.add({x:-68,z:-62,r:2.6,base:0,top:9});keepOut(-68,-62,4.2);
+  trail(farm,[g0(farm),[-45,-59.2],[-52,-58.6],[-58,-57.2],[-63,-58.8],[-64.6,-61.9]]);
+  mill(-68,-62);farmRotor=rotors[rotors.length-1];solids.add({x:-68,z:-62,r:2.6,base:0,top:9});keepOut(-68,-62,4.2);
   hut(-50,-67,6,1);keepOut(-50,-67,4.8);
   {const wx=-62,wz=-54;shape(cyl,0xcfc1a8,wx,.45,wz,.85,.9,.85);shape(cyl,0x2b3a40,wx,.92,wz,.66,.04,.66);for(const o of [-.75,.75])shape(beam,0xffffff,wx+o,1.4,wz,.1,1.9,.1);shape(beam,0xffffff,wx,2.3,wz,1.8,.1,.12);
    for(const s of [-1,1])shape(tiles,0xffffff,wx,2.55,wz+s*.42,2,.07,1,0,0,s*.6);shape(cyl,0x8a6a4a,wx,1.75,wz,.08,1.4,.08,0,Math.PI/2);solids.add({x:wx,z:wz,r:.95,base:0,top:2.6});keepOut(wx,wz,1.8)}
@@ -617,8 +633,8 @@ void main(){float y=vUv.y;
   trail(quarry,[g0(quarry),[45,-76.5],[51,-79],[55.5,-80.5],[58,-84]]);
   {const cx=55,cz=-87.5;shape(beam,0xffffff,cx,4,cz,.34,8,.34);shape(cyl,iron,cx,.5,cz,.55,.3,.55);cord(cx,1.2,cz,cx+4.6,6.4,cz-1.4,.13,0x7a5a3e);
    cord(cx,7.9,cz,cx+4.6,6.4,cz-1.4,.035,0x3a3a3c);for(const [gx,gz] of [[-3.2,2.6],[-3.4,-2.8],[2.6,3.2]])cord(cx,7.8,cz,cx+gx,.05,cz+gz,.025,0x5a5048);
-   cord(cx+4.6,6.35,cz-1.4,cx+4.6,2.7,cz-1.4,.025,0x3a3a3c);shape(masonry,0xd5cfc0,cx+4.6,2.1,cz-1.4,1.1,.8,.8,.3);shape(cyl,0x3a3a3c,cx+.7,.7,cz,.3,.9,.3,0,Math.PI/2);
-   solids.add({x:cx,z:cz,r:.6,base:0,top:8});solids.add({x:cx+4.6,z:cz-1.4,w:.6,d:.45,base:1.6,top:2.6});keepOut(cx,cz,1.6);keepOut(cx+4.6,cz-1.4,1.2)}
+   craneHook=group(cx+4.6,0,cz-1.4);craneHook.userData={rope:shape(rope,0x3a3a3c,0,3.4,0,.025,5.9,.025,0,0,0,craneHook),block:shape(masonry,0xd5cfc0,0,.4,0,1.1,.8,.8,.3,0,0,craneHook),live:false};shape(cyl,0x3a3a3c,cx+.7,.7,cz,.3,.9,.3,0,Math.PI/2);
+   solids.add({x:cx,z:cz,r:.6,base:0,top:8});keepOut(cx,cz,1.6);keepOut(cx+4.6,cz-1.4,1.2)}
   // the quarry face: three cut terraces of pale limestone stepping up towards the rim, rubble at the foot
   {const cliff=withSurface(cube.clone(),new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xf4eedf,roughness:.95}));
    for(let tier=0;tier<3;tier++){const d=11.2+tier*1.75,h=2.1+tier*2.0;for(let a=-1.25;a<=1.25;a+=.17){const x=quarry.x+Math.cos(a)*d,z=quarry.z+Math.sin(a)*d;if(clear.some(([a2,b2,r2])=>Math.hypot(x-a2,z-b2)<r2+1.1))continue;
@@ -641,6 +657,12 @@ void main(){float y=vUv.y;
    shape(cyl,0xe3d6bd,px,3.55,pz,rr+.35,.4,rr+.35);shape(dome,0xffffff,px,3.75,pz,rr+.3,1.8,rr+.3);shape(ball,brass,px,5.6,pz,.18,.18,.18);shape(cyl,brass,px,6,pz,.03,.8,.03);
    shape(cyl,brass,px+.6,1.55,pz,.13,1.6,.13,0,-.75);for(const a of [0,2.1,4.2])cord(px+.2,1.2,pz,px+.2+Math.cos(a)*.55,.5,pz+Math.sin(a)*.55,.025,0x4a3a2a);
    solids.add({x:px,z:pz,r:rr+.75,base:0,top:.5});keepOut(px,pz,rr+1.6)}
+  // the signal fire: an iron brazier on a stone plinth, lit at the end of level 2
+  {const fx=63,fz=-128,bowl=new T.CylinderGeometry(.72,.42,.42,18,1,true);bowl.userData.surface=new T.MeshStandardMaterial({color:0x3a3a3c,side:T.DoubleSide,metalness:.6,roughness:.5});
+   shape(masonry,0xcfc1a8,fx,.45,fz,1.1,.9,1.1);shape(bowl,0xffffff,fx,1.12,fz,1,1,1);for(let k=0;k<3;k++){const a=k*2.09;shape(cyl,0x92583f,fx+Math.cos(a)*.18,1.05,fz+Math.sin(a)*.18,.08,.7,.08,a,.9)}
+   signalFire=group(fx,1.2,fz);const fm=new T.MeshBasicMaterial({color:0xffb347,transparent:true,opacity:.8,blending:T.AdditiveBlending,depthWrite:false});
+   for(let k=0;k<4;k++){const f=new T.Mesh(new T.ConeGeometry(.32-k*.05,1.1+k*.25,10,1,true),fm);f.position.set(Math.cos(k*1.7)*.1,.45+k*.12,Math.sin(k*1.7)*.1);signalFire.add(f)}
+   const fl=new T.PointLight(0xff9a40,14,26,1.6);fl.position.y=1;signalFire.add(fl);signalFire.visible=false;solids.add({x:fx,z:fz,r:.9,base:0,top:1.6});keepOut(fx,fz,1.8)}
   for(let i=0;i<9;i++){const a=-1.1+i*.27,d=peakI.r-2.2,x=peakI.x+Math.cos(a)*d,z=peakI.z+Math.sin(a)*d,s=1.6+1.1*Math.abs(Math.sin(i*2.7));if(!free(peakI,x,z,0))continue;shape(stoneGeo,0xa7a397,x,s*.5,z,s,s*1.5,s,a);solids.add({x,z,r:s*.8,base:0,top:s*1.6});keepOut(x,z,s)}
   bench(51,-131.2,.3);bench(53.5,-123.4,Math.PI-.2);keepOut(51,-131.2,1.2);keepOut(53.5,-123.4,1.2);
   lamp(46.5,-128.4,0,null,1);solids.add({x:46.5,z:-128.4,r:.22,base:0,top:3.2});keepOut(46.5,-128.4,.8);
@@ -785,8 +807,8 @@ void main(){float y=vUv.y;
   const x=410+i*24,z=0,room=group(x,0,z),rects=[],build=(geo,color,x,y,z,w,h,d,ry=0,rz=0,rx=0)=>shape(geo,color,x,y,z,w,h,d,ry,rz,rx,room);
   const solid=(x,z,w,d)=>rects.push({x,z,w,d});
   const mesh=(geo,material,x,y,z,sx=1,sy=1,sz=1,ry=0,rx=0,rz=0)=>{const m=new T.Mesh(geo,material);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.rotation.set(rx,ry,rz);m.castShadow=m.receiveShadow=true;room.add(m);return m};
-  build(i===2?stoneFloor:woodFloor,0xffffff,0,-.14,0,10,.28,10);
-  const wall=i===2?surfaced(cube.clone(),'masonry'):withSurface(cube.clone(),new T.MeshStandardMaterial({map:plasterMap.clone(),color:0xf3e6cf,roughness:.95}));wall.userData.surface.map.repeat.set(i===2?4:3,i===2?2:1.4);wall.userData.surface.map.needsUpdate=true;
+  const stoneRoom=i===2||house.stone;build(stoneRoom?stoneFloor:woodFloor,0xffffff,0,-.14,0,10,.28,10);
+  const wall=stoneRoom?surfaced(cube.clone(),'masonry'):withSurface(cube.clone(),new T.MeshStandardMaterial({map:plasterMap.clone(),color:0xf3e6cf,roughness:.95}));wall.userData.surface.map.repeat.set(stoneRoom?4:3,stoneRoom?2:1.4);wall.userData.surface.map.needsUpdate=true;
   const H=house.manor?8.8:4.6;if(house.manor)wall.userData.surface.map.repeat.set(3,2.6);
   build(wall,0xefdfbc,0,H/2,-5,10.3,H,.22);
   for(const side of [-1,1]){
@@ -888,6 +910,38 @@ void main(){float y=vUv.y;
    goods.sack(room,-3.9,0,2.2,.95);goods.sack(room,-3.35,0,2.65,.85,true);goods.basket(room,-2.8,0,2.1,.9,false);solid(-3.6,2.4,1.4,1.1);
    stations=[{x:1.1,z:-3.35,h:0,clip:'work'},{x:-3.6,z:-.5,face:[-4.6,-.5],clip:'take'},{x:3.05,z:0,face:[3.9,0],clip:'take'},{x:-2.4,z:-2.3,h:0,clip:'look2'}];
   }
+  if(house.key==='gerrit'){
+   // woodsman's lodge: stone hearth, log rack, workbench with axes, a bunk with a wool blanket
+   build(masonry,0xc9bea9,-4.3,1.2,-2.2,.9,2.4,2.3);build(masonry,0xb9ae99,-4.3,2.75,-2.2,.7,.7,1.6);build(cube,0x1b1410,-3.86,.7,-2.2,.06,1.1,1.3);
+   for(let k=0;k<3;k++)build(cyl,0x92583f,-4.05,.22+k*.05,-2.5+k*.3,.1,.9,.1,0,Math.PI/2*.9);mesh(ball,flame,-4.0,.45,-2.2,.28,.32,.22);solid(-4.3,-2.2,1,2.4);
+   for(let r2=0;r2<4;r2++)for(let k=0;k<5-r2%2;k++)build(cyl,0x92583f,4.3,.2+r2*.38,-3.8+k*.42+(r2%2)*.21,.18,1.1,.18,0,0,Math.PI/2);solid(4.3,-3,1.2,2.3);
+   table(1.4,-4.1,2.6,.9);build(beam,0x4a3426,.7,1.0,-4.0,.06,.07,.8,0,0,0);build(cube,0x8a9397,.7,1.0,-3.55,.26,.06,.16);build(beam,0x4a3426,1.5,1.0,-4.1,.06,.07,.8);build(cube,0x8a9397,1.5,1.0,-3.65,.3,.06,.2);
+   build(cube,0x9aa3a6,2.3,.99,-4.2,.9,.02,.22);for(let k=0;k<6;k++)build(cube,0xd9bc8a,2.0+k*.12,.97,-3.85,.06,.01,.03,k);
+   build(beam,0x6e4a2e,-3.2,.45,2.6,2.1,.12,1.0);legs(-3.2,.45,2.6,2.1,1.0,.4);build(cube,0x7a3b2e,-3.2,.58,2.6,2.0,.14,.95);build(cube,0xe8dcc0,-4.0,.7,2.6,.4,.1,.7);solid(-3.2,2.6,2.1,1.0);
+   for(const [x2,y2] of [[-1.2,2.4],[-.4,2.3]])build(beam,0x4a3426,x2,y2,-4.86,.07,.9,.05,0,0,.5);
+   stations=[{x:1.4,z:-3.25,h:0,clip:'work'},{x:3.4,z:-1.2,face:[4.3,-1.2],clip:'take'},{x:-3.2,z:-.6,face:[-4.3,-2.2],clip:'look2'}];
+  }
+  if(house.key==='anke'){
+   // farm kitchen: long table with bread and cheese, an oven, a butter churn, milk cans, sacks and crates
+   table(-2.3,-3.7,2.8,1.0,.9,0x8a6a48);goods.loaf(room,-3.2,.95,-3.7,.6);goods.cheese(room,-2.4,.95,-3.6,.55,true);goods.basket(room,-1.4,.95,-3.75,.7);goods.jar(room,-1.0,.95,-3.4,0,.5);
+   build(masonry,0xd8cdb9,3.7,1.0,-4.1,1.9,2.0,1.1);build(cube,0x1b1410,3.7,.85,-3.54,.9,.7,.04);mesh(ball,flame,3.7,.68,-3.7,.32,.18,.16);build(cyl,0x3a3a3c,4.3,2.6,-4.3,.16,1.4,.16);solid(3.7,-4.1,2.0,1.2);
+   build(cyl,0x9a7552,4.1,.55,-1.6,.26,1.1,.26);build(cyl,0x6e4a2e,4.1,1.35,-1.6,.03,.6,.03);for(const yy of [.25,.85])build(wheel,0x3a3a3c,4.1,yy,-1.6,.27,.27,.5,0,0,Math.PI/2);solid(4.1,-1.6,.6,.6);
+   for(let k=0;k<3;k++){build(cyl,0xb8bec0,3.0+k*.45,.35,-2.6,.16,.7,.16);build(cyl,0xb8bec0,3.0+k*.45,.75,-2.6,.09,.1,.09)}solid(3.45,-2.6,1.4,.4);
+   for(const [cx,cz,kind,k] of [[-4.0,.6,'apple',0],[-4.0,1.6,'pear',1]]){build(beam,0x8a6a48,cx,.12,cz,.86,.24,.9);goods.crate(room,cx,.24,cz,kind,k,.8,.8);solid(cx,cz,.9,1.0)}
+   goods.sack(room,3.9,0,2.3,.95);goods.sack(room,3.3,0,2.7,.85,true);solid(3.6,2.5,1.4,1.1);
+   for(let k=0;k<6;k++){const zz=-3.0+k*.5;build(cyl,0x6e4a2e,-.8,3.75,zz,.012,.6,.012);build(cone,[0x6e7d3a,0x8a7a3a,0x5c6b34][k%3],-.8,3.35,zz,.14,.38,.14,0,Math.PI)}build(beam,0x6e4a2e,-.8,4.05,-1.75,.1,.1,3.4);
+   stations=[{x:-2.3,z:-2.75,h:0,clip:'work'},{x:3.7,z:-2.9,h:0,clip:'look'},{x:-3.0,z:1.1,face:[-4,1.1],clip:'take'}];
+  }
+  if(house.key==='joost'){
+   // stonemason's shed: a heavy stone bench with chisels, a half-carved statue, a grindstone and stacked blocks
+   build(masonry,0xd5cfc0,1.4,.45,-4.0,2.6,.9,1.0);build(masonry,0xe3ddcf,1.4,.95,-4.0,2.7,.1,1.1);solid(1.4,-4,2.7,1.1);
+   for(let k=0;k<4;k++)build(cube,0x8a9397,.6+k*.22,1.02,-3.7,.03,.02,.28,0,0,0);build(cyl,0x6e4a2e,2.3,1.08,-3.8,.12,.3,.12,0,Math.PI/2);build(cube,0xcfc8b8,1.8,1.12,-4.1,.5,.3,.4,.2);
+   build(masonry,0xcfc8b8,-2.6,.35,-3.4,1.1,.7,1.1);build(masonry,0xe0dacb,-2.6,1.2,-3.4,.8,1.0,.7);build(cyl,0xe8e2d3,-2.6,2.0,-3.4,.28,.7,.24);build(ball,0xe8e2d3,-2.6,2.55,-3.4,.2,.24,.2);solid(-2.6,-3.4,1.2,1.2);
+   build(cyl,0xa8a296,4.0,1.0,-1.4,.6,.18,.6,0,0,Math.PI/2);for(const zz of [-1.75,-1.05])build(beam,0x6e4a2e,4.0,.5,zz,.12,1.0,.12);build(beam,0x6e4a2e,4.0,1.0,-1.4,.06,.06,.9,0,0,0);build(cyl,0x7a5232,3.4,.3,-1.4,.3,.6,.3);solid(3.9,-1.4,1.3,1.2);
+   for(let k=0;k<3;k++)for(let j=0;j<2-(k>1);j++)build(masonry,0xd8d2c4,-4.1+j*.0,.3+k*.6,1.2+j*.9,.8,.58,.85,(k+j)*.1);solid(-4.1,1.6,.9,1.9);
+   build(beam,0x6e4a2e,4.55,1.6,1.6,.25,.05,2.4);for(let k=0;k<5;k++)build(stoneGeo,0xffffff,4.55,1.72,.6+k*.45,.12,.1,.12,k);
+   stations=[{x:1.4,z:-3.15,h:0,clip:'work'},{x:-1.6,z:-3.0,face:[-2.6,-3.4],clip:'look2'},{x:3.0,z:-.4,face:[4,-1.4],clip:'take'}];
+  }
   if(house.key==='wies'){
    // counter with scales, till, a cut cheese and eggs; shelves of real goods; sacks, crates and cloth
    build(beam,0x8a5a34,0,.52,-1.6,5.2,1.04,.8);build(beam,0xa77b4f,0,1.08,-1.6,5.5,.08,1.0);solid(0,-1.6,5.4,.95);
@@ -957,7 +1011,7 @@ void main(){float y=vUv.y;
   if(inside.door.open>.02){doorCam.position.set(h.x,2.0+L,h.z+.45);doorCam.lookAt(h.x,1.7+L,h.z+10);renderer.setRenderTarget(doorTarget);renderer.render(scene,doorCam)}
   renderer.setRenderTarget(null);
   inside.room.visible=true;renderer.shadowMap.autoUpdate=auto}
- const residents={linde:{gender:'f',height:2.62},bram:{gender:'m',height:2.78},mara:{gender:'f',height:2.66},tomas:{gender:'m',height:2.74},wies:{gender:'f',height:2.6},vandalen:{gender:'m',height:2.78}};
+ const residents={linde:{gender:'f',height:2.62},bram:{gender:'m',height:2.78},mara:{gender:'f',height:2.66},tomas:{gender:'m',height:2.74},wies:{gender:'f',height:2.6},gerrit:{gender:'m',height:2.8},anke:{gender:'f',height:2.62},joost:{gender:'m',height:2.74},vandalen:{gender:'m',height:2.78}};
  let inside=null;
  function enterRoom(room){
   if(inside)inside.room.visible=false;
@@ -1044,11 +1098,11 @@ void main(){float y=vUv.y;
  sail.visible=false;
  const flags=[];const builds=group(0,0,0);function construction(x,z,y,type,parent=builds){let g=group(x,y,z,parent);
  if(type==='blok'){shape(cube,0xc18d5c,0,.56,0,2,1.12,2,0,0,0,g);for(let s of [-1,1])for(let d of [-1,1])shape(cube,wood,s*.9,.56,d*.9,.24,1.16,.24,0,0,0,g);shape(cube,cream,0,.56,1.01,2.1,.16,.09,0,.43,0,g)}
- else if(type==='bloembak'){shape(planks,0x8a5a34,0,.27,0,1.0,.5,.5,0,0,0,g);shape(cube,0x3b2a1e,0,.5,0,.92,.06,.42,0,0,0,g);const tones=[0xe2475b,0xf6c443,0xf4f0f2,0xd45a9b];for(let i=0;i<12;i++)shape(blossom,i%3?tones[i%4]:0x4f7d32,-.38+(i%6)*.15,.58+(i%2)*.05,-.1+Math.floor(i/6)*.2,.09,.08,.09,0,0,0,g)}
+ else if(type==='bloembak'){shape(planks,0x8a5a34,0,.27,0,1.0,.5,.5,0,0,0,g);shape(cube,0x3b2a1e,0,.5,0,.92,.06,.42,0,0,0,g);const tones=[0xe2475b,0xf6c443,0xf4f0f2,0xd45a9b];for(let i=0;i<3;i++){const px=-.3+i*.3;shape(leafGeo,0x4f7d32,px,.52,0,1.05,1.05,1.05,i*2,0,0,g);shape(flowerGeo,tones[i%4],px,.52,0,1.05,1.05,1.05,i*2,0,0,g)}}
  else if(type==='bankje'){shape(planks,0xb08d67,0,.48,0,1.3,.08,.42,0,0,0,g);shape(planks,0xb08d67,0,.85,-.2,1.3,.3,.06,0,0,0,g);for(const s of [-1,1]){shape(beam,oak,s*.55,.24,0,.08,.48,.38,0,0,0,g);shape(beam,oak,s*.55,.66,-.2,.08,.4,.06,0,0,0,g)}}
  else if(type==='vlag'){shape(cyl,0x6b5a48,0,1.7,0,.05,3.4,.05,0,0,0,g);shape(ball,0xb69765,0,3.45,0,.08,.08,.08,0,0,0,g);const f=new T.Mesh(new T.PlaneGeometry(1.1,.7,8,1),new T.MeshStandardMaterial({map:canvasTex(128,80,c=>{c.fillStyle='#2f5d63';c.fillRect(0,0,128,80);c.fillStyle='#e7c46a';c.beginPath();c.moveTo(40,40);c.lineTo(64,16);c.lineTo(88,40);c.lineTo(64,64);c.fill()}),side:T.DoubleSide,roughness:.9}));f.position.set(.58,3.0,0);f.castShadow=true;g.add(f);flags.push(f)}
  else {lamp(0,0,0,g)}return g}
- function sync(s){flags.length=0;bridgeGroups.forEach(b=>b.list.forEach(g=>g.visible=s.stage>=b.stage));beaconBeam.visible=sweep.visible=s.stage===3;beaconLight.intensity=s.stage===3?16:3;core.material.emissiveIntensity=s.stage===3?2.4:1.1;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
+ function sync(s){flags.length=0;bridgeGroups.forEach(b=>b.list.forEach(g=>g.visible=s.stage>=b.stage));beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
  function ground(x,z,s,y=100){if(inside)return inside.floorAt(x-inside.x,z,y);const L=liftAt(x,z);let h=islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.35)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r-.35?L+mountainH(x,z):-100;
  for(const b of bridges){if(b.stage>s.stage)continue;const o=onBridge(b,x,z,2.3);if(o&&o.v<b.hw-.02)h=Math.max(h,o.y+.19)}
  return Math.max(h,solids.floor(x,z,s,y))}
@@ -1059,7 +1113,8 @@ void main(){float y=vUv.y;
   if(r>=.3&&height>2&&walkers?.blocks(x,z,r))return true;
   return solids.blocked(x,z,s,y,r,height)
  }
- function animate(t,s,p,view,start,dt){rotors.forEach((v,i)=>v.rotation.z=t*(i?.48:.61));clouds.forEach(([g,y,k])=>g.position.y=y+Math.sin(t*k)*.52);falls.forEach(([f,y],i)=>f.position.y=y+.28*Math.sin(t*3+i));core.rotation.y=t;if(sweep.visible)sweep.rotation.y=t*.7;
+ function animate(t,s,p,view,start,dt){rotors.forEach((v,i)=>{if(!v.userData.stopped)v.rotation.z=t*(i?.48:.61)});if(craneHook){const u=craneHook.userData,up=u.live?2.2+1.7*Math.sin(t*.45):.4;u.block.position.y=up;u.rope.position.y=(up+.4+6.35)/2;u.rope.scale.y=6.35-(up+.4)}
+  if(signalFire?.visible)signalFire.children.forEach((c,i)=>{if(c.isMesh){c.scale.y=1+.25*Math.sin(t*9+i*2);c.rotation.y=t*(1+i*.3)}else c.intensity=12+4*Math.sin(t*13)});clouds.forEach(([g,y,k])=>g.position.y=y+Math.sin(t*k)*.52);falls.forEach(([f,y],i)=>f.position.y=y+.28*Math.sin(t*3+i));core.rotation.y=t;if(sweep.visible)sweep.rotation.y=t*.7;
   nodes.forEach(n=>{const was=n.g.visible;n.g.visible=!(s.harvest[n.i]>Date.now());n.g.scale.setScalar(.62+.095*(s.yield?.[n.i]??4));if(was&&!n.g.visible&&!start&&life)life.burst(n.x,2.1,n.z,n.type==='hout'?0xffcf6a:0x9fe3ff);n.marker.rotation.y=t;n.marker.position.y=2.25+.17*Math.sin(t*2+n.i)});
   for(const d of doors){let near;
    if(d.room){const r=inside&&inside.door===d?inside:null;near=!!r&&(Math.hypot(p.x-r.x-d.x,p.z-d.z)<1.9||t<r.entered+1.3)}
