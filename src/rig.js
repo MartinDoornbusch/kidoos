@@ -17,8 +17,9 @@ const Rig=(()=>{
  }
  function material(name,skin){
   const key=name+'|'+(skin||'');if(materials.has(key))return materials.get(key);
-  const [code,part]=name.split('_');let m;
-  if(part==='opacity')m=new T.MeshStandardMaterial({map:texture(code+'_opacity.webp',true),alphaTest:.36,side:T.DoubleSide,roughness:.72});
+  const parts=name.split('_'),part=['body','head','opacity'].includes(parts.at(-1))?parts.at(-1):'',code=part?parts.slice(0,-1).join('_'):name;let m;
+  if(!part)m=new T.MeshStandardMaterial({map:texture(code+'.jpg',true),roughness:.9});
+  else if(part==='opacity')m=new T.MeshStandardMaterial({map:texture(code+'_opacity.webp',true),alphaTest:.36,side:T.DoubleSide,roughness:.72});
   else m=new T.MeshStandardMaterial({map:texture((part==='body'&&skin?skin:code)+'_'+part+'.jpg',true),normalMap:texture(code+'_'+part+'_n.jpg',false),roughness:part==='head'?.6:.84});
   m.name=name;materials.set(key,m);return m
  }
@@ -56,11 +57,9 @@ const Rig=(()=>{
   }
   return new T.AnimationClip(name,1,tracks)
  }
- function person(parent,id,{gender,height,skin}){
-  const root=new T.Group(),body=new T.Group();parent.add(root);root.add(body);body.rotation.y=Math.PI; // faces -z like the rest of the game
-  const api={root,body,bones:{},clips:null,mixer:null,current:null,actions:{},ready:null,height,update,play,once,locomote,look,state:''};
-  api.ready=bin('people/'+id+'.rig').then(async rig=>{
-   const h=rig.head,bones=h.bones.map(b=>{const o=new T.Bone();o.name=b[0];o.position.set(b[2],b[3],b[4]);o.quaternion.set(b[5],b[6],b[7],b[8]);o.scale.set(b[9],b[10],b[11]);o.userData.bind=o.quaternion.clone();return o});
+ // Rebuild skeleton and skinned meshes from a .rig file under `body`.
+ function assemble(rig,body,skin){
+  const h=rig.head,bones=h.bones.map(b=>{const o=new T.Bone();o.name=b[0];o.position.set(b[2],b[3],b[4]);o.quaternion.set(b[5],b[6],b[7],b[8]);o.scale.set(b[9],b[10],b[11]);o.userData.bind=o.quaternion.clone();return o});
    h.bones.forEach((b,i)=>{if(b[1]>=0)bones[b[1]].add(bones[i])});
    const holder=new T.Group();holder.matrixAutoUpdate=false;holder.matrix.fromArray(h.rootParentMatrix);body.add(holder);
    const top=bones[h.bones.findIndex(b=>b[1]<0)];holder.add(top);
@@ -78,6 +77,13 @@ const Rig=(()=>{
     mesh.matrixAutoUpdate=false;mesh.matrix.fromArray(p.matrix);mesh.castShadow=mesh.receiveShadow=true;mesh.frustumCulled=false;
     body.add(mesh);mesh.bind(skeleton,new T.Matrix4().fromArray(p.bindMatrix))
    }
+  return {h,bones,top}
+ }
+ function person(parent,id,{gender,height,skin}){
+  const root=new T.Group(),body=new T.Group();parent.add(root);root.add(body);body.rotation.y=Math.PI; // faces -z like the rest of the game
+  const api={root,body,bones:{},clips:null,mixer:null,current:null,actions:{},ready:null,height,update,play,once,locomote,look,state:''};
+  api.ready=bin('people/'+id+'.rig').then(async rig=>{
+   const {h,bones,top}=assemble(rig,body,skin);
    for(const b of bones)api.bones[b.name.replace(/^Bip0\d_?/,'')||'Root']=b;
    body.scale.setScalar(height/h.height);api.scale=height/h.height;
    const names=new Set(bones.map(b=>b.name)),byName=Object.fromEntries(bones.map(b=>[b.name,b]));
@@ -132,5 +138,20 @@ const Rig=(()=>{
   }
   return api
  }
- return {person,bin,BODY}
+ // Animals have a skeleton but no clips: they are posed procedurally every frame.
+ function creature(parent,id,{height}){
+  const root=new T.Group(),body=new T.Group();parent.add(root);root.add(body);body.rotation.y=Math.PI;
+  const api={root,body,bones:{},ready:null,height,reset,bend};
+  api.ready=bin('people/'+id+'.rig').then(rig=>{const {h,bones}=assemble(rig,body,null);
+   for(const b of bones)api.bones[b.name.replace(/^Bip0\d_?/,'').replace(/^[a-z]+_(dog_)?/,'')||'Root']=b;
+   body.scale.setScalar(height/h.height);api.scale=height/h.height;api.list=bones});
+  function reset(){for(const b of api.list||[])b.quaternion.copy(b.userData.bind)}
+  // Rotate a bone about an axis given in the animal's own body space (x: left, y: up, z: forward).
+  const pq=new T.Quaternion(),bq=new T.Quaternion(),q=new T.Quaternion(),ax=new T.Vector3();
+  function bend(name,x,y,z,angle){const bone=api.bones[name];if(!bone||!angle)return;
+   bone.parent.getWorldQuaternion(pq);body.getWorldQuaternion(bq);ax.set(x,y,z).applyQuaternion(bq);
+   q.setFromAxisAngle(ax,angle);bone.quaternion.premultiply(pq.clone().invert().multiply(q).multiply(pq))}
+  return api
+ }
+ return {person,creature,bin,BODY}
 })();

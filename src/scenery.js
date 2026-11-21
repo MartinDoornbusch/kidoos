@@ -105,21 +105,22 @@ function explorerGear(person,girl){
   tool('kaart',g=>{g.position.set(-13.5,py-6,pz+1);add(g,new T.CylinderGeometry(2,2,20,10),new T.MeshStandardMaterial({color:0xdcc79a,roughness:.95}),0,0,0);add(g,new T.CylinderGeometry(2.2,2.2,2,10),haft,0,9,0)});
  }
  function equip(tools){for(const [k,g] of Object.entries(kit))g.visible=!!tools?.[k]}
- return {made,tails,wave,equip}
+ function tint(c){scarf.color.set(c??0xc4862f)}
+ return {made,tails,wave,equip,tint}
 }
 function expeditionPilot(scene,rigged=true){
- const root=new THREE.Group();scene.add(root);const models={};let selected,heading=0,still=0,lastX=null,lastZ=0,speed=0,idleTimer=0,swing=-1,kit={};
+ const root=new THREE.Group();scene.add(root);const models={};let selected,heading=0,still=0,lastX=null,lastZ=0,speed=0,idleTimer=0,swing=-1,kit={},scarfColor=null;
  if(!rigged)return legacyPilot(scene,root);
  function outfit(name){
   const key=name==='Nova'?'floor':'niek';
-  if(!models[key]){const m=models[key]=Rig.person(root,key,{gender:key==='floor'?'f':'m',height:2.57,skin:key});m.ready.then(()=>{m.gear=explorerGear(m,key==='floor');m.gear.equip(kit)})}
+  if(!models[key]){const m=models[key]=Rig.person(root,key,{gender:key==='floor'?'f':'m',height:2.57,skin:key});m.ready.then(()=>{m.gear=explorerGear(m,key==='floor');m.gear.equip(kit);m.gear.tint(scarfColor)})}
   selected=models[key];for(const model of Object.values(models))model.root.visible=model===selected;
   selected.ready.catch(()=>{document.getElementById('toast').textContent='Personage laden mislukt. Vernieuw de pagina.'})
  }
  function pose(t,p,dt){
   if(lastX===null){lastX=p.x;lastZ=p.z}
   const vx=(p.x-lastX)/Math.max(dt,1e-3),vz=(p.z-lastZ)/Math.max(dt,1e-3);lastX=p.x;lastZ=p.z;
-  const ground=Math.hypot(vx,vz);speed+=(Math.min(ground,14)-speed)*(1-Math.exp(-10*dt));
+  const ground=p.ride?0:Math.hypot(vx,vz);speed+=(Math.min(ground,14)-speed)*(1-Math.exp(-10*dt));
   root.position.set(p.x,p.y,p.z);const prev=heading;heading+=Math.atan2(Math.sin(p.heading-heading),Math.cos(p.heading-heading))*(1-Math.exp(-15*dt));root.rotation.y=heading;
   if(!selected?.mixer){selected?.update?.(dt);return}
   const m=selected,turn=(heading-prev)/Math.max(dt,1e-3),back=Math.cos(Math.atan2(-vx,-vz)-heading)<-.2&&ground>.3;
@@ -133,7 +134,7 @@ function expeditionPilot(scene,rigged=true){
   }
   m.update(dt);m.gear?.wave(t,dt,speed+.6)
  }
- return {root,outfit,pose,equip(tools){kit=tools||{};for(const m of Object.values(models))m.gear?.equip(kit)},reach(){if(!selected?.mixer)return;swing=selected.once('take','idle',{rate:1.6,fade:.2})*.6}}
+ return {root,outfit,pose,scarf(c){scarfColor=c;for(const m of Object.values(models))m.gear?.tint(c)},equip(tools){kit=tools||{};for(const m of Object.values(models))m.gear?.equip(kit)},reach(){if(!selected?.mixer)return;swing=selected.once('take','idle',{rate:1.6,fade:.2})*.6}}
 }
 // Fallback for the software renderer: baked pose frames without a skeleton.
 function legacyPilot(scene,root){
@@ -144,5 +145,5 @@ function legacyPilot(scene,root){
   if(!selected)return;const phase=(p.walk||0)*4/Math.PI,index=Math.floor(phase)%8,w=Math.min(1,p.speed||0),m=phase%1;
   if(p.glide||p.on===false)selected.animate(9,9,0,p.glide?1:.55);else if(w>.02)selected.blend([[1+index,w*(1-m)],[1+(index+1)%8,w*m]]);else selected.blend([])
  }
- return {root,outfit,pose,reach(){},equip(){}}
+ return {root,outfit,pose,reach(){},equip(){},scarf(){}}
 }

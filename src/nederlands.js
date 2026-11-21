@@ -93,7 +93,7 @@ function dutchRound(mission){
    // Quotes, commas and end punctuation never decide whether an answer is right.
    const norm=v=>v.trim().toLocaleLowerCase('nl').replace(/[“”"‘’',;:]/g,'').replace(/[.!?]+$/,'').replace(/\s+/g,' ').trim();
    const typed=typeof answer==='string',accepted=typed?answer.split('|'):[answer[0]],ok=accepted.some(v=>norm(v)===norm(value));
-   stats.total++;stats.cursor++;turn++;if(ok){stats.good++;score++;if(mission)s.seals++}persist();
+   stats.total++;stats.cursor++;turn++;if(ok){stats.good++;score++;if(mission)s.seals++;else coin()}persist();
    show('<small>NEDERLANDS · '+topic.toUpperCase()+'</small><h2>'+(ok?'Goed geantwoord':'Bekijk het antwoord')+'</h2><p class="youranswer"></p><div class="question"></div><p id="why"></p><button class="primary" id="nlNext">Verder</button>'+buttons());back();
    document.querySelector('.youranswer').textContent=ok?'':'Jouw antwoord: '+value.trim()+' · Het goede antwoord is:';
    document.querySelector('.question').textContent=accepted[0];$('why').textContent=why;

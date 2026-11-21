@@ -1,14 +1,14 @@
 "use strict";
 const $=id=>document.getElementById(id);
 let world;
-const newSave=()=>({version:1,stage:0,hout:0,steen:0,planken:0,seals:0,rings:[],harvest:{},yield:{},tools:{},toolProgress:{},builds:[],log:{chapter:7,turn:0,items:{}},position:null});
+const newSave=()=>({version:1,stage:0,hout:0,steen:0,planken:0,seals:0,rings:[],harvest:{},yield:{},tools:{},toolProgress:{},munten:0,items:{},scarf:null,dogFriend:false,builds:[],log:{chapter:7,turn:0,items:{}},position:null});
 let profile='Niek',s=newSave(),playing=false,context=null,guide=null,placement=null,preview=null,race=null,last=0,toastTimer,joyX=0,joyZ=0,drag=null;
 const p={x:0,y:0,z:13,vy:0,heading:0,speed:0,walk:0,on:true},view={yaw:0,height:3.9,dist:6.9},keys=new Set();
-let currentRoom=null, outdoorPose=null;
+let currentRoom=null, outdoorPose=null, ride=null;
 let movementYaw=null, followHeading=null;
 function resetSteering(){movementYaw=null;followHeading=null}
 function followCamera(dt){
- if(currentRoom||followHeading===null||drag)return;
+ if(followHeading===null||drag)return;
  const delta=Math.atan2(Math.sin(followHeading-view.yaw),Math.cos(followHeading-view.yaw));
  view.yaw+=delta*(1-Math.exp(-5*dt))
 }
@@ -32,14 +32,14 @@ function dist(o){return Math.hypot(o.x-p.x,o.z-p.z)}
 function area(){return world.islands.reduce((a,b)=>dist(a)<dist(b)?a:b)}
 function restore(){currentRoom=null;world.enterRoom(null);resetSteering();world.outfit(profile==="Floor"?"Nova":"Flint");race=null;let data;try{data=JSON.parse(localStorage.getItem(key()))}catch{}s=data?.version===1?Object.assign(newSave(),data):newSave();
  if(s.log.chapter!==7){s.previousGermanLog=s.log;s.log={chapter:7,turn:0,items:{}}}
- let pos=s.position;Object.assign(p,{x:pos?.x??0,z:pos?.z??13,y:pos?.y??0,vy:0,speed:0,heading:pos?.yaw??0,on:false,glide:false});view.yaw=pos?.yaw??0;if(world.ground(p.x,p.z,s)<-20||world.blocked(p.x,p.z,s,p.y))respawn();world.sync(s);world.equip(s.tools)}
+ let pos=s.position;Object.assign(p,{x:pos?.x??0,z:pos?.z??13,y:pos?.y??0,vy:0,speed:0,heading:pos?.yaw??0,on:false,glide:false});view.yaw=pos?.yaw??0;if(world.ground(p.x,p.z,s)<-20||world.blocked(p.x,p.z,s,p.y))respawn();world.sync(s);world.equip(s.tools);world.scarf(s.scarf);if(s.dogFriend)world.fauna?.befriend()}
 function respawn(){let anchor=world.islands[Math.min(s.stage,2)];Object.assign(p,{x:0,z:anchor.z+8,y:0,vy:0,on:true,speed:0,glide:false});if(playing)notify('Terug op vaste grond. Je uitrusting is mee.')}
 function show(html){resetSteering();if(race&&!race.paused)race.paused=performance.now();keys.clear();joyX=joyZ=0;$('joy').firstElementChild.style.transform='';$('content').innerHTML=html;if(!$('panel').open)$('panel').showModal()}
 $('panel').addEventListener('close',()=>{if(race?.paused){race.start+=performance.now()-race.paused;delete race.paused}keys.clear();if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur()});
 function closePanel(){$('panel').close();updateHUD()}
 function buttons(){return '<div class="row"><button id="back">Terug naar het eiland</button></div>'}
 function back(){$('back').onclick=closePanel}
-function start(){if(!world){try{world=createWorld($('world'));window.addEventListener('resize',world.resize)}catch(error){$('start').textContent='Spelwereld laden mislukt';console.error(error);return false}}playing=true;restore();$('entry').hidden=true;$('hud').hidden=false;world.animate(0,s,p,view,false,1);updateHUD();notify(s.log.turn||s.hout?'Welkom terug, '+profile+'!':'Loop naar de gemarkeerde houtstapel.')}
+function start(){if(!world){try{world=createWorld($('world'));window.addEventListener('resize',world.resize)}catch(error){$('start').textContent='Spelwereld laden mislukt';console.error(error);return false}}playing=true;if(world.walkers)world.walkers.onGreet=(name,line)=>{if(!$('panel').open)notify(name+': “'+line+'”')};restore();$('entry').hidden=true;$('hud').hidden=false;world.animate(0,s,p,view,false,1);updateHUD();notify(s.log.turn||s.hout?'Welkom terug, '+profile+'!':'Loop naar de gemarkeerde houtstapel.')}
 document.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>{profile=b.dataset.profile;updateProfileMenu();world?.outfit(profile==="Floor"?"Nova":"Flint");document.querySelectorAll('[data-profile]').forEach(c=>c.classList.toggle('selected',c===b))});$('start').onclick=start;$('school').onclick=()=>{start();if(playing)school()};$('history').onclick=()=>{start();if(playing)historyMenu()};
 function needs(){const m=missions[s.stage];if(!m)return null;const planks=Math.max(0,(m[4]||0)-s.planken);
  return {hout:Math.max(0,m[1]+planks-s.hout),steen:Math.max(0,m[2]-s.steen),planks}}
@@ -63,12 +63,13 @@ function replenish(){const m=missions[s.stage];if(!m||currentRoom)return;const n
   if(left>=n[type]||here.some(o=>s.harvest[o.i]>now&&s.harvest[o.i]-now<9e4))continue;
   const o=here.filter(o=>pileLeft(o)===0).sort((a,b)=>dist(a)-dist(b))[0];if(!o)continue;s.harvest[o.i]=now+45000;delete s.yield[o.i];persist();
   notify(type==='hout'?'Er groeit nieuw hout aan bij een houtstapel. Nog even geduld.':'Er komt nieuwe steen vrij bij een steengroeve. Nog even geduld.')}}
+function coin(n=1){s.munten=(s.munten||0)+n;persist()}
 function toolList(){return Object.keys(TOOLS).filter(k=>s.tools[k]).map(k=>TOOLS[k].name.toLowerCase()).join(', ')}
-function inventoryText(){return 'Hout '+s.hout+' · Steen '+s.steen+(s.planken||s.stage===1?' · Planken '+s.planken:'')+(toolList()?' · '+toolList():'')}
+function inventoryText(){return 'Munten '+(s.munten||0)+' · Hout '+s.hout+' · Steen '+s.steen+(s.planken||s.stage===1?' · Planken '+s.planken:'')+(toolList()?' · '+toolList():'')}
 function updateHUD(){if(!playing)return;replenish();
  $('build').hidden=!!currentRoom;
  if(currentRoom){
-  const {house,exit,npc}=currentRoom,nearExit=dist(exit)<1.35,nearNpc=dist(npc)<2.65;
+  const {house,exit,npc}=currentRoom,nearExit=dist(exit)<1.35&&p.y<1,nearNpc=dist(npc)<2.65&&p.y<1;
   $('region').textContent=house.place;$('chapter').textContent='DORPSONDERZOEK';
   const offer=Object.keys(TOOLS).find(k=>TOOLS[k].owner===house.key&&!s.tools[k]&&TOOLS[k].stage<=s.stage);
   $('objective').textContent='Spreek met '+house.name;$('progress').textContent=offer?TOOLS[offer].name+' verdienen · '+(s.toolProgress[offer]||0)+' / '+TOOLS[offer].need+' goed':s.village?.[house.key]?'Onderzoek afgerond':'Vraag de bewoner om een aanwijzing';
@@ -86,6 +87,8 @@ let m=missions[s.stage];$('region').textContent=area().name;$('chapter').textCon
  let n=world.nodes.filter(n=>pileLeft(n)>0&&dist(n)<3.4).sort((a,b)=>dist(a)-dist(b))[0];
  if(n&&(!context||(r&&dist(n)<dist(r))))context={kind:'resource',n};
  $('act').textContent=context?.kind==='resource'?(context.n.type==='hout'?(s.tools.bijl?'Hout hakken':'Bijl nodig'):(s.tools.houweel?'Steen hakken':'Houweel nodig'))+' · E':context?.kind==='race'?'Start de windrace · E':context?'Werkplaats · E':''}
+ const cab=world.cable,station=[cab.a,cab.b].findIndex(st=>Math.hypot(st.x-p.x,st.z-p.z)<3.4&&Math.abs(p.y-st.y)<2.5);
+ if(station>=0&&!context&&!placement&&!ride){context={kind:'cable',from:station};$('act').textContent=(station?'Kabelbaan naar de berg':'Kabelbaan naar de Bloesemvallei')+' · E'}
  const door=world.rooms.find(room=>dist(room.house)<1.8);
  if(door&&!context&&!race&&!placement){context={kind:'enter',door};$('act').textContent=door.house.place+' binnengaan · E'}
  guide=objective();if(guide){let dx=guide.obj.x-p.x,dz=guide.obj.z-p.z;let angle=Math.atan2(dx,-dz)+view.yaw;$('waypoint').style.setProperty('--bearing',angle+'rad');$('waypoint').textContent=guide.name+' · '+Math.round(dist(guide.obj))+' m'}else $('waypoint').textContent='';
@@ -96,6 +99,7 @@ function act(){if(!playing||$('panel').open)return;updateHUD();if(!context)retur
  if(context.kind==='talk'){interview();return}
  if(context.kind==='race'){race={start:performance.now(),hit:0};world.gates[0].g.visible=true;notify('Tijdrit gestart! Volg de drie windringen.');updateHUD();return}
  if(context.kind==='place'){place();return}
+ if(context.kind==='cable'){if(s.stage<1){notify('De kabelbaan draait pas als de havenbrug weer heel is.');return}ride={from:context.from,t:0,dur:15};p.ride=true;notify('Instappen! Geniet van het uitzicht.');return}
  if(context.kind==='resource'){harvest(context.n);return}
  workshop()}
 // Taken is taken: an emptied pile stays gone (for about 30 years of play).
@@ -155,6 +159,33 @@ function toolQuest(id){const t=TOOLS[id],h=houseOf(t.owner),prog=()=>s.toolProgr
   if(got)return {head:'Je hebt '+(id==='touw'?'het touw':id==='kaart'?'de sterrenkaart':'de '+t.name.toLowerCase())+'!',note:t.use,buttons:[['Gesprek sluiten',closePanel,true]]};
   return {head:ok?'Goed! '+prog()+' van '+t.need:'Nog niet goed · '+prog()+' van '+t.need,buttons:[['Volgende opdracht',()=>toolQuest(id),true],['Later verder',closePanel]]}
  })}
+// The trading post: sell spare material for coins, buy things for your island and yourself.
+// Coins also come from right answers in the practice rounds.
+const PRICE={hout:2,steen:3,planken:5};
+const GOODS=[
+ {id:'koekje',name:'Hondenkoekje',cost:5,text:'Bolle de hond wordt je maatje en loopt overal met je mee.',owned:()=>s.dogFriend,buy(){s.dogFriend=true;world.fauna?.befriend()}},
+ {id:'bloembak',name:'Bloembak',cost:8,text:'Een bak vol bloemen. Plaats hem met Bouwen.',item:true},
+ {id:'bankje',name:'Bankje',cost:12,text:'Een houten bank om op uit te rusten. Plaats hem met Bouwen.',item:true},
+ {id:'vlag',name:'Vlag',cost:10,text:'Een wapperende vlag voor je eigen plek. Plaats hem met Bouwen.',item:true},
+ {id:'rood',name:'Rode sjaal',cost:15,scarf:0xa3342a,text:'Een nieuwe kleur voor je sjaal.'},
+ {id:'blauw',name:'Blauwe sjaal',cost:15,scarf:0x2f5d8c,text:'Een nieuwe kleur voor je sjaal.'},
+ {id:'groen',name:'Groene sjaal',cost:15,scarf:0x4b7a3a,text:'Een nieuwe kleur voor je sjaal.'}
+];
+function shop(note=''){
+ const m=missions[s.stage],need={hout:m?m[1]+Math.max(0,(m[4]||0)-s.planken):0,steen:m?m[2]:0,planken:m?(m[4]||0):0},names={hout:'Hout',steen:'Steen',planken:'Planken'};
+ s.owned||={};
+ const sell=Object.keys(PRICE).map(k=>{const spare=Math.max(0,s[k]-need[k]);
+  return '<div class="meter">'+names[k]+' <b>'+s[k]+' in je rugzak'+(need[k]?' · '+need[k]+' nodig':'')+'</b></div><div class="row"><button data-sell="'+k+'" data-n="1"'+(s[k]?'':' disabled')+'>Verkoop 1 · '+PRICE[k]+' munten</button>'+(spare>1?'<button data-sell="'+k+'" data-n="'+spare+'">Verkoop '+spare+' over · '+spare*PRICE[k]+' munten</button>':'')+'</div>'}).join('');
+ const buy=GOODS.map(o=>{const have=o.owned?o.owned():o.scarf?s.owned[o.id]:false,wearing=o.scarf&&s.scarf===o.scarf;
+  return '<div class="meter">'+o.name+' <b>'+(o.item&&s.items[o.id]?s.items[o.id]+' in je rugzak · ':'')+(have&&!o.scarf?'in bezit':o.cost+' munten')+'</b></div><p class="small">'+o.text+'</p><div class="row">'+(have&&o.scarf?'<button data-wear="'+o.id+'"'+(wearing?' disabled':'')+'>'+(wearing?'Draag je nu':'Omdoen')+'</button>':have&&!o.item?'':'<button data-buy="'+o.id+'"'+((s.munten||0)<o.cost?' disabled':'')+'>Koop · '+o.cost+'</button>')+'</div>'}).join('');
+ show('<small>HANDELSPOST · KOOPVROUW</small><h2>Wies</h2><p>“'+(note||'Welkom! Ik koop je overgebleven hout, steen en planken. En wie goed oefent, verdient bij mij altijd wat.')+'”</p><div class="meter">Munten <b>'+(s.munten||0)+'</b></div><h3>Verkopen</h3>'+sell+'<h3>Kopen</h3>'+buy+(s.scarf?'<div class="row"><button id="ochre">Oker sjaal weer om</button></div>':'')+'<div class="row"><button id="endTalk">Gesprek sluiten</button></div>');
+ $('endTalk').onclick=closePanel;if($('ochre'))$('ochre').onclick=()=>{s.scarf=null;world.scarf(null);persist();shop('Die okerkleurige staat je ook goed.')};
+ document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>{const k=b.dataset.sell,n=Math.min(+b.dataset.n,s[k]);if(!n)return;const short=s[k]-n<need[k];s[k]-=n;coin(n*PRICE[k]);persist();updateHUD();shop(short?'Afgesproken. Let op: dit had je nog nodig voor de missie.':'Afgesproken, '+n*PRICE[k]+' munten voor jou.')});
+ document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{const o=GOODS.find(x=>x.id===b.dataset.buy);if((s.munten||0)<o.cost)return;s.munten-=o.cost;
+  if(o.item){s.items[o.id]=(s.items[o.id]||0)+1}else if(o.scarf){s.owned[o.id]=true;s.scarf=o.scarf;world.scarf(o.scarf)}else o.buy();persist();updateHUD();
+  shop(o.id==='koekje'?'Kijk eens hoe blij Bolle is! Hij loopt nu met je mee.':o.item?'Alsjeblieft. Je vindt hem bij Bouwen.':'Die staat je prachtig!')});
+ document.querySelectorAll('[data-wear]').forEach(b=>b.onclick=()=>{const o=GOODS.find(x=>x.id===b.dataset.wear);s.scarf=o.scarf;world.scarf(o.scarf);persist();shop('Die staat je prachtig!')})
+}
 // Sawing: one log becomes one plank for every right answer.
 function sawPlanks(){const m=missions[s.stage];
  if(!s.hout){notify('Hak eerst hout om planken van te zagen.');workshop();return}
@@ -193,7 +224,7 @@ function exercise(mission,skill=null){
  document.querySelector('.question').textContent=q.sentence;
  const input=$('word');
  if(q.language==='de')for(const ch of ['ä','ö','ü','ß','Ä','Ö','Ü']){const b=document.createElement('button');b.type='button';b.textContent=ch;b.onclick=()=>{input.setRangeText(ch,input.selectionStart,input.selectionEnd,'end');input.focus()};$('letters').append(b)}
- $('answer').onsubmit=e=>{e.preventDefault();const reply=input.value,ok=German.accepts(q,reply);German.record(s.log,q,ok);if(ok&&mission)s.seals++;persist();
+ $('answer').onsubmit=e=>{e.preventDefault();const reply=input.value,ok=German.accepts(q,reply);German.record(s.log,q,ok);if(ok&&mission)s.seals++;if(ok&&!mission)coin();persist();
  show('<small>'+(ok?'INSTRUCTIE BEGREPEN':'HERHALING INGEPLAND')+'</small><h2>'+(ok?'Helemaal goed!':'Kijk nog even mee')+'</h2><p class="source"></p><div class="question"></div><p class="youranswer"></p><p class="why"></p><div class="row"><button id="continue" class="primary">'+(mission&&s.seals>=missions[s.stage][3]?'Naar de reparatie':'Volgende opdracht')+'</button></div>'+buttons());
  document.querySelector('.source').textContent=q.sentence;document.querySelector('.question').textContent=q.correct;document.querySelector('.youranswer').textContent=ok?'':'Jouw antwoord: '+reply;document.querySelector('.why').textContent=(!ok&&German.nearMiss(q,reply)?'Bijna goed, alleen de hoofdletters kloppen niet. In het Duits krijgt elk zelfstandig naamwoord een hoofdletter, net als de beleefde vorm Sie. ':'')+q.why;back();
  $('continue').onclick=()=>mission&&s.seals>=missions[s.stage][3]?workshop():exercise(mission,skill)};
@@ -201,14 +232,15 @@ function exercise(mission,skill=null){
 }
 function clearPlacement(){placement=null;if(preview){preview.traverse(o=>{if(o.isMesh)o.material.dispose()});world.scene.remove(preview);preview=null}}
 function chooseBuild(){if(currentRoom||!playing||$('panel').open)return;if(placement){clearPlacement();updateHUD();return}
- show('<small>BOUWBOEK</small><h2>Eigen bouwwerken</h2><p>Kies een ontwerp. Loop naar een vrije plek en plaats het met E of de plaatsknop. Bouwblokken kun je beklimmen en stapelen.</p><div class="row"><button id="crate">Bouwblok · 1 hout</button><button id="lamp">Lantaarn · 1 steen</button></div><p>In je rugzak: '+s.hout+' hout en '+s.steen+' steen.</p>'+buttons());back();
- function choose(type){if(s[type==='blok'?'hout':'steen']<1){notify('Verzamel eerst materiaal.');closePanel();return}placement=type;preview=world.construction(0,0,0,type,world.scene);preview.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.48}});closePanel()}
+ show('<small>BOUWBOEK</small><h2>Eigen bouwwerken</h2><p>Kies een ontwerp. Loop naar een vrije plek en plaats het met E of de plaatsknop. Bouwblokken kun je beklimmen en stapelen.</p><div class="row"><button id="crate">Bouwblok · 1 hout</button><button id="lamp">Lantaarn · 1 steen</button>'+['bloembak','bankje','vlag'].filter(k=>s.items[k]).map(k=>'<button data-item="'+k+'">'+k[0].toUpperCase()+k.slice(1)+' · '+s.items[k]+' over</button>').join('')+'</div><p>In je rugzak: '+s.hout+' hout en '+s.steen+' steen. Bloembakken, bankjes en vlaggen koop je in de handelspost.</p>'+buttons());back();
+ document.querySelectorAll('[data-item]').forEach(b=>b.onclick=()=>choose(b.dataset.item));
+ function choose(type){if(['blok','lamp'].includes(type)?s[type==='blok'?'hout':'steen']<1:!s.items[type]){notify('Verzamel eerst materiaal.');closePanel();return}placement=type;preview=world.construction(0,0,0,type,world.scene);preview.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.48}});closePanel()}
  $('crate').onclick=()=>choose('blok');$('lamp').onclick=()=>choose('lamp')}
 function site(){let x=Math.round((p.x-Math.sin(p.heading)*2.9)/2)*2,z=Math.round((p.z-Math.cos(p.heading)*2.9)/2)*2,y=world.ground(x,z,s);
  let near=[...world.nodes,...repair,...world.gates].some(o=>Math.hypot(o.x-x,o.z-z)<3);let valid=area()&&world.islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-2)&&y>=0&&y<=p.y+1.23&&!near&&!world.blocked(x,z,s,y,placement==='blok'?1.40:.55)&&!s.builds.some(b=>b.x===x&&b.z===z&&b.type==='lamp');
  return {x,y,z,valid}}
-function place(){let b=site();if(!b.valid){notify('Zoek een vrije plek op het eiland.');return}let material=placement==='blok'?'hout':'steen';if(!s[material]){clearPlacement();return}
- s.builds.push({x:b.x,y:b.y,z:b.z,type:placement});s[material]--;clearPlacement();world.sync(s);persist();updateHUD();notify('Bouwwerk geplaatst')}
+function place(){let b=site();if(!b.valid){notify('Zoek een vrije plek op het eiland.');return}const item=!['blok','lamp'].includes(placement);let material=placement==='blok'?'hout':'steen';if(item?!s.items[placement]:!s[material]){clearPlacement();return}
+ s.builds.push({x:b.x,y:b.y,z:b.z,type:placement});if(item)s.items[placement]--;else s[material]--;clearPlacement();world.sync(s);persist();updateHUD();notify('Bouwwerk geplaatst')}
 function logbook(){show('<small>VLUCHTLOG · '+profile.toUpperCase()+'</small><h2>Jouw expeditie</h2><p>'+s.stage+' van 3 missies voltooid. Per vaardigheid zie je hoeveel antwoorden goed waren van alle pogingen.</p>'+(profile==='Niek'?German.groups.map((g,i)=>{let entries=Object.values(s.log.items).filter(e=>German.bank[e.id].skill===i);return '<div class="meter">'+g+'<b>'+entries.reduce((a,e)=>a+e.good,0)+' / '+entries.reduce((a,e)=>a+e.attempts,0)+'</b></div>'}).join('')+'<p>'+Object.values(s.log.items).filter(e=>e.due!==null).length+' opdrachten staan klaar voor herhaling.</p>':'<p>Duits en geschiedenis worden toegevoegd zodra je havo 3-stof er is.</p>')+dutchStats()+(s.best?'<p>Persoonlijk record windrace: '+s.best.toFixed(1)+' seconden.</p>':'')+'<h3>Dorpsonderzoeken</h3>'+villageHomes.map(h=>'<div class="meter">'+h.place+' · '+h.name+'<b>'+(s.village?.[h.key]?'Afgerond':'Open')+'</b></div>').join('')+'<div class="row"><button id="practice">Oefen Duits</button><button id="historyLog">Oefen geschiedenis</button><button id="practiceNL">Oefen Nederlands</button><button id="pilot">Wissel personage</button></div><p><a href="art/credits.txt" target="_blank" rel="noopener">Makers van de 3D-beelden</a></p>'+buttons());back();$('practiceNL').onclick=()=>dutchRound(false);$('practice').disabled=$('historyLog').disabled=profile==='Floor';$('practice').onclick=school;$('historyLog').onclick=historyMenu;$('pilot').onclick=()=>{persist();playing=false;clearPlacement();$('panel').close();$('hud').hidden=true;$('entry').hidden=false}}
 $('journal').onclick=logbook;$('mapbtn').onclick=()=>{show('<small>ATLAS · NOORD ↑</small><h2>De windroute</h2><canvas id="atlas" width="600" height="420" aria-label="Kaart met eilanden, bruggen en je positie"></canvas>'+[2,1,0].map(i=>'<div class="mapline"><b>'+world.islands[i].name+'</b><span>'+['Houthaven en molen · vertrekpunt','Bloesembos en tweede brugwerf','Windringen en sterrenbaken'][i]+' · '+(area()===world.islands[i]?'Je bent hier':i<=s.stage?'Bereikbaar':'Brug nodig')+'</span></div>').join('')+buttons());drawAtlas();back()};
 $('act').onclick=act;$('build').onclick=chooseBuild;function jump(){if(currentRoom)return;if(p.on){p.vy=7.8;p.on=false}else if(s.stage>=2&&p.y>.35){p.glide=!p.glide;if(p.glide)notify('Zwever open · stuur met je gewone besturing')}}$('jump').onclick=jump;
@@ -227,8 +259,14 @@ $('hud').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&e
 const joy=$('joy');function stick(e){let b=joy.getBoundingClientRect(),x=(e.clientX-b.left-b.width/2)/36,z=(e.clientY-b.top-b.height/2)/36,l=Math.max(1,Math.hypot(x,z));joyX=x/l;joyZ=z/l;joy.firstElementChild.style.transform='translate('+joyX*25+'px,'+joyZ*25+'px)'}
 function releaseStick(){joyX=joyZ=0;joy.firstElementChild.style.transform=''}
 joy.onpointerdown=e=>{try{joy.setPointerCapture(e.pointerId)}catch{}stick(e)};joy.onpointermove=e=>{if(joy.hasPointerCapture(e.pointerId))stick(e)};joy.onlostpointercapture=joy.onpointerup=joy.onpointercancel=releaseStick;
-const canvas=$('world');canvas.onpointerdown=e=>{if(playing){canvas.setPointerCapture(e.pointerId);drag=[e.clientX,e.clientY]}};canvas.onpointermove=e=>{if(!drag||currentRoom)return;const orbit=(e.clientX-drag[0])*.007;view.yaw-=orbit;if(movementYaw!==null)movementYaw-=orbit;followHeading=null;view.height=Math.min(10,Math.max(3,view.height+(e.clientY-drag[1])*.035));drag=[e.clientX,e.clientY]};canvas.onlostpointercapture=()=>drag=null;canvas.onwheel=e=>{view.dist=Math.max(5,Math.min(13,view.dist+e.deltaY*.01))};
+const canvas=$('world');canvas.onpointerdown=e=>{if(playing){canvas.setPointerCapture(e.pointerId);drag=[e.clientX,e.clientY]}};canvas.onpointermove=e=>{if(!drag)return;const orbit=(e.clientX-drag[0])*.007;view.yaw-=orbit;if(movementYaw!==null)movementYaw-=orbit;followHeading=null;view.height=Math.min(10,Math.max(3,view.height+(e.clientY-drag[1])*.035));drag=[e.clientX,e.clientY]};canvas.onlostpointercapture=()=>drag=null;canvas.onwheel=e=>{view.dist=Math.max(5,Math.min(13,view.dist+e.deltaY*.01))};
 function move(dt){
+ // Riding the cable car: the gondola carries you, steering is off until you arrive.
+ if(ride){ride.t+=dt;const k=Math.min(1,ride.t/ride.dur),e=k*k*(3-2*k),f=ride.from?1-e:e,c=world.cable.at(f);
+  Object.assign(p,{x:c.x,y:c.y-1.95,z:c.z,vy:0,on:true,speed:0,glide:false});world.cable.gondola.userData.f=f;
+  if(k>=1){const st=ride.from?world.cable.a:world.cable.b,o=ride.from?world.cable.b:world.cable.a,dx=st.x-o.x,dz=st.z-o.z,l=Math.hypot(dx,dz);
+   Object.assign(p,{x:st.x+dx/l*2.6,z:st.z+dz/l*2.6,y:world.ground(st.x+dx/l*2.6,st.z+dz/l*2.6,s,st.y+3),heading:Math.atan2(-dx,-dz)});p.ride=false;ride=null;resetSteering();updateHUD()}
+  return}
  // Keep a harvested pile from rematerialising around a pilot standing in its footprint.
  for(const n of world.nodes){
   const due=s.harvest[n.i];
@@ -242,14 +280,14 @@ function move(dt){
  const turn=clamp(joyX+Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft')));
  const drive=clamp(-joyZ+Number(keys.has('w')||keys.has('arrowup'))-Number(keys.has('s')||keys.has('arrowdown')));
  if(Math.abs(turn)>.05)p.heading-=turn*dt*(Math.abs(drive)>.05?2.3:2.9);
- if(drag&&drive>.05&&!currentRoom)p.heading=view.yaw;
+ if(drag&&drive>.05)p.heading=view.yaw;
  p.speed=Math.max(Math.abs(drive),Math.abs(turn)*.3);
  if(p.speed>.03){
   if(!drag)followHeading=p.heading;p.walk+=dt*9*p.speed;
   const speed=(keys.has('shift')?9.2:6.2)*(drive<0?.6:1)*drive,vx=-Math.sin(p.heading)*speed,vz=-Math.cos(p.heading)*speed;
   if(!world.blocked(p.x+vx*dt,p.z,s,p.y))p.x+=vx*dt;if(!world.blocked(p.x,p.z+vz*dt,s,p.y))p.z+=vz*dt}
  // The glider only drifts forward while you steer; let go and it sinks slowly in place.
- if(p.glide&&p.speed>.03){let gx=p.x-Math.sin(p.heading)*dt*2.6,gz=p.z-Math.cos(p.heading)*dt*2.6;if(!world.blocked(gx,gz,s,p.y)){p.x=gx;p.z=gz}else p.glide=false}let floor=world.ground(p.x,p.z,s,p.y);p.vy-=20*dt;if(p.glide)p.vy=Math.max(-1.15,p.vy);if(p.vy>0){let limit=world.ceiling(p.x,p.z,s,p.y,2.68)-2.68;if(p.y+p.vy*dt>limit){p.y=limit;p.vy=0}}p.y+=p.vy*dt;if(p.y<=floor&&p.vy<=0){p.y=floor;p.glide=false;p.vy=0;p.on=true}else p.on=false;if(p.y< -12)respawn();
+ if(p.glide&&p.speed>.03){let gx=p.x-Math.sin(p.heading)*dt*2.6,gz=p.z-Math.cos(p.heading)*dt*2.6;if(!world.blocked(gx,gz,s,p.y)){p.x=gx;p.z=gz}else p.glide=false}let floor=world.ground(p.x,p.z,s,p.y);p.vy-=20*dt;if(p.glide)p.vy=Math.max(-1.15,p.vy);if(p.vy>0){let limit=world.ceiling(p.x,p.z,s,p.y,2.68)-2.68;if(p.y+p.vy*dt>limit){p.y=limit;p.vy=0}}p.y+=p.vy*dt;if(p.y<=floor&&p.vy<=0){p.y=floor;p.glide=false;p.vy=0;p.on=true}else if(p.on&&p.vy<=0&&!p.glide&&floor>p.y-.5&&floor>-50){p.y=floor;p.vy=0}else p.on=false;if(p.y< -12)respawn();
  // Wind rings count when you pass through them, walking or jumping.
  const throughGate=g=>dist(g)<1.8&&p.y>-.2&&p.y<4.4;
  if(s.stage===2)world.gates.forEach((g,i)=>{if(!s.rings.includes(i)&&throughGate(g)){s.rings.push(i);g.g.visible=false;notify('Windring gevonden · '+s.rings.length+'/3');persist()}});
@@ -297,6 +335,7 @@ function interview(){
    })
   })
  }
+ if(h.shop){shop();return}
  // Residents with a tool offer it first; the research questions stay available.
  const offers=Object.keys(TOOLS).filter(k=>TOOLS[k].owner===h.key&&!s.tools[k]&&TOOLS[k].stage<=s.stage);
  function menu(){
