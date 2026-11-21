@@ -19,7 +19,7 @@ const Fauna={
  // Wings: spread from the folded bind pose, then beat around the body's long axis.
  sparrowWings(a,beat,spread){for(const [s,dir] of [['L',1],['R',-1]]){a.bend(s+'_UpperArm',0,0,1,dir*(-1.35*spread+beat));a.bend(s+'_UpperArm',0,1,0,dir*.5*spread);a.bend(s+'_Forearm',0,1,0,-dir*.9*spread);a.bend(s+'_Hand',0,1,0,-dir*.4*spread)}},
 };
-function createFauna(scene,{ground,blocked,walkable}){
+function createFauna(scene,{ground,blocked,walkable,lift=()=>0}){
  const T=THREE,list=[],rnd=(()=>{let v=917;return()=>(v=(v*16807)%2147483647)/2147483647})();
  const dog=Rig.creature(scene,'beagle',{height:1.08}),pal={x:-3,z:15,h:0,speed:0,phase:0,target:null,wait:0,sit:0,friend:false,yaw:0};
  const guard=Rig.creature(scene,'shepherd',{height:1.42}),guardAt={x:12.5,z:11.5,h:-0.9};
@@ -48,7 +48,7 @@ function createFauna(scene,{ground,blocked,walkable}){
    Fauna.dogSit(dog,pal.sit);Fauna.dogGait(dog,pal.phase,m*(1-pal.sit));
    const look=near?Math.max(-1,Math.min(1,Math.atan2(Math.sin(Math.atan2(-dx,-dz)-pal.h),Math.cos(Math.atan2(-dx,-dz)-pal.h)))):Math.sin(t*.4)*.3;
    pal.yaw+=(look-pal.yaw)*(1-Math.exp(-4*dt));Fauna.dogHead(dog,pal.yaw,near?-.15:0);Fauna.dogTail(dog,t,near?14:5,near?.45:.2);
-   dog.root.position.set(pal.x,Math.max(0,ground(pal.x,pal.z,s))+Math.abs(Math.sin(pal.phase))*.03*m,pal.z);dog.root.rotation.y=pal.h;dog.root.visible=!inside
+   dog.root.position.set(pal.x,Math.max(lift(pal.x,pal.z),ground(pal.x,pal.z,s))+Math.abs(Math.sin(pal.phase))*.03*m,pal.z);dog.root.rotation.y=pal.h;dog.root.visible=!inside
   }
   // --- the smithy's guard dog lies by the door and watches you
   if(ok(guard)){guard.reset();Fauna.dogLie(guard,1);const dx=p.x-guardAt.x,dz=p.z-guardAt.z,d=Math.hypot(dx,dz);
@@ -62,7 +62,7 @@ function createFauna(scene,{ground,blocked,walkable}){
    const fleeing=Math.hypot(p.x-hen.x,p.z-hen.z)<1.6;if(fleeing&&!hen.target){const tx=hen.x+(hen.x-p.x)*1.5,tz=hen.z+(hen.z-p.z)*1.5;if(walkable(tx,tz,s))hen.target={x:tx,z:tz};hen.wait=1}
    hen.phase+=dt*speed*11;hen.peck=speed?0:Math.max(0,Math.sin(t*2.3+hen.wait*3))**6;
    a.reset();Fauna.chickenWalk(a,hen.phase,speed?1:0);Fauna.chickenPeck(a,hen.peck,Math.sin(t*.7+hen.x)*.4);
-   a.root.position.set(hen.x,Math.abs(Math.sin(hen.phase))*.02,hen.z);a.root.rotation.y=hen.h;a.root.visible=!inside}
+   a.root.position.set(hen.x,lift(hen.x,hen.z)+Math.abs(Math.sin(hen.phase))*.02,hen.z);a.root.rotation.y=hen.h;a.root.visible=!inside}
   // --- sparrows circle above the village, beating and gliding
   for(const b of birds){const a=b.a;if(!ok(a))continue;const ang=t*b.w+b.o,x=b.cx+Math.cos(ang)*b.r,z=b.cz+Math.sin(ang)*b.r*.75,y=b.y+Math.sin(t*.9+b.o)*.8;
    const glide=Math.sin(t*.8+b.o*3)>.35;a.reset();Fauna.sparrowWings(a,glide?.08:Math.sin(t*22+b.o)*.75,1);

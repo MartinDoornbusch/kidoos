@@ -33,7 +33,7 @@ function area(){return world.islands.reduce((a,b)=>dist(a)<dist(b)?a:b)}
 function restore(){currentRoom=null;world.enterRoom(null);resetSteering();world.outfit(profile==="Floor"?"Nova":"Flint");race=null;let data;try{data=JSON.parse(localStorage.getItem(key()))}catch{}s=data?.version===1?Object.assign(newSave(),data):newSave();
  if(s.log.chapter!==7){s.previousGermanLog=s.log;s.log={chapter:7,turn:0,items:{}}}
  let pos=s.position;Object.assign(p,{x:pos?.x??0,z:pos?.z??13,y:pos?.y??0,vy:0,speed:0,heading:pos?.yaw??0,on:false,glide:false});view.yaw=pos?.yaw??0;if(world.ground(p.x,p.z,s)<-20||world.blocked(p.x,p.z,s,p.y))respawn();world.sync(s);world.equip(s.tools);world.scarf(s.scarf);if(s.dogFriend)world.fauna?.befriend()}
-function respawn(){let anchor=world.islands[Math.min(s.stage,2)];Object.assign(p,{x:0,z:anchor.z+8,y:0,vy:0,on:true,speed:0,glide:false});if(playing)notify('Terug op vaste grond. Je uitrusting is mee.')}
+function respawn(){let anchor=world.islands[Math.min(s.stage,2)];Object.assign(p,{x:0,z:anchor.z+8,y:world.ground(0,anchor.z+8,s),vy:0,on:true,speed:0,glide:false});if(playing)notify('Terug op vaste grond. Je uitrusting is mee.')}
 function show(html){resetSteering();if(race&&!race.paused)race.paused=performance.now();keys.clear();joyX=joyZ=0;$('joy').firstElementChild.style.transform='';$('content').innerHTML=html;if(!$('panel').open)$('panel').showModal()}
 $('panel').addEventListener('close',()=>{if(race?.paused){race.start+=performance.now()-race.paused;delete race.paused}keys.clear();if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur()});
 function closePanel(){$('panel').close();updateHUD()}
@@ -44,7 +44,7 @@ document.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>{profile=b.
 function needs(){const m=missions[s.stage];if(!m)return null;const planks=Math.max(0,(m[4]||0)-s.planken);
  return {hout:Math.max(0,m[1]+planks-s.hout),steen:Math.max(0,m[2]-s.steen),planks}}
 function pileLeft(n){return s.harvest[n.i]>Date.now()?0:(s.yield[n.i]??PILE)}
-function reachable(n){return world.islands.findIndex(i=>Math.hypot(i.x-n.x,i.z-n.z)<i.r)<=Math.min(s.stage,2)}
+function reachable(n){const I=world.islands.find(i=>Math.hypot(i.x-n.x,i.z-n.z)<i.r);return !!I&&I.open<=Math.min(s.stage,2)}
 function objective(){
  const m=missions[s.stage];if(!m)return race?{obj:world.gates[race.hit],name:'Tijdrit · windring '+(race.hit+1)}:null;
  const n=needs(),visit=(id)=>{const h=houseOf(TOOLS[id].owner);return {obj:h,name:TOOLS[id].name+' · '+h.name}};
@@ -87,7 +87,7 @@ let m=missions[s.stage];$('region').textContent=area().name;$('chapter').textCon
  let n=world.nodes.filter(n=>pileLeft(n)>0&&dist(n)<3.4).sort((a,b)=>dist(a)-dist(b))[0];
  if(n&&(!context||(r&&dist(n)<dist(r))))context={kind:'resource',n};
  $('act').textContent=context?.kind==='resource'?(context.n.type==='hout'?(s.tools.bijl?'Hout hakken':'Bijl nodig'):(s.tools.houweel?'Steen hakken':'Houweel nodig'))+' · E':context?.kind==='race'?'Start de windrace · E':context?'Werkplaats · E':''}
- const cab=world.cable,station=[cab.a,cab.b].findIndex(st=>Math.hypot(st.x-p.x,st.z-p.z)<3.4&&Math.abs(p.y-st.y)<2.5);
+ const cab=world.cable,station=[cab.a,cab.b].findIndex(st=>Math.hypot(st.x-p.x,st.z-p.z)<3.4&&Math.abs(p.y-st.y-world.liftAt(st.x,st.z))<2.5);
  if(station>=0&&!context&&!placement&&!ride){context={kind:'cable',from:station};$('act').textContent=(station?'Kabelbaan naar de berg':'Kabelbaan naar de Bloesemvallei')+' · E'}
  const door=world.rooms.find(room=>dist(room.house)<1.8);
  if(door&&!context&&!race&&!placement){context={kind:'enter',door};$('act').textContent=door.house.place+' binnengaan · E'}
@@ -237,7 +237,7 @@ function chooseBuild(){if(currentRoom||!playing||$('panel').open)return;if(place
  function choose(type){if(['blok','lamp'].includes(type)?s[type==='blok'?'hout':'steen']<1:!s.items[type]){notify('Verzamel eerst materiaal.');closePanel();return}placement=type;preview=world.construction(0,0,0,type,world.scene);preview.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.48}});closePanel()}
  $('crate').onclick=()=>choose('blok');$('lamp').onclick=()=>choose('lamp')}
 function site(){let x=Math.round((p.x-Math.sin(p.heading)*2.9)/2)*2,z=Math.round((p.z-Math.cos(p.heading)*2.9)/2)*2,y=world.ground(x,z,s);
- let near=[...world.nodes,...repair,...world.gates].some(o=>Math.hypot(o.x-x,o.z-z)<3);let valid=area()&&world.islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-2)&&y>=0&&y<=p.y+1.23&&!near&&!world.blocked(x,z,s,y,placement==='blok'?1.40:.55)&&!s.builds.some(b=>b.x===x&&b.z===z&&b.type==='lamp');
+ let near=[...world.nodes,...repair,...world.gates].some(o=>Math.hypot(o.x-x,o.z-z)<3);let valid=area()&&world.islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-2)&&y>=world.liftAt(x,z)-.01&&y<=p.y+1.23&&!near&&!world.blocked(x,z,s,y,placement==='blok'?1.40:.55)&&!s.builds.some(b=>b.x===x&&b.z===z&&b.type==='lamp');
  return {x,y,z,valid}}
 function place(){let b=site();if(!b.valid){notify('Zoek een vrije plek op het eiland.');return}const item=!['blok','lamp'].includes(placement);let material=placement==='blok'?'hout':'steen';if(item?!s.items[placement]:!s[material]){clearPlacement();return}
  s.builds.push({x:b.x,y:b.y,z:b.z,type:placement});if(item)s.items[placement]--;else s[material]--;clearPlacement();world.sync(s);persist();updateHUD();notify('Bouwwerk geplaatst')}
@@ -263,9 +263,9 @@ const canvas=$('world');canvas.onpointerdown=e=>{if(playing){canvas.setPointerCa
 function move(dt){
  // Riding the cable car: the gondola carries you, steering is off until you arrive.
  if(ride){ride.t+=dt;const k=Math.min(1,ride.t/ride.dur),e=k*k*(3-2*k),f=ride.from?1-e:e,c=world.cable.at(f);
-  Object.assign(p,{x:c.x,y:c.y-1.95,z:c.z,vy:0,on:true,speed:0,glide:false});world.cable.gondola.userData.f=f;
+  Object.assign(p,{x:c.x,y:c.y-4.05,z:c.z,vy:0,on:true,speed:0,glide:false});world.cable.gondola.userData.f=f;
   if(k>=1){const st=ride.from?world.cable.a:world.cable.b,o=ride.from?world.cable.b:world.cable.a,dx=st.x-o.x,dz=st.z-o.z,l=Math.hypot(dx,dz);
-   Object.assign(p,{x:st.x+dx/l*2.6,z:st.z+dz/l*2.6,y:world.ground(st.x+dx/l*2.6,st.z+dz/l*2.6,s,st.y+3),heading:Math.atan2(-dx,-dz)});p.ride=false;ride=null;resetSteering();updateHUD()}
+   Object.assign(p,{x:st.x+dx/l*2.6,z:st.z+dz/l*2.6,y:world.ground(st.x+dx/l*2.6,st.z+dz/l*2.6,s,st.y+world.liftAt(st.x,st.z)+3),heading:Math.atan2(-dx,-dz)});p.ride=false;ride=null;resetSteering();updateHUD()}
   return}
  // Keep a harvested pile from rematerialising around a pilot standing in its footprint.
  for(const n of world.nodes){
@@ -285,11 +285,11 @@ function move(dt){
  if(p.speed>.03){
   if(!drag)followHeading=p.heading;p.walk+=dt*9*p.speed;
   const speed=(keys.has('shift')?9.2:6.2)*(drive<0?.6:1)*drive,vx=-Math.sin(p.heading)*speed,vz=-Math.cos(p.heading)*speed;
-  if(!world.blocked(p.x+vx*dt,p.z,s,p.y))p.x+=vx*dt;if(!world.blocked(p.x,p.z+vz*dt,s,p.y))p.z+=vz*dt}
+  const stuck=currentRoom&&world.blocked(p.x,p.z,s,p.y);if(stuck||!world.blocked(p.x+vx*dt,p.z,s,p.y))p.x+=vx*dt;if(stuck||!world.blocked(p.x,p.z+vz*dt,s,p.y))p.z+=vz*dt}
  // The glider only drifts forward while you steer; let go and it sinks slowly in place.
- if(p.glide&&p.speed>.03){let gx=p.x-Math.sin(p.heading)*dt*2.6,gz=p.z-Math.cos(p.heading)*dt*2.6;if(!world.blocked(gx,gz,s,p.y)){p.x=gx;p.z=gz}else p.glide=false}let floor=world.ground(p.x,p.z,s,p.y);p.vy-=20*dt;if(p.glide)p.vy=Math.max(-1.15,p.vy);if(p.vy>0){let limit=world.ceiling(p.x,p.z,s,p.y,2.68)-2.68;if(p.y+p.vy*dt>limit){p.y=limit;p.vy=0}}p.y+=p.vy*dt;if(p.y<=floor&&p.vy<=0){p.y=floor;p.glide=false;p.vy=0;p.on=true}else if(p.on&&p.vy<=0&&!p.glide&&floor>p.y-.5&&floor>-50){p.y=floor;p.vy=0}else p.on=false;if(p.y< -12)respawn();
+ if(p.glide&&p.speed>.03){let gx=p.x-Math.sin(p.heading)*dt*2.6,gz=p.z-Math.cos(p.heading)*dt*2.6;if(!world.blocked(gx,gz,s,p.y)){p.x=gx;p.z=gz}else p.glide=false}let floor=world.ground(p.x,p.z,s,p.y);p.vy-=20*dt;if(p.glide)p.vy=Math.max(-1.15,p.vy);if(p.vy>0){let limit=world.ceiling(p.x,p.z,s,p.y,2.68)-2.68;if(p.y+p.vy*dt>limit){p.y=limit;p.vy=0}}p.y+=p.vy*dt;if(p.y<=floor&&p.vy<=0){p.y=floor;p.glide=false;p.vy=0;p.on=true}else if(p.on&&p.vy<=0&&!p.glide&&floor>p.y-.5&&floor>-50){p.y=floor;p.vy=0}else p.on=false;if(p.y<world.liftAt(p.x,p.z)-12)respawn();
  // Wind rings count when you pass through them, walking or jumping.
- const throughGate=g=>dist(g)<1.8&&p.y>-.2&&p.y<4.4;
+ const throughGate=g=>{const L=world.liftAt(g.x,g.z);return dist(g)<1.8&&p.y>L-.2&&p.y<L+4.4};
  if(s.stage===2)world.gates.forEach((g,i)=>{if(!s.rings.includes(i)&&throughGate(g)){s.rings.push(i);g.g.visible=false;notify('Windring gevonden · '+s.rings.length+'/3');persist()}});
  if(race){const g=world.gates[race.hit];if(throughGate(g)){g.g.visible=false;race.hit++;
  if(race.hit===3){let seconds=(performance.now()-race.start)/1000;s.best=Math.min(s.best??Infinity,seconds);s.hout+=2;s.steen++;race=null;persist();notify('Finish! '+seconds.toFixed(1)+' s · +2 hout en +1 steen')}else world.gates[race.hit].g.visible=true}}
@@ -299,8 +299,9 @@ function drawAtlas(){
  const c=$('atlas'),ctx=c.getContext('2d');ctx.fillStyle='#c6e0df';ctx.fillRect(0,0,c.width,c.height);
  const px=x=>225+x*2.33,py=z=>345+z*2.33;
  ctx.setLineDash([4,6]);ctx.strokeStyle='#779e9c';for(let x=0;x<600;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,420);ctx.stroke()}ctx.setLineDash([]);
- world.islands.forEach((i,k)=>{ctx.beginPath();ctx.ellipse(px(i.x),py(i.z),i.r*2.33,i.r*2.33,0,0,Math.PI*2);ctx.fillStyle=['#9bc38d','#9fc79d','#b9cabb'][k];ctx.fill();ctx.strokeStyle='#638c79';ctx.stroke();
- ctx.fillStyle='#204754';ctx.font='bold 22px system-ui';ctx.fillText(i.name,310,py(i.z)+6)});
+ world.islands.forEach((i,k)=>{ctx.beginPath();ctx.ellipse(px(i.x),py(i.z),i.r*2.33,i.r*2.33,0,0,Math.PI*2);ctx.fillStyle=['#9bc38d','#9fc79d','#b9cabb','#8fb47c','#b5cf8f','#c9c6a8','#a9c7a0'][k]||'#a9c7a0';ctx.fill();ctx.strokeStyle='#638c79';ctx.stroke();
+ ctx.font=k<3?'bold 19px system-ui':'bold 15px system-ui';ctx.textAlign='center';ctx.lineWidth=4;ctx.strokeStyle='rgba(240,248,246,.85)';ctx.strokeText(i.name,px(i.x),py(i.z)+6);ctx.fillStyle='#204754';ctx.fillText(i.name,px(i.x),py(i.z)+6);ctx.textAlign='left'});
+ world.bridges.forEach(b=>{if(b.stage)return;ctx.strokeStyle='#926b46';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(px(b.ax),py(b.az));ctx.lineTo(px(b.bx),py(b.bz));ctx.stroke()});
  for(let k=0;k<2;k++){ctx.strokeStyle=s.stage>k?'#926b46':'#70959e';ctx.lineWidth=5;ctx.setLineDash(s.stage>k?[]:[5,6]);ctx.beginPath();ctx.moveTo(px(0),py(world.ports[k]));ctx.lineTo(px(0),py(world.islands[k+1].z+21));ctx.stroke()}ctx.setLineDash([]);
  world.nodes.forEach(n=>{ctx.fillStyle=n.type==='hout'?'#915e36':'#52878c';ctx.fillRect(px(n.x)-3,py(n.z)-3,6,6)});
  for(const home of villageHomes){ctx.fillStyle='#a47336';ctx.fillRect(px(home.x)-4,py(home.z)-4,8,8)}

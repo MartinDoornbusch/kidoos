@@ -1,6 +1,6 @@
 "use strict";
 // Villagers out on the paths: they stroll a route, pause, greet you and step aside for you.
-function createWalkers(scene,{free}){
+function createWalkers(scene,{free,lift=()=>0}){
  const T=THREE,P=(z,k=0,dx=0)=>({x:mainPathX(z,k)+dx,z});
  const plan=[
   {id:'jet',name:'Jet',gender:'f',height:2.64,route:[P(17,0,.6),P(8,0,.5),{x:-6.5,z:9.4},{x:-9.6,z:9.6},P(4,0,-.4),P(-9,0,.5),P(-15,0,.4),P(-2,0,-.5)],
@@ -36,7 +36,7 @@ function createWalkers(scene,{free}){
       if(ok(nx,nz)){w.x=nx;w.z=nz;turn(Math.atan2(-gx,-gz));a.play('slow',{fade:.35})}
       else{w.path=null;w.wait=.6;a.play('idle',{fade:.3})}}}
    }
-   a.root.position.set(w.x,0,w.z);a.root.rotation.y=w.h;a.update(dt)
+   a.root.position.set(w.x,lift(w.x,w.z),w.z);a.root.rotation.y=w.h;a.update(dt)
   }
  }
  // Walkers are solid: the player bumps into them instead of walking through.
