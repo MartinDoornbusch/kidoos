@@ -718,7 +718,7 @@ function createWorld(canvas) {
  }
 
  const walkers=context?createWalkers(scene):null;
- const fauna=context?createFauna(scene,{ground:(x,z,s)=>ground(x,z,s),blocked:(x,z,s,y,r,h)=>blocked(x,z,s,y,r,h)}):null;solids.add({x:13.7,z:10.3,r:.6,base:0,top:.8});
+ const fauna=context?createFauna(scene,{ground:(x,z,s)=>ground(x,z,s),blocked:(x,z,s,y,r,h)=>blocked(x,z,s,y,r,h)}):null;solids.add({x:12.5,z:11.5,r:.6,base:0,top:.8});
  const hero=expeditionPilot(scene,!!context),shadow=new T.Mesh(new T.PlaneGeometry(1.46,.94),new T.MeshBasicMaterial({map:loadSurface("footshadow.png"),transparent:true,depthWrite:false}));shadow.rotation.x=-Math.PI/2;scene.add(shadow);
  const nodes=[[-5,7,'hout'],[5,-1,'hout'],[-5,-9,'steen'],[6,-15,'steen'],[-6,-47,'hout'],[5,-54,'steen'],[-5,-66,'hout'],[5,-73,'steen'],[-5,-104,'steen'],[6,-114,'hout'],[-5,-120,'steen'],[7,-132,'hout']].map(([x,z,type],i)=>{
   solids.add(type==='hout'?{x,z,w:.83,d:1.12,base:0,top:1.48,harvest:i}:{x,z,r:1.16,base:0,top:1.74,harvest:i});

@@ -22,7 +22,7 @@ const Fauna={
 function createFauna(scene,{ground,blocked}){
  const T=THREE,list=[],rnd=(()=>{let v=917;return()=>(v=(v*16807)%2147483647)/2147483647})();
  const dog=Rig.creature(scene,'beagle',{height:1.08}),pal={x:-3,z:15,h:0,speed:0,phase:0,target:null,wait:0,sit:0,friend:false,yaw:0};
- const guard=Rig.creature(scene,'shepherd',{height:1.42}),guardAt={x:13.7,z:10.3,h:-1.2};
+ const guard=Rig.creature(scene,'shepherd',{height:1.42}),guardAt={x:12.5,z:11.5,h:-0.9};
  const hens=[0,1,2,3].map(i=>({a:Rig.creature(scene,'chicken',{height:.68}),x:14.8+i*.7,z:-57+i*.5,h:rnd()*6,phase:rnd()*6,peck:0,target:null,wait:rnd()*3}));
  const birds=[0,1,2,3,4,5].map(i=>({a:Rig.creature(scene,'sparrow',{height:.26}),r:9+rnd()*7,y:7+rnd()*5,w:.32+rnd()*.12,o:rnd()*6.28,cx:rnd()*6-3,cz:rnd()*10-2}));
  const all=[dog,guard,...hens.map(h=>h.a),...birds.map(b=>b.a)];
