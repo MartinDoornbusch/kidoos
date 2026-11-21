@@ -1,0 +1,24 @@
+StudyQuest — Skybound
+Astronaut by Poly, via Google's model-viewer collection. CC BY 2.0.
+https://github.com/google/model-viewer/blob/master/packages/modelviewer.dev/ATTRIBUTIONS.md
+https://creativecommons.org/licenses/by/2.0/
+Adaptations: compact mesh, fitted motion rig, suit tint, reflective visor treatment and texture compression.
+Terrain, timber, roof, walls, path and horizon: Poly Haven, CC0.
+https://polyhaven.com/a/aerial_grass_rock
+https://polyhaven.com/a/rock_face_03
+https://polyhaven.com/a/old_planks_02
+https://polyhaven.com/a/clay_roof_tiles_02
+https://polyhaven.com/a/plastered_stone_wall
+https://polyhaven.com/a/stony_dirt_path
+https://polyhaven.com/a/kloofendal_48d_partly_cloudy
+Images adapted for real-time use.
+
+1.3: archipel.jpg is AI-generated title art. fir.png, blossom.png, meadow.png, mist.png and canvas.jpg are procedural artwork created for Skybound.
+alpen.jpg is a generated alpine sky panorama. endgrain.jpg is procedural wood grain.
+
+1.4: De vakwerkgevels, leien, begroeiing en vier aanzichten van de wandelaar komen uit de voor Skybound gegenereerde ontwerpen. De bestrating en brugplanken zijn bewerkingen van de lokale terrein- en houtmaterialen.
+
+People: Microsoft Rocketbox Avatar Library, copyright Microsoft (2020), MIT.
+https://github.com/microsoft/Microsoft-Rocketbox
+Original FBX surfaces and colour textures, adapted walk, reach and glide poses.
+License text: ../people/LICENSE.txt
