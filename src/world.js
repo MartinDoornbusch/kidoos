@@ -372,39 +372,183 @@ function createWorld(canvas) {
   }
   let n=scene.children.length;flush();bridgeGroups.push(scene.children.slice(n))}
  // Each door opens into a furnished walkable room in a separate part of the scene.
- // Interior floors: oak boards in the houses, flagstones in the smithy.
+ // Interior floors: oak boards in the houses, flagstones in the smithy. Every room has its own trade.
  const floorTex=(file,n)=>{const m=loadSurface(file);m.repeat.set(n,n);return m};
  const woodFloor=withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('wood.jpg',4),color:0xc9a27e,roughness:.8}));
  const stoneFloor=withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('paving.jpg',3),color:0xb9b2a6,roughness:.95}));
+ let fseed=4021;const frnd=()=>(fseed=(fseed*16807)%2147483647)/2147483647;
+ function parchment(kind){const c=document.createElement('canvas');c.width=512;c.height=360;const g=c.getContext('2d');
+  const grd=g.createRadialGradient(256,180,40,256,180,330);grd.addColorStop(0,'#eadbb4');grd.addColorStop(1,'#b89a66');g.fillStyle=grd;g.fillRect(0,0,512,360);
+  for(let i=0;i<900;i++){g.fillStyle=`rgba(110,80,40,${frnd()*.06})`;g.fillRect(frnd()*512,frnd()*360,1+frnd()*3,1+frnd()*3)}
+  g.strokeStyle='rgba(70,48,24,.85)';g.lineWidth=2.2;g.fillStyle='rgba(120,140,90,.35)';
+  const isl=kind?[[150,120,60],[330,210,80],[420,90,40],[220,270,45]]:[[256,90,52],[250,190,48],[256,290,50]];
+  for(const [x,y,r] of isl){g.beginPath();for(let k=0;k<=24;k++){const a=k/24*6.283,rr=r*(.78+.3*Math.sin(a*3+x)*.6+.12*Math.sin(a*7+y));g.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr*.7)}g.closePath();g.fill();g.stroke()}
+  g.setLineDash([6,6]);g.beginPath();g.moveTo(isl[0][0],isl[0][1]);for(const [x,y] of isl.slice(1))g.lineTo(x,y);g.stroke();g.setLineDash([]);
+  g.translate(452,300);g.strokeStyle='rgba(70,48,24,.9)';for(let k=0;k<8;k++){g.rotate(Math.PI/4);g.beginPath();g.moveTo(0,0);g.lineTo(0,k%2?-18:-34);g.stroke()}
+  const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.anisotropy=4;return t}
+ const mapPaper=[0,1].map(k=>new T.MeshStandardMaterial({map:parchment(k),roughness:.95,side:T.DoubleSide}));
+ const flame=new T.MeshStandardMaterial({color:0xffd28a,emissive:0xffa040,emissiveIntensity:3});
+ const quench=new T.MeshStandardMaterial({color:0x1d2a2c,roughness:.08,metalness:.3});
+ const clay=0xa65a38,leatherC=0x5b3b25,ironC=0x3a3a3c,parchC=0xd9c49a,green=0x5c7d3a;
+ // Woven rugs: border in the house colour, a band pattern and wool noise.
+ function rugMaterial(color){const c=document.createElement('canvas');c.width=256;c.height=192;const g=c.getContext('2d'),base=new T.Color(color),css=(k,l=0)=>{const q=base.clone().offsetHSL(0,0,l);return `rgb(${q.r*255*k|0},${q.g*255*k|0},${q.b*255*k|0})`};
+  g.fillStyle=css(.5);g.fillRect(0,0,256,192);g.fillStyle='#9c8257';g.fillRect(14,14,228,164);g.fillStyle=css(.72,.04);g.fillRect(20,20,216,152);
+  for(let y=40;y<150;y+=26){g.fillStyle=css(.62);g.fillRect(30,y,196,6);for(let x=38;x<222;x+=20){g.fillStyle='rgba(214,190,140,.55)';g.beginPath();g.moveTo(x,y+3);g.lineTo(x+5,y-1);g.lineTo(x+10,y+3);g.lineTo(x+5,y+7);g.fill()}}
+  for(let i=0;i<5000;i++){g.fillStyle=`rgba(${Math.random()<.5?0:255},${Math.random()<.5?20:240},20,${Math.random()*.06})`;g.fillRect(Math.random()*256,Math.random()*192,1,2)}
+  for(let x=0;x<256;x+=4){g.fillStyle='#d8c497';g.fillRect(x,0,2,6);g.fillRect(x,186,2,6)}
+  const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.anisotropy=4;return new T.MeshStandardMaterial({map:t,roughness:1})}
  const rooms=villageHomes.map((house,i)=>{
-  const x=410+i*24,z=0,room=group(x,0,z),build=(geo,color,x,y,z,w,h,d)=>shape(geo,color,x,y,z,w,h,d,0,0,0,room);
+  const x=410+i*24,z=0,room=group(x,0,z),rects=[],build=(geo,color,x,y,z,w,h,d,ry=0,rz=0,rx=0)=>shape(geo,color,x,y,z,w,h,d,ry,rz,rx,room);
+  const solid=(x,z,w,d)=>rects.push({x,z,w,d});
+  const mesh=(geo,material,x,y,z,sx=1,sy=1,sz=1,ry=0,rx=0,rz=0)=>{const m=new T.Mesh(geo,material);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.rotation.set(rx,ry,rz);m.castShadow=m.receiveShadow=true;room.add(m);return m};
   build(i===2?stoneFloor:woodFloor,0xffffff,0,-.14,0,10,.28,10);
   const wall=i===2?surfaced(cube.clone(),'masonry'):withSurface(cube.clone(),new T.MeshStandardMaterial({map:plasterMap.clone(),color:0xf3e6cf,roughness:.95}));wall.userData.surface.map.repeat.set(i===2?4:3,i===2?2:1.4);wall.userData.surface.map.needsUpdate=true;
   build(wall,0xefdfbc,0,2.3,-5,10.3,4.6,.22);
   for(const side of [-1,1]){
    build(wall,0xe1cfaa,side*5,2.3,0,.22,4.6,10);
-   for(const zz of [-4.8,0,4.8])build(cube,wood,side*4.84,2.18,zz,.19,4.4,.22);
-   build(cube,wood,side*4.84,3.55,0,.21,.21,10);
+   for(const zz of [-4.8,0,4.8])build(beam,wood,side*4.84,2.18,zz,.19,4.4,.22);
+   build(beam,wood,side*4.84,3.55,0,.21,.21,10);
   }
-  build(cube,wood,0,3.75,-4.82,10,.21,.20);
-  build(cube,0x689298,-2,2.6,-4.78,2.45,1.45,.14);
-  for(const xx of [-3.24,-2,-.76])build(cube,wood,xx,2.6,-4.65,.11,1.58,.12);
-  for(const yy of [1.85,2.6,3.35])build(cube,wood,-2,yy,-4.65,2.59,.09,.12);
-  build(plank,0xe9d6ba,2.9,1.12,-3.18,2.58,.19,1.18);
-  for(const xx of [1.78,4.02])for(const zz of [-3.65,-2.72])build(cube,wood,xx,.54,zz,.13,1.10,.13);
-  for(let j=0;j<5;j++)build(i===2?stoneGeo:cube,[house.color,0xb19466,0x67664e][j%3],2.05+j*.34,1.37,-3.2,.23,.31+j%2*.12,.43);
-  build(cube,house.color,0,.02,1.8,2.7,.032,3);build(plank,0xefcf94,0,.035,4.05,1.85,.06,.78);
-  lantern(3.7,3.30,-4.47,room);room.visible=false;
-  return {house,x,z,room,exit:{x,z:4.05},npc:{x:x+.55,z:-1.83},actor:null}
+  build(beam,wood,0,3.75,-4.82,10,.21,.20);for(const xx of [-3,0,3])build(beam,wood,xx,4.32,0,.24,.26,10);
+  // window with light coming in
+  build(glass,0x689298,-2,2.6,-4.86,2.45,1.45,.06);
+  for(const xx of [-3.24,-2,-.76])build(beam,wood,xx,2.6,-4.75,.11,1.58,.12);
+  for(const yy of [1.85,2.6,3.35])build(beam,wood,-2,yy,-4.75,2.59,.09,.12);
+  build(beam,wood,-2,1.8,-4.66,2.8,.1,.3);
+  mesh(new T.PlaneGeometry(3.2,2.4),rugMaterial(house.color),.3,.03,.9,1,1,1,0,-Math.PI/2);build(plank,0xefcf94,0,.035,4.05,1.85,.06,.78);
+  lantern(0,3.4,-1.2,room);
+  const lamp=new T.PointLight(0xffb36a,9,11,1.6);lamp.position.set(0,3.0,-1.2);room.add(lamp);
+  const accent=new T.PointLight(0xff8a3a,0,8,1.8);room.add(accent);
+  const legs=(cx,cy,cz,w,d,h=cy)=>{for(const sx of [-1,1])for(const sz of [-1,1])build(beam,wood,cx+sx*(w/2-.09),h/2,cz+sz*(d/2-.09),.12,h,.12)};
+  const table=(cx,cz,w,d,h=.92,color=0xb88a5a)=>{build(beam,color,cx,h,cz,w,.1,d);legs(cx,h,cz,w,d,h-.05);solid(cx,cz,w,d)};
+  const barrel=(cx,cz,h=1,r=.42,top=null)=>{build(cyl,0x7a5232,cx,h/2,cz,r,h,r);for(const yy of [.18,.5,.82])build(wheel,ironC,cx,h*yy,cz,r*1.02,r*1.02,r*1.6,0,0,Math.PI/2);if(top)mesh(cyl,top,cx,h-.04,cz,r*.9,.02,r*.9);solid(cx,cz,r*2,r*2)};
+  let stations;
+  if(house.key==='linde'){
+   table(-1.3,-1.9,2.6,1.5);
+   mesh(new T.PlaneGeometry(1.2,.85),mapPaper[0],-1.6,.98,-1.9,1,1,1,.12,-Math.PI/2);mesh(new T.PlaneGeometry(.9,.65),mapPaper[1],-.6,.985,-2.1,1,1,1,-.3,-Math.PI/2);
+   build(cyl,0xb48a3c,-.35,1.0,-1.5,.12,.025,.12);build(cyl,0x222020,-2.3,1.02,-1.5,.06,.1,.06);build(cone,0xf4ead6,-2.26,1.12,-1.5,.012,.24,.012,0,.4);
+   build(cyl,0xefe6cf,-2.4,1.06,-2.4,.04,.18,.04);mesh(ball,flame,-2.4,1.19,-2.4,.025,.05,.025);
+   for(let r=0;r<3;r++)build(cyl,parchC,-2.1+r*.12,1.01,-2.45,.05,.62,.05,0,0,Math.PI/2);
+   // bookshelf
+   const bx=2.6,bz=-4.55;for(const sx of [-1.4,1.4])build(beam,0x6e4a2e,bx+sx,1.5,bz,.1,3,.5);build(beam,0x6e4a2e,bx,3.0,bz,2.9,.1,.5);build(beam,0x5a3d26,bx,1.5,bz-.24,2.8,3,.04);
+   for(let k=0;k<5;k++){const y=.15+k*.68;build(beam,0x6e4a2e,bx,y,bz,2.8,.06,.48);let xx=bx-1.3;while(xx<bx+1.25){const w=.06+frnd()*.07,h=.36+frnd()*.2,col=[0x7a2e24,0x2f4a5e,0x5d5a2c,0x6b4a2a,0x3d2f45,0xa08a5c][Math.floor(frnd()*6)];if(frnd()<.12){xx+=.15;continue}build(cube,col,xx+w/2,y+.03+h/2,bz+.02,w,h,.3,0,frnd()<.1?.18:0);xx+=w+.012}}
+   solid(bx,bz,2.9,.65);
+   // globe
+   build(cyl,0x6e4a2e,3.8,.4,-1.2,.05,.8,.05);for(const a of [0,2.1,4.2])build(beam,0x6e4a2e,3.8+.22*Math.sin(a),.12,-1.2+.22*Math.cos(a),.05,.08,.4,a);
+   const globe=mesh(ball,new T.MeshStandardMaterial({map:mapPaper[1].map,color:0x9fc0c4,roughness:.6}),3.8,1.15,-1.2,.36,.36,.36);build(wheel,0xb48a3c,3.8,1.15,-1.2,.4,.4,.4,0,.4);solid(3.8,-1.2,.8,.8);
+   // wall maps, chest, barrel of rolled maps
+   mesh(new T.PlaneGeometry(1.6,1.1),mapPaper[1],-4.85,2.4,-2.4,1,1,1,Math.PI/2);mesh(new T.PlaneGeometry(1.3,.95),mapPaper[0],-4.85,2.3,.6,1,1,1,Math.PI/2);
+   build(beam,0x6e4a2e,-4.85,2.4,-2.4,.04,1.2,1.7);build(beam,0x6e4a2e,-4.85,2.3,.6,.04,1.05,1.4);
+   build(beam,0x7a5232,-4.1,.35,1.9,.66,.7,1.1);for(const zz of [1.5,2.3])build(cube,ironC,-4.1,.35,zz,.7,.72,.05);solid(-4.1,1.9,.75,1.15);
+   barrel(-3.9,-3.8,.9,.36);for(let k=0;k<6;k++)build(cyl,parchC,-3.9+(frnd()-.5)*.35,1.05,-3.8+(frnd()-.5)*.35,.05,.8,.05,0,(frnd()-.5)*.3,(frnd()-.5)*.3);
+   stations=[{x:-1.3,z:-.8,h:0,clip:'work'},{x:2.4,z:-3.6,h:0,clip:'take'},{x:3.05,z:-.45,face:[3.8,-1.2],clip:'look'},{x:-2,z:-3.9,h:0,clip:'look2'}];
+  }
+  if(house.key==='bram'){
+   table(1.4,-4.25,3.5,1.0,.95,0xa77b4f);build(beam,0x8a6040,1.4,.32,-4.25,3.3,.06,.9);for(let k=0;k<4;k++)build(plank,0xffffff,1.4,.4+k*.07,-4.25,3.1,.06,.25+k*.05);
+   build(cube,ironC,-.05,1.12,-4.0,.32,.24,.3);build(cube,ironC,-.05,1.12,-3.78,.1,.1,.3);
+   build(cube,0x9a6a40,1.3,1.06,-4.1,.5,.12,.16);build(cube,ironC,1.3,1.13,-4.1,.08,.06,.18);
+   build(cyl,0x6e4a2e,2.3,1.1,-4.0,.06,.3,.06,0,0,Math.PI/2);build(cube,0x6e4a2e,2.45,1.1,-4.0,.16,.18,.22);
+   for(let k=0;k<4;k++)build(cube,ironC,2.7+k*.12,1.02,-4.3,.02,.02,.26);
+   build(beam,0x6e4a2e,1.4,2.35,-4.84,3.4,1.4,.06);
+   build(cube,0xb8b8b4,.4,2.4,-4.79,.7,.32,.01);build(cube,0x6e4a2e,.0,2.4,-4.78,.16,.3,.04);
+   for(let k=0;k<3;k++){build(cyl,0x8a6040,1.4+k*.35,2.25,-4.78,.03,.5,.03);build(cube,ironC,1.4+k*.35,2.52,-4.77,.16,.08,.08)}
+   build(cube,ironC,2.6,2.55,-4.78,.04,.5,.02);build(cube,ironC,2.79,2.32,-4.78,.4,.04,.02);
+   // plank rack
+   for(const zz of [-3,-1.2,.6])build(beam,0x6e4a2e,-4.55,1.4,zz,.12,2.8,.12);
+   for(let k=0;k<6;k++)build(plank,0xffffff,-4.42,.35+k*.18+(k>2?.6:0),-1.2,.32,.07,3.7);
+   for(let k=0;k<3;k++)build(plank,0xffffff,-4.1+k*.06,1.25,2.2+k*.25,.24,2.5,.06,0,.22);
+   solid(-4.35,-1.2,.9,3.9);solid(-4.0,2.4,.6,.9);
+   // sawhorses with a board being cut
+   for(const zz of [-2.1,-1.1]){for(const sx of [-1,1])build(beam,0x8a6040,-1.8+sx*.28,.4,zz,.08,.85,.08,0,sx*.3);build(beam,0x8a6040,-1.8,.82,zz,.2,.08,.14)}
+   build(plank,0xffffff,-1.8,.9,-1.6,.36,.06,2.2);build(cube,0xc8c8c4,-1.55,.97,-1.3,.34,.012,.1);solid(-1.8,-1.6,.9,2.3);
+   // offcuts barrel, half-built chair, shavings
+   barrel(3.9,-1.1,.8,.38);for(let k=0;k<5;k++)build(plank,0xffffff,3.9+(frnd()-.5)*.3,.95,-1.1+(frnd()-.5)*.3,.08,.55,.08,frnd()*3,(frnd()-.5)*.4);
+   build(beam,0xa77b4f,3.6,.48,1.2,.5,.05,.5);for(const sx of [-1,1])for(const sz of [-1,1])build(beam,0xa77b4f,3.6+sx*.2,.24,1.2+sz*.2,.05,.48,.05);build(beam,0xa77b4f,3.6,.8,1.43,.5,.6,.05);solid(3.6,1.2,.6,.6);
+   for(let k=0;k<26;k++)build(cube,0xe0c08a,(frnd()-.3)*3.5,.012,-3+frnd()*1.6,.05+frnd()*.08,.01,.02+frnd()*.03,frnd()*3);
+   stations=[{x:1.3,z:-3.3,h:0,clip:'work'},{x:-1.8,z:-.35,h:0,clip:'work2'},{x:-3.35,z:-1.1,face:[-4.4,-1.1],clip:'take'},{x:3.0,z:-.3,face:[3.9,-1.1],clip:'look'}];
+  }
+  if(house.key==='mara'){
+   // forge with hood and chimney
+   build(masonry,0x9a8a7a,-2.6,.5,-4.2,2.0,1.0,1.4);build(ember,0xffffff,-2.6,1.03,-4.15,1.1,.07,.8);
+   for(let k=0;k<14;k++)build(stoneGeo,0x2a2522,-2.6+(frnd()-.5)*1,1.07,-4.15+(frnd()-.5)*.7,.08,.05,.08,frnd()*3);
+   build(masonry,0x8c7f72,-2.6,2.55,-4.3,2.2,.9,1.3);build(masonry,0x8c7f72,-2.6,3.55,-4.55,1.0,1.4,.8);
+   build(cube,leatherC,-1.25,.72,-4.35,.7,.28,.5,0,.12);build(cube,0x6e4a2e,-.85,.72,-4.35,.4,.05,.12);solid(-2.6,-4.2,2.1,1.5);solid(-1.25,-4.35,.8,.6);
+   accent.position.set(-2.6,1.5,-3.6);accent.intensity=7;
+   // anvil on a stump
+   build(cyl,0x6b4a2e,0,.28,-1.6,.36,.56,.36);mesh(cyl,new T.MeshStandardMaterial({map:loadSurface('sawn-rings.jpg'),roughness:1}),0,.565,-1.6,.35,.01,.35);
+   build(cube,ironC,0,.62,-1.6,.22,.12,.3);build(cube,ironC,0,.75,-1.6,.18,.14,.22);build(cube,0x4a4a4e,0,.87,-1.6,.26,.1,.58);build(cone,0x4a4a4e,0,.87,-1.98,.1,.3,.1,0,0,-Math.PI/2);
+   build(cyl,0x6e4a2e,.35,.95,-1.45,.025,.36,.025,0,0,Math.PI/2);build(cube,ironC,.53,.95,-1.45,.08,.09,.14);solid(0,-1.6,.85,1.0);
+   // quench barrel, tool rack, bench with work in progress, grindstone, coal
+   barrel(-4.0,-2.0,.9,.42,quench);
+   build(beam,0x6e4a2e,4.84,2.2,-2.4,.06,1.2,2.4);for(let k=0;k<5;k++){build(cyl,ironC,4.76,2.15,-3.3+k*.45,.02,.8,.02,0,.08);build(cube,ironC,4.76,2.6,-3.3+k*.45,.05,.1,.12)}
+   table(3.4,-3.9,2.2,1.0,.9,0x8a6040);for(let k=0;k<4;k++)build(wheel,ironC,2.8+k*.3,.97,-3.8,.1,.1,.1,0,0,Math.PI/2);for(let k=0;k<3;k++)build(cube,0x8b8b8e,3.9+k*.04,.99+k*.06,-4.05,.32,.06,.1);
+   build(cyl,0x9e968a,3.9,.62,-.6,.42,.12,.42,0,Math.PI/2);build(beam,0x6e4a2e,3.9,.3,-.6,.2,.6,.6);solid(3.9,-.6,.6,.95);
+   for(let k=0;k<10;k++)build(stoneGeo,0x1e1c1b,-4.2+frnd()*.6,.08+frnd()*.12,1.4+frnd()*.8,.18,.13,.18,frnd()*3);solid(-3.9,1.8,.8,1.0);
+   stations=[{x:0,z:-.72,h:0,clip:'work2'},{x:-2.6,z:-3.05,h:0,clip:'work'},{x:3.3,z:-2.95,h:0,clip:'take'},{x:-3.15,z:-1.25,face:[-4,-2],clip:'look'}];
+  }
+  if(house.key==='tomas'){
+   table(1.2,-4.25,3.2,.9,.9,0x8a6a48);
+   for(let k=0;k<7;k++){const px=-.1+k*.43;build(cyl,clay,px,1.04,-4.2,.13,.22,.13);build(ball,0x3b2a1e,px,1.14,-4.2,.11,.03,.11);if(k%3!==2)for(let l=0;l<3;l++)build(cone,green,px+(l-1)*.05,1.24,-4.2+(l%2)*.04,.04,.2,.04,0,(l-1)*.3)}
+   build(cyl,0x7d8a86,2.65,1.07,-3.95,.12,.26,.12);build(cyl,0x7d8a86,2.83,1.13,-3.95,.02,.3,.02,0,-1.0);
+   for(const yy of [1.1,1.8,2.5]){build(beam,0x6e4a2e,-4.6,yy,-.6,.42,.05,3);for(let k=0;k<7;k++){const zz=-1.9+k*.42;if(frnd()<.25)continue;if(frnd()<.5)build(cyl,0xb7c7b4,-4.6,yy+.15,zz,.1,.26,.1);else build(cube,[0xc9a96a,0x8a5a3a,0xd8c49a][k%3],-4.6,yy+.11,zz,.16,.2,.06)}}
+   solid(-4.6,-.6,.55,3.1);
+   for(let k=0;k<6;k++){const zz=-3.2+k*.55;build(cyl,0x6e4a2e,-2.5,3.75,zz,.012,.6,.012);build(cone,[0x6e7d3a,0x8a7a3a,0x5c6b34][k%3],-2.5,3.35,zz,.14,.38,.14,0,Math.PI)}
+   build(beam,0x6e4a2e,-2.5,4.05,-1.8,.1,.1,3.6);
+   for(const [cx,cz] of [[3.9,-.6],[3.9,.6]]){build(beam,0x8a6a48,cx,.25,cz,.75,.5,.95);solid(cx,cz,.8,1.0)}
+   for(let k=0;k<9;k++)build(ball,[0xd2691e,0x6f8f3a,0xa8322a][k%3],3.9+(frnd()-.5)*.5,.55,-.6+(frnd()-.5)*.7,.1,.09,.1);
+   for(let k=0;k<7;k++)build(ball,0x6f8f3a,3.9+(frnd()-.5)*.5,.57,.6+(frnd()-.5)*.7,.14,.12,.14);
+   for(const [cx,cz] of [[-3.9,2.2],[-3.4,2.6]]){build(ball,0xa38a5f,cx,.38,cz,.38,.42,.32);build(cyl,0x8a7550,cx,.8,cz,.12,.1,.12)}solid(-3.7,2.4,1.2,1.0);
+   stations=[{x:1.1,z:-3.35,h:0,clip:'work'},{x:-3.6,z:-.5,face:[-4.6,-.5],clip:'take'},{x:3.05,z:0,face:[3.9,0],clip:'take'},{x:-2.4,z:-2.3,h:0,clip:'look2'}];
+  }
+  for(const st of stations)if(st.face)st.h=Math.atan2(-(st.face[0]-st.x),-(st.face[1]-st.z));
+  room.visible=false;
+  return {house,x,z,room,rects,stations,lamp,accent,exit:{x,z:4.05},npc:{x:x+.55,z:-1.83},actor:null,life:null}
  });
+ const residents={linde:{gender:'f',height:2.62},bram:{gender:'m',height:2.78},mara:{gender:'f',height:2.66},tomas:{gender:'m',height:2.74}};
  let inside=null;
  function enterRoom(room){
   if(inside)inside.room.visible=false;
   inside=room;if(!room)return;room.room.visible=true;
-  if(!room.actor){room.actor=embodiedPerson(room.room,room.house.key);room.actor.root.position.set(.55,0,-1.83);room.actor.root.rotation.y=Math.PI;
-   room.actor.ready.catch(()=>console.error('Bewoner kon niet laden'))}
+  if(!room.actor){
+   room.actor=context?Rig.person(room.room,room.house.key,residents[room.house.key]):embodiedPerson(room.room,room.house.key);room.actor.root.position.set(.55,0,-1.83);room.actor.root.rotation.y=Math.PI;
+   room.actor.ready.catch(()=>console.error('Bewoner kon niet laden'))
+  }
+  const st=room.stations[0];room.life={x:st.x,z:st.z,h:st.h,mode:'work',station:0,until:0,greet:performance.now()/1000+.7,path:[],attend:0,talk:0};
+  room.npc.x=room.x+st.x;room.npc.z=st.z
  }
- const hero=expeditionPilot(scene),shadow=new T.Mesh(new T.PlaneGeometry(1.46,.94),new T.MeshBasicMaterial({map:loadSurface("footshadow.png"),transparent:true,depthWrite:false}));shadow.rotation.x=-Math.PI/2;scene.add(shadow);
+ // Residents keep busy: they work at a station, stroll to the next one, greet you when you come in,
+ // turn to you when you are close and gesture while you talk with them.
+ function segmentFree(r,x0,z0,x1,z1){for(let k=1;k<=12;k++){const f=k/12,x=x0+(x1-x0)*f,z=z0+(z1-z0)*f;if(r.rects.some(q=>Math.abs(x-q.x)<q.w/2+.3&&Math.abs(z-q.z)<q.d/2+.3))return false}return true}
+ function resident(r,t,dt,p){
+  const a=r.actor,v=r.life;if(!a?.mixer||!v)return;
+  const px=p.x-r.x,pz=p.z,near=Math.hypot(px-v.x,pz-v.z),talking=document.getElementById('panel')?.open;
+  const face=h=>{v.h+=Math.atan2(Math.sin(h-v.h),Math.cos(h-v.h))*(1-Math.exp(-6*dt))};
+  const toPlayer=Math.atan2(-(px-v.x),-(pz-v.z));
+  if(talking||near<3.1||t<v.greet+2.6){v.attend=t}
+  if(v.greet&&t>v.greet){v.greet=0;v.mode='attend';v.path=[];a.once('wave',a.state==='slow'?'idle':'idle',{fade:.3})}
+  if(t-v.attend<4.5&&v.mode!=='walkback'){
+   if(v.mode==='walk'){v.mode='attend';v.path=[]}
+   if(v.mode!=='attend'){v.mode='attend'}
+   face(toPlayer);a.look(new T.Vector3(p.x,p.y+2.25,p.z));
+   if(talking){if(!['talk1','talk2','talk3','wave'].includes(a.state)){v.talk=(v.talk+1)%3;a.once(['talk1','talk2','talk3'][v.talk],'listen',{fade:.5})}}
+   else if(a.state!=='wave'&&!['idle','listen','nod'].includes(a.state))a.play(near<3.1?'listen':'idle',{fade:.5});
+  }else{
+   a.look(null);
+   if(v.mode==='attend'){v.mode='walk';const next=v.station;const st=r.stations[next];v.path=segmentFree(r,v.x,v.z,st.x,st.z)?[st]:[{x:.5,z:.6},st];v.target=next}
+   if(v.mode==='work'&&t>v.until){let next=(v.station+1+Math.floor(frnd()*(r.stations.length-1)))%r.stations.length;const st=r.stations[next];v.path=segmentFree(r,v.x,v.z,st.x,st.z)?[st]:[{x:.5,z:.6},st];v.mode='walk';v.target=next}
+   if(v.mode==='walk'){
+    const goal=v.path[0],dx=goal.x-v.x,dz=goal.z-v.z,d=Math.hypot(dx,dz),speed=a.clips.slow.userData.speed*a.scale;
+    if(d<.06){v.path.shift();if(!v.path.length){v.mode='arrive';v.station=v.target}}
+    else{const step=Math.min(d,speed*dt),nx=v.x+dx/d*step,nz=v.z+dz/d*step;
+     if(Math.hypot(px-nx,pz-nz)<.8){a.play('idle',{fade:.3})}
+     else{v.x=nx;v.z=nz;face(Math.atan2(-dx,-dz));a.play('slow',{fade:.3})}}
+   }
+   if(v.mode==='arrive'){const st=r.stations[v.station];face(st.h);if(Math.abs(Math.atan2(Math.sin(st.h-v.h),Math.cos(st.h-v.h)))<.12){v.mode='work';v.until=t+7+frnd()*7;a.play(st.clip,{fade:.5,restart:true})}else a.play('idle',{fade:.3})}
+  }
+  a.root.position.set(v.x,0,v.z);a.root.rotation.y=v.h;r.npc.x=r.x+v.x;r.npc.z=v.z;a.update(dt)
+ }
+
+ const hero=expeditionPilot(scene,!!context),shadow=new T.Mesh(new T.PlaneGeometry(1.46,.94),new T.MeshBasicMaterial({map:loadSurface("footshadow.png"),transparent:true,depthWrite:false}));shadow.rotation.x=-Math.PI/2;scene.add(shadow);
  const nodes=[[-5,7,'hout'],[5,-1,'hout'],[-5,-9,'steen'],[6,-15,'steen'],[-6,-47,'hout'],[5,-54,'steen'],[-5,-66,'hout'],[5,-73,'steen'],[-5,-104,'steen'],[6,-114,'hout'],[-5,-120,'steen'],[7,-132,'hout']].map(([x,z,type],i)=>{
   solids.add(type==='hout'?{x,z,w:.83,d:1.12,base:0,top:1.48,harvest:i}:{x,z,r:1.16,base:0,top:1.74,harvest:i});
   const g=group(x,0,z);
@@ -445,18 +589,18 @@ function createWorld(canvas) {
  if(Math.abs(x)<1.78 && ((s.stage>0 && z< -20&&z> -42)||(s.stage>1 && z< -80&&z> -100)))h=.19;
  return Math.max(h,solids.floor(x,z,s,y))}
  function blocked(x,z,s,y,r=.355,height=2.68){
-  if(inside)return Math.abs(x-inside.x)>4.75-r||Math.abs(z)>4.73-r||Math.hypot(x-inside.npc.x,z-inside.npc.z)<r+.27||(Math.abs(x-inside.x-2.9)<1.29+r&&Math.abs(z+3.18)<.59+r);
+  if(inside){const lx=x-inside.x;return Math.abs(lx)>4.75-r||Math.abs(z)>4.73-r||Math.hypot(x-inside.npc.x,z-inside.npc.z)<r+.27||inside.rects.some(q=>Math.abs(lx-q.x)<q.w/2+r&&Math.abs(z-q.z)<q.d/2+r)}
   if(y<-.16&&y> -16&&islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.32))return true;
   return solids.blocked(x,z,s,y,r,height)
  }
  function animate(t,s,p,view,start,dt){rotors.forEach((v,i)=>v.rotation.z=t*(i?.48:.61));clouds.forEach(([g,y,k])=>g.position.y=y+Math.sin(t*k)*.52);falls.forEach(([f,y],i)=>f.position.y=y+.28*Math.sin(t*3+i));core.rotation.y=t;
-  nodes.forEach(n=>{const was=n.g.visible;n.g.visible=!(s.harvest[n.i]>Date.now());if(was&&!n.g.visible&&!start&&life)life.burst(n.x,2.1,n.z,n.type==='hout'?0xffcf6a:0x9fe3ff);n.marker.rotation.y=t;n.marker.position.y=2.25+.17*Math.sin(t*2+n.i)});
+  nodes.forEach(n=>{const was=n.g.visible;n.g.visible=!(s.harvest[n.i]>Date.now());n.g.scale.setScalar(.62+.095*(s.yield?.[n.i]??4));if(was&&!n.g.visible&&!start&&life)life.burst(n.x,2.1,n.z,n.type==='hout'?0xffcf6a:0x9fe3ff);n.marker.rotation.y=t;n.marker.position.y=2.25+.17*Math.sin(t*2+n.i)});
   sail.visible=!start&&!!p.glide;const portrait=start?{x:0,y:0,z:13,heading:Math.PI+.32+.13*Math.sin(t*.37),on:true,speed:0,walk:0}:p;hero.pose(t,portrait,dt,view.yaw);
   shadow.position.set(portrait.x,Math.max(ground(portrait.x,portrait.z,s,portrait.y),-.6)+.082,portrait.z);
   let a=view.yaw,dist=view.dist,height=view.height;
   let target=start?new T.Vector3(cam.aspect<.85?-.48:-1.65,1.58,12.5):new T.Vector3(p.x,p.y+1.35,p.z);
   let eye=start?new T.Vector3(-1+.14*Math.sin(t*.22),1.95,17.5):new T.Vector3(p.x+Math.sin(a)*dist,p.y+height,p.z+Math.cos(a)*dist);
-  if(inside){target.set(p.x,p.y+1.22,p.z);eye.set(inside.x+(p.x-inside.x)*.40,3.75,Math.min(6.55,p.z+4.25));inside.actor.root.rotation.y=Math.atan2(inside.npc.x-p.x,inside.npc.z-p.z);inside.actor.blend(idleLayers(t+3.7));const a=inside.actor.root;a.rotation.y+=.12*Math.sin(t*.45);a.position.y=.008*Math.sin(t*1.5);a.scale.set(1,1+.006*Math.sin(t*1.5),1)}
+  if(inside){target.set(p.x,p.y+1.22,p.z);eye.set(inside.x+(p.x-inside.x)*.40,3.75,Math.min(6.55,p.z+4.25));if(inside.actor.mixer||inside.actor.update)resident(inside,t,Math.min(dt,.1),p);else{inside.actor.root.rotation.y=Math.atan2(inside.npc.x-p.x,inside.npc.z-p.z);inside.actor.blend([])}if(inside.accent.intensity)inside.accent.intensity=6+1.6*Math.sin(t*9)*Math.sin(t*3.7)}
   cam.position.lerp(eye,dt>=1?1:1-Math.exp(-dt*10));
   if(!start&&!inside){
    const offset=cam.position.clone().sub(target),distance=offset.length();offset.normalize();
@@ -483,5 +627,5 @@ function createWorld(canvas) {
   renderer.setPixelRatio(Math.min(devicePixelRatio,q>=2?1.65:q===1?1.2:1));resize();
   if(context&&!fx){renderer.toneMapping=T.ACESFilmicToneMapping}else if(q===0){renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15}}
  function resize(){let w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();if(fx){const r=renderer.getPixelRatio();fx.setSize(Math.round(w*r),Math.round(h*r))}}resize();
- return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),rooms,enterRoom,outfit:hero.outfit,reach:hero.reach,ceiling:solids.ceiling,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
+ return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),rooms,enterRoom,outfit:hero.outfit,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
 }

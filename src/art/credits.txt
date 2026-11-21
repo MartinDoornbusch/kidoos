@@ -21,4 +21,7 @@ alpen.jpg is a generated alpine sky panorama. endgrain.jpg is procedural wood gr
 People: Microsoft Rocketbox Avatar Library, copyright Microsoft (2020), MIT.
 https://github.com/microsoft/Microsoft-Rocketbox
 Original FBX surfaces and colour textures, adapted walk, reach and glide poses.
+1.8: rigged avatars (Male_Child_01, Female_Child_01, Female_Adult_01, Female_Adult_04, Wood_Male_01, Gardener_Male_01)
+with normal maps and the Rocketbox motion-capture animation library, converted to compact skinned meshes and clips.
+The explorer outfit is a recolour of the child body textures; scarf, backpack, belt and tools are modelled for Skybound.
 License text: ../people/LICENSE.txt
