@@ -620,7 +620,7 @@ void main(){float y=vUv.y;
    cord(cx+4.6,6.35,cz-1.4,cx+4.6,2.7,cz-1.4,.025,0x3a3a3c);shape(masonry,0xd5cfc0,cx+4.6,2.1,cz-1.4,1.1,.8,.8,.3);shape(cyl,0x3a3a3c,cx+.7,.7,cz,.3,.9,.3,0,Math.PI/2);
    solids.add({x:cx,z:cz,r:.6,base:0,top:8});solids.add({x:cx+4.6,z:cz-1.4,w:.6,d:.45,base:1.6,top:2.6});keepOut(cx,cz,1.6);keepOut(cx+4.6,cz-1.4,1.2)}
   // the quarry face: three cut terraces of pale limestone stepping up towards the rim, rubble at the foot
-  {const cliff=withSurface(cube.clone(),new T.MeshStandardMaterial({map:rockMap,color:0xe6e0d0,roughness:.93}));
+  {const cliff=withSurface(cube.clone(),new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xf4eedf,roughness:.95}));
    for(let tier=0;tier<3;tier++){const d=11.2+tier*1.75,h=2.1+tier*2.0;for(let a=-1.25;a<=1.25;a+=.17){const x=quarry.x+Math.cos(a)*d,z=quarry.z+Math.sin(a)*d;if(clear.some(([a2,b2,r2])=>Math.hypot(x-a2,z-b2)<r2+1.1))continue;
      const j=Math.sin(a*23+tier*5);shape(cliff,0xffffff,x,h/2-.2,z,d*.17+.35,h+.25*j,1.85,-a-Math.PI/2,.02*j,.03*j);solids.add({x,z,r:1.25,base:0,top:h})}}
    for(let i=0;i<18;i++){const a=-1.2+i*.14,d=9.6+.5*Math.sin(i*3.1),x=quarry.x+Math.cos(a)*d,z=quarry.z+Math.sin(a)*d,s=.35+.3*Math.abs(Math.sin(i*1.7));if(clear.some(([a2,b2,r2])=>Math.hypot(x-a2,z-b2)<r2+.4))continue;shape(stoneGeo,0xffffff,x,s*.3,z,s,s*.7,s,i)}
@@ -631,7 +631,7 @@ void main(){float y=vUv.y;
   {const kx=59.5,kz=-76.5;shape(cube,0x5a4632,kx,.75,kz,1.5,.7,.95,.5);for(const o of [-.5,.5])for(const s of [-1,1]){shape(wheel,iron,kx+o*Math.cos(.5)+s*.5*Math.sin(.5),.32,kz-o*Math.sin(.5)+s*.5*Math.cos(.5),.3,.3,.6,.5)}
    for(let i=0;i<4;i++)shape(stoneGeo,0xc4bfb0,kx+(i%2-.5)*.5,1.15,kz+(i>>1)*.4-.2,.32,.24,.3,i);solids.add({x:kx,z:kz,r:1.0,base:0,top:1.3});keepOut(kx,kz,1.6)}
   lamp(50.5,-77.2,0,null,1);solids.add({x:50.5,z:-77.2,r:.22,base:0,top:3.2});keepOut(50.5,-77.2,.8);
-  for(let i=0;i<7;i++)tree(quarry,5,7.5);for(let i=0;i<14;i++)boulder(quarry,0xb9b4a6,.45,1.2);tufts(quarry,24);waterfall(quarry,2.0,8);
+  for(let i=0;i<4;i++)tree(quarry,5,7.5);for(let i=0;i<14;i++)boulder(quarry,0xb9b4a6,.45,1.2);tufts(quarry,24);waterfall(quarry,2.0,8);
 
   // Valkenrots: a high rock with a domed lookout, a telescope, benches and crags.
   trail(peakI,[g0(peakI),[44,-126.4],[49,-127.2],[53.4,-128]]);
