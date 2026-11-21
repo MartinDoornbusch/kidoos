@@ -238,10 +238,10 @@ function createWorld(canvas) {
   const sign=canvasTex(512,128,g=>{g.fillStyle='#5a3b22';g.fillRect(0,0,512,128);g.strokeStyle='#c8a25a';g.lineWidth=8;g.strokeRect(8,8,496,112);g.fillStyle='#f0d690';g.font='bold 58px Georgia, serif';g.textAlign='center';g.textBaseline='middle';g.fillText('HANDELSPOST',256,68)});
   const board=new T.Mesh(cube,[0,1,2,3,4,5].map(i=>i===4||i===5?new T.MeshStandardMaterial({map:sign,roughness:.8}):new T.MeshStandardMaterial({color:0x5a3b22,roughness:.8})));
   board.scale.set(2.4,.6,.06);board.position.set(x,4.95,front+.1);board.castShadow=true;scene.add(board);
-  for(let i=0;i<3;i++){const cx=x-2.05+i*.0,cz=front+.75+i*.62;shape(cube,0xa77b4f,cx,.27,cz,.62,.5,.5);for(let k=0;k<7;k++)shape(ball,[0xb8322a,0xd8a23a,0x6f8f3a][i],cx+(k%3-1)*.17,.55,cz+(Math.floor(k/3)-1)*.14,.09,.09,.09)}
+  const fruit=createGoods();for(let i=0;i<3;i++){const cz=front+.75+i*.62;shape(cube,0x8a6a48,x-2.05,.12,cz,.66,.24,.54);fruit.crate(scene,x-2.05,.24,cz,i===2?'pear':'apple',i,.62,.5)}
   solids.add({x:x-2.05,z:front+1.37,w:.36,d:.95,base:0,top:.6});
   for(const [bx,bz] of [[x+2.1,front+.9],[x+2.15,front+1.6]]){shape(cyl,0x7a5232,bx,.42,bz,.3,.84,.3);for(const yy of [.18,.66])shape(cyl,0x3b3a36,bx,yy,bz,.315,.05,.315);solids.add({x:bx,z:bz,r:.33,base:0,top:.86})}
-  for(let i=0;i<2;i++)shape(ball,0xa38a5f,x+1.25+i*.5,.3,front+1.9,.32,.36,.27);
+  fruit.sack(scene,x+1.2,0,front+1.9,.75);fruit.sack(scene,x+1.7,0,front+1.85,.68);
  }
  // Two-storey manor: stone ground floor, a jettied half-timbered upper floor, a side wing and a porch.
  function manor(x,z){
@@ -484,6 +484,7 @@ function createWorld(canvas) {
  const floorTex=(file,n)=>{const m=loadSurface(file);m.repeat.set(n,n);return m};
  const woodFloor=withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('wood.jpg',4),color:0xc9a27e,roughness:.8}));
  const stoneFloor=withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('paving.jpg',3),color:0xb9b2a6,roughness:.95}));
+ const goods=createGoods();
  let fseed=4021;const frnd=()=>(fseed=(fseed*16807)%2147483647)/2147483647;
  function parchment(kind){const c=document.createElement('canvas');c.width=512;c.height=360;const g=c.getContext('2d');
   const grd=g.createRadialGradient(256,180,40,256,180,330);grd.addColorStop(0,'#eadbb4');grd.addColorStop(1,'#b89a66');g.fillStyle=grd;g.fillRect(0,0,512,360);
@@ -501,6 +502,9 @@ function createWorld(canvas) {
  // Windows look out on the real village: a small camera behind the house renders into the glass.
  const portalTarget=context?new T.WebGLRenderTarget(384,224,{type:T.HalfFloatType}):null,portalCam=new T.PerspectiveCamera(58,384/224,.3,420);
  const portalGlass=new T.MeshBasicMaterial({map:portalTarget?portalTarget.texture:null,color:portalTarget?0xffffff:0x9fb8c0,toneMapped:false});let portalTick=0;
+ // The doorway shows the real street in front of the house, so an open door never looks out on nothing.
+ const doorTarget=context?new T.WebGLRenderTarget(192,432,{type:T.HalfFloatType}):null,doorCam=new T.PerspectiveCamera(64,192/432*1.55,.3,420);
+ const doorView=new T.MeshBasicMaterial({map:doorTarget?doorTarget.texture:null,color:doorTarget?0xffffff:0xa9c3cb,toneMapped:false});
  // Woven rugs: border in the house colour, a band pattern and wool noise.
  function rugMaterial(color){const c=document.createElement('canvas');c.width=256;c.height=192;const g=c.getContext('2d'),base=new T.Color(color),css=(k,l=0)=>{const q=base.clone().offsetHSL(0,0,l);return `rgb(${q.r*255*k|0},${q.g*255*k|0},${q.b*255*k|0})`};
   g.fillStyle=css(.5);g.fillRect(0,0,256,192);g.fillStyle='#9c8257';g.fillRect(14,14,228,164);g.fillStyle=css(.72,.04);g.fillRect(20,20,216,152);
@@ -525,7 +529,7 @@ function createWorld(canvas) {
   // closed room: front wall with a real door, and a plank ceiling
   for(const side of [-1,1])build(wall,0xe1cfaa,side*2.9,H/2,5,4.4,H,.22);build(wall,0xe1cfaa,0,(H+3.1)/2,5,1.6,H-3.1,.22);
   for(const sx of [-1,1])build(beam,wood,sx*.72,1.5,4.86,.14,3.05,.16);build(beam,wood,0,3.05,4.86,1.6,.18,.17);build(beam,wood,0,3.75,4.82,10,.21,.2);
-  const roomDoor=hingedDoor(room,-.625,0,4.92,0,1.25,2.95,0x6e4a30);
+  const roomDoor=hingedDoor(room,-.625,0,4.92,0,1.25,2.95,0x6e4a30);mesh(new T.PlaneGeometry(1.45,3.1),doorView,0,1.55,5.14,1,1,1,Math.PI);
   build(withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('wood.jpg',3),color:0x8a6a4c,roughness:.9})),0xffffff,0,H+.12,0,10.3,.18,10.3);
   // window with light coming in
   mesh(new T.PlaneGeometry(2.45,1.45),portalGlass,-2,2.6,-4.87);
@@ -611,24 +615,31 @@ function createWorld(canvas) {
    solid(-4.6,-.6,.55,3.1);
    for(let k=0;k<6;k++){const zz=-3.2+k*.55;build(cyl,0x6e4a2e,-2.5,3.75,zz,.012,.6,.012);build(cone,[0x6e7d3a,0x8a7a3a,0x5c6b34][k%3],-2.5,3.35,zz,.14,.38,.14,0,Math.PI)}
    build(beam,0x6e4a2e,-2.5,4.05,-1.8,.1,.1,3.6);
-   for(const [cx,cz] of [[3.9,-.6],[3.9,.6]]){build(beam,0x8a6a48,cx,.25,cz,.75,.5,.95);solid(cx,cz,.8,1.0)}
-   for(let k=0;k<9;k++)build(ball,[0xd2691e,0x6f8f3a,0xa8322a][k%3],3.9+(frnd()-.5)*.5,.55,-.6+(frnd()-.5)*.7,.1,.09,.1);
-   for(let k=0;k<7;k++)build(ball,0x6f8f3a,3.9+(frnd()-.5)*.5,.57,.6+(frnd()-.5)*.7,.14,.12,.14);
-   for(const [cx,cz] of [[-3.9,2.2],[-3.4,2.6]]){build(ball,0xa38a5f,cx,.38,cz,.38,.42,.32);build(cyl,0x8a7550,cx,.8,cz,.12,.1,.12)}solid(-3.7,2.4,1.2,1.0);
+   for(const [cx,cz,kind,k] of [[3.9,-.6,'apple',0],[3.9,.6,'cabbage',0]]){build(beam,0x8a6a48,cx,.12,cz,.86,.24,.9);goods.crate(room,cx,.24,cz,kind,k,.8,.8);solid(cx,cz,.9,1.0)}
+   goods.sack(room,-3.9,0,2.2,.95);goods.sack(room,-3.35,0,2.65,.85,true);goods.basket(room,-2.8,0,2.1,.9,false);solid(-3.6,2.4,1.4,1.1);
    stations=[{x:1.1,z:-3.35,h:0,clip:'work'},{x:-3.6,z:-.5,face:[-4.6,-.5],clip:'take'},{x:3.05,z:0,face:[3.9,0],clip:'take'},{x:-2.4,z:-2.3,h:0,clip:'look2'}];
   }
   if(house.key==='wies'){
-   // counter with scales and a till, shelves full of goods, barrels and sacks
+   // counter with scales, till, a cut cheese and eggs; shelves of real goods; sacks, crates and cloth
    build(beam,0x8a5a34,0,.52,-1.6,5.2,1.04,.8);build(beam,0xa77b4f,0,1.08,-1.6,5.5,.08,1.0);solid(0,-1.6,5.4,.95);
    build(cyl,0xb48a3c,-1.6,1.15,-1.55,.05,.12,.05);build(cube,0xb48a3c,-1.6,1.42,-1.55,.7,.03,.03);for(const s of [-1,1]){build(cyl,0xb48a3c,-1.6+s*.33,1.3,-1.55,.12,.02,.12);build(cyl,0xb48a3c,-1.6+s*.33,1.37,-1.55,.005,.14,.005)}
-   build(cube,0x5a3b22,1.4,1.25,-1.65,.6,.28,.4);for(let k=0;k<8;k++)build(cyl,0xd8b84a,.4+k*.07,1.13,-1.4,.045,.012,.045);
+   build(cube,0x5a3b22,1.4,1.25,-1.65,.6,.28,.4);goods.coins(room,.55,1.12,-1.35,7);goods.coins(room,.68,1.12,-1.42,4);
+   build(beam,0x9a7048,-.55,1.135,-1.55,.7,.03,.45);goods.cheese(room,-.55,1.15,-1.55,.55,true);goods.basket(room,2.15,1.12,-1.5,.8);goods.candles(room,-2.35,1.12,-1.75);
+   build(cube,0x5a2a1e,.2,1.14,-1.9,.42,.05,.3);build(cube,0xe8dcc0,.2,1.17,-1.9,.38,.01,.27);
    for(let k=0;k<4;k++){const sx=.9+k*.95;build(beam,0x6e4a2e,sx-.47,1.6,-4.6,.08,3.2,.45)}build(beam,0x6e4a2e,3.75,1.6,-4.6,.08,3.2,.45);
-   for(let row=0;row<4;row++){const y=.4+row*.75;build(beam,0x6e4a2e,2.3,y,-4.6,3.0,.05,.45);
-    for(let k=0;k<9;k++){const gx=.95+k*.32;const kind=(row*3+k)%5;if(kind===0)build(cyl,0xb7c7b4,gx,y+.16,-4.55,.1,.26,.1);else if(kind===1)build(ball,0xc9a25a,gx,y+.12,-4.55,.14,.1,.12);else if(kind===2)build(cube,[0x7a2e24,0x2f4a5e,0x5d5a2c][row%3],gx,y+.18,-4.6,.24,.34,.3);else if(kind===3)build(cyl,0xa65a38,gx,y+.13,-4.55,.11,.22,.11);else build(cube,0xe8dcc0,gx,y+.08,-4.55,.26,.14,.2)}}
+   const rows=[.4,1.15,1.9,2.65];for(const y of rows)build(beam,0x6e4a2e,2.3,y,-4.6,3.0,.05,.45);
+   for(let k=0;k<4;k++)goods.jug(room,1.05+k*.75,rows[0]+.03,-4.55,.62);
+   for(let k=0;k<7;k++)goods.jar(room,1.0+k*.4,rows[1]+.03,-4.55,k,.36);
+   for(let k=0;k<3;k++)goods.loaf(room,1.15+k*.82,rows[2]+.03+.03,-4.55,.38,.15*(k-1));for(let k=0;k<2;k++)goods.boule(room,1.55+k*.82,rows[2]+.03,-4.5,.3);
+   goods.cheese(room,1.25,rows[3]+.03,-4.55,.62);goods.cheese(room,1.25,rows[3]+.22,-4.55,.55);for(let k=0;k<5;k++)goods.bottle(room,2.05+k*.33,rows[3]+.03,-4.55,k,.6);
+   goods.folded(room,1.3,3.2,-4.6,0,3);goods.folded(room,2.3,3.2,-4.6,2,2);goods.folded(room,3.2,3.2,-4.6,1,3);
    solid(2.3,-4.6,3.2,.6);
-   for(const [bx,bz] of [[-4.2,-3.6],[-4.2,-2.6],[-3.4,-4.2]])barrel(bx,bz,.9,.38);for(let k=0;k<4;k++)build(ball,0xa38a5f,-4.1+(k%2)*.6,.36,1.2+Math.floor(k/2)*.7,.36,.4,.3);solid(-3.8,1.55,1.3,1.5);
-   for(const [cx,cz,c] of [[4.1,-.6,0xb8322a],[4.1,.5,0xd8a23a],[4.1,1.6,0x6f8f3a]]){build(beam,0x8a6a48,cx,.25,cz,.75,.5,.95);for(let k=0;k<9;k++)build(ball,c,cx+(k%3-1)*.2,.55,cz+(Math.floor(k/3)-1)*.25,.1,.1,.1);solid(cx,cz,.8,1.0)}
-   for(let k=0;k<5;k++)build(cone,[0x6e7d3a,0x8a7a3a,0xc9a96a][k%3],-2+k*.9,3.6,-3.2,.16,.42,.16,0,Math.PI);
+   for(const [bx,bz] of [[-4.2,-3.6],[-3.4,-4.2]])barrel(bx,bz,.9,.38);
+   goods.sack(room,-4.1,0,-2.4,.95,true);goods.sack(room,-4.15,0,-1.5,.9);goods.sack(room,-3.5,0,-2.0,.82);solid(-3.9,-2.0,1.3,1.6);
+   goods.sack(room,-4.1,0,1.3,.95);goods.sack(room,-3.5,0,1.75,.85,true);solid(-3.8,1.5,1.3,1.2);
+   for(const [cx,cz,kind,k] of [[4.0,-.7,'apple',0],[4.0,.3,'apple',1],[4.0,1.3,'pear',0],[4.0,2.3,'cabbage',0]]){build(beam,0x6e4a2e,cx,.18,cz,.86,.36,.78);goods.crate(room,cx,.36,cz,kind,k,.8,.68)}solid(4.0,.8,.9,4.0);
+   build(beam,0x8a5a34,-2.2,.45,3.6,1.6,.06,.7);for(const sx of [-1,1])for(const sz of [-1,1])build(beam,0x6e4a2e,-2.2+sx*.7,.22,3.6+sz*.28,.06,.44,.06);for(let k=0;k<4;k++)goods.bolt(room,-2.2,.48+Math.floor(k/2)*.24,3.45+(k%2)*.3,k,Math.PI/2);solid(-2.2,3.6,1.7,.8);
+   for(let k=0;k<5;k++)build(cone,[0x6e7d3a,0x8a7a3a,0x5c6b34][k%3],-2+k*.9,3.6,-3.2,.16,.42,.16,0,Math.PI);
    stations=[{x:0,z:-2.55,face:[0,0],clip:'idle'},{x:2.2,z:-3.75,h:0,clip:'take'},{x:-.9,z:-2.6,face:[-1.6,-1.6],clip:'work'}];
   }
   if(house.manor){
@@ -671,7 +682,9 @@ function createWorld(canvas) {
   if(!portalTarget||!inside)return;const h=inside.house,back=h.z-({mara:4.4,bram:3.9,wies:4.9,vandalen:7.0}[h.key]??4.6);
   portalCam.position.set(h.x+(h.key==='bram'?.9:h.key==='mara'?1.0:0),2.6,back);portalCam.lookAt(portalCam.position.x-1.2,2.2,back-10);
   const auto=renderer.shadowMap.autoUpdate;renderer.shadowMap.autoUpdate=false;inside.room.visible=false;
-  renderer.setRenderTarget(portalTarget);renderer.render(scene,portalCam);renderer.setRenderTarget(null);
+  renderer.setRenderTarget(portalTarget);renderer.render(scene,portalCam);
+  if(inside.door.open>.02){doorCam.position.set(h.x,2.0,h.z+.45);doorCam.lookAt(h.x,1.7,h.z+10);renderer.setRenderTarget(doorTarget);renderer.render(scene,doorCam)}
+  renderer.setRenderTarget(null);
   inside.room.visible=true;renderer.shadowMap.autoUpdate=auto}
  const residents={linde:{gender:'f',height:2.62},bram:{gender:'m',height:2.78},mara:{gender:'f',height:2.66},tomas:{gender:'m',height:2.74},wies:{gender:'f',height:2.6},vandalen:{gender:'m',height:2.78}};
  let inside=null;
@@ -687,6 +700,8 @@ function createWorld(canvas) {
  }
  // Residents keep busy: they work at a station, stroll to the next one, greet you when you come in,
  // turn to you when you are close and gesture while you talk with them.
+ function roomFree(r){return (x,z)=>Math.abs(x)<4.4&&Math.abs(z)<4.4&&!r.rects.some(q=>Math.abs(x-q.x)<q.w/2+.32&&Math.abs(z-q.z)<q.d/2+.32)}
+ function plan(r,v,st){const route=Nav.path(v.x,v.z,st.x,st.z,roomFree(r),{cell:.25,margin:4})||[st];route[route.length-1]=st;return route}
  function segmentFree(r,x0,z0,x1,z1){for(let k=1;k<=12;k++){const f=k/12,x=x0+(x1-x0)*f,z=z0+(z1-z0)*f;if(r.rects.some(q=>Math.abs(x-q.x)<q.w/2+.3&&Math.abs(z-q.z)<q.d/2+.3))return false}return true}
  function resident(r,t,dt,p){
   const a=r.actor,v=r.life;if(!a?.mixer||!v)return;
@@ -703,8 +718,8 @@ function createWorld(canvas) {
    else if(a.state!=='wave'&&!['idle','listen','nod'].includes(a.state))a.play(near<3.1?'listen':'idle',{fade:.5});
   }else{
    a.look(null);
-   if(v.mode==='attend'){v.mode='walk';const next=v.station;const st=r.stations[next];v.path=segmentFree(r,v.x,v.z,st.x,st.z)?[st]:[{x:.5,z:.6},st];v.target=next}
-   if(v.mode==='work'&&t>v.until){let next=(v.station+1+Math.floor(frnd()*(r.stations.length-1)))%r.stations.length;const st=r.stations[next];v.path=segmentFree(r,v.x,v.z,st.x,st.z)?[st]:[{x:.5,z:.6},st];v.mode='walk';v.target=next}
+   if(v.mode==='attend'){v.mode='walk';const next=v.station;const st=r.stations[next];v.path=plan(r,v,st);v.target=next}
+   if(v.mode==='work'&&t>v.until){let next=(v.station+1+Math.floor(frnd()*(r.stations.length-1)))%r.stations.length;const st=r.stations[next];v.path=plan(r,v,st);v.mode='walk';v.target=next}
    if(v.mode==='walk'){
     const goal=v.path[0],dx=goal.x-v.x,dz=goal.z-v.z,d=Math.hypot(dx,dz),speed=a.clips.slow.userData.speed*a.scale;
     if(d<.06){v.path.shift();if(!v.path.length){v.mode='arrive';v.station=v.target}}
@@ -717,8 +732,10 @@ function createWorld(canvas) {
   a.root.position.set(v.x,0,v.z);a.root.rotation.y=v.h;r.npc.x=r.x+v.x;r.npc.z=v.z;a.update(dt)
  }
 
- const walkers=context?createWalkers(scene):null;
- const fauna=context?createFauna(scene,{ground:(x,z,s)=>ground(x,z,s),blocked:(x,z,s,y,r,h)=>blocked(x,z,s,y,r,h)}):null;solids.add({x:12.5,z:11.5,r:.6,base:0,top:.8});
+ // Where people may stand: on land, clear of solids (other walkers do not count here).
+ const walkable=(x,z,s)=>{const g=ground(x,z,s);return g>-1&&g<.6&&!blocked(x,z,s,g,.34,1.9)};
+ const walkers=context?createWalkers(scene,{free:walkable}):null;
+ const fauna=context?createFauna(scene,{ground:(x,z,s)=>ground(x,z,s),blocked:(x,z,s,y,r,h)=>blocked(x,z,s,y,r,h),walkable}):null;solids.add({x:12.5,z:11.5,r:.6,base:0,top:.8});
  const hero=expeditionPilot(scene,!!context),shadow=new T.Mesh(new T.PlaneGeometry(1.46,.94),new T.MeshBasicMaterial({map:loadSurface("footshadow.png"),transparent:true,depthWrite:false}));shadow.rotation.x=-Math.PI/2;scene.add(shadow);
  const nodes=[[-5,7,'hout'],[5,-1,'hout'],[-5,-9,'steen'],[6,-15,'steen'],[-6,-47,'hout'],[5,-54,'steen'],[-5,-66,'hout'],[5,-73,'steen'],[-5,-104,'steen'],[6,-114,'hout'],[-5,-120,'steen'],[7,-132,'hout']].map(([x,z,type],i)=>{
   solids.add(type==='hout'?{x,z,w:.83,d:1.12,base:0,top:1.48,harvest:i}:{x,z,r:1.16,base:0,top:1.74,harvest:i});
@@ -779,7 +796,7 @@ function createWorld(canvas) {
   {const f=gondola.userData.f,c=cableAt(f),a=cableTop(cableA),b=cableTop(cableB);gondola.position.copy(c);gondola.rotation.y=Math.atan2(b.x-a.x,b.z-a.z)}
   for(const f of torrents)f.material.map.offset.y=(f.material.map.offset.y-dt*(f.geometry.type==='PlaneGeometry'?1.6:.9))%1;
   for(const f of flags){const q=f.geometry.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i)+.55;q.setZ(i,Math.sin(t*5-x*4)*.09*x)}q.needsUpdate=true}
-  fauna?.update(t,dt,start?{x:0,y:0,z:13}:p,s,inside);walkers?.update(t,dt,start?{x:0,y:0,z:13}:p,inside);
+  fauna?.update(t,dt,start?{x:0,y:0,z:13}:p,s,inside);walkers?.update(t,dt,start?{x:0,y:0,z:13}:p,inside,s);
   sail.visible=!start&&!!p.glide;const portrait=start?{x:0,y:0,z:13,heading:Math.PI+.32+.13*Math.sin(t*.37),on:true,speed:0,walk:0}:p;hero.pose(t,portrait,dt,view.yaw);
   shadow.position.set(portrait.x,Math.max(ground(portrait.x,portrait.z,s,portrait.y),-.6)+.082,portrait.z);
   let a=view.yaw,dist=view.dist,height=view.height;
@@ -798,7 +815,7 @@ function createWorld(canvas) {
    }
   }
   cam.lookAt(target);
-  if(inside&&(portalTick++%6===0||dt>=1))renderPortal();
+  if(inside&&(portalTick++%(inside.door.open>.02?3:6)===0||dt>=1))renderPortal();
   if(context){sun.position.set(portrait.x-36,portrait.y+34,portrait.z+22);sun.target.position.set(portrait.x,portrait.y,portrait.z)}
   else {const angle=Math.atan2(eye.x-target.x,eye.z-target.z);skyCanvas.style.backgroundPosition=(50+angle*100/Math.PI)+'% 62%'}
   if(life)life.update(t,target,cam,renderer.domElement.height);

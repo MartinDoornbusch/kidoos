@@ -19,7 +19,7 @@ const Fauna={
  // Wings: spread from the folded bind pose, then beat around the body's long axis.
  sparrowWings(a,beat,spread){for(const [s,dir] of [['L',1],['R',-1]]){a.bend(s+'_UpperArm',0,0,1,dir*(-1.35*spread+beat));a.bend(s+'_UpperArm',0,1,0,dir*.5*spread);a.bend(s+'_Forearm',0,1,0,-dir*.9*spread);a.bend(s+'_Hand',0,1,0,-dir*.4*spread)}},
 };
-function createFauna(scene,{ground,blocked}){
+function createFauna(scene,{ground,blocked,walkable}){
  const T=THREE,list=[],rnd=(()=>{let v=917;return()=>(v=(v*16807)%2147483647)/2147483647})();
  const dog=Rig.creature(scene,'beagle',{height:1.08}),pal={x:-3,z:15,h:0,speed:0,phase:0,target:null,wait:0,sit:0,friend:false,yaw:0};
  const guard=Rig.creature(scene,'shepherd',{height:1.42}),guardAt={x:12.5,z:11.5,h:-0.9};
@@ -37,10 +37,11 @@ function createFauna(scene,{ground,blocked}){
    let goal=null,want=0;
    if(follow){goal={x:p.x-dx/dp*2,z:p.z-dz/dp*2};want=dp>7?6.2:dp>4?3.6:1.7;pal.target=null}
    else if(!near){if(!pal.target||Math.hypot(pal.target.x-pal.x,pal.target.z-pal.z)<.6){pal.wait-=dt;if(pal.wait<=0){pal.target=wanderTarget(s);pal.wait=3+rnd()*6}}if(pal.target&&pal.wait<=0){goal=pal.target;want=1.6}}
+   if(goal){const ok=(x,z)=>walkable(x,z,s);if(!Nav.clear(pal.x,pal.z,goal.x,goal.z,ok)){if(!pal.route||t>pal.replan){pal.route=Nav.path(pal.x,pal.z,goal.x,goal.z,ok,{margin:6,limit:6000});pal.replan=t+1}if(pal.route&&pal.route.length){if(Math.hypot(pal.route[0].x-pal.x,pal.route[0].z-pal.z)<.4)pal.route.shift();if(pal.route.length)goal=pal.route[0]}}else pal.route=null}
    if(goal&&Math.hypot(goal.x-pal.x,goal.z-pal.z)>.3){const h=Math.atan2(-(goal.x-pal.x),-(goal.z-pal.z));pal.h+=Math.atan2(Math.sin(h-pal.h),Math.cos(h-pal.h))*(1-Math.exp(-5*dt))}else want=0;
    pal.speed+=(want-pal.speed)*(1-Math.exp(-4*dt));
    const nx=pal.x-Math.sin(pal.h)*pal.speed*dt,nz=pal.z-Math.cos(pal.h)*pal.speed*dt;
-   if(pal.speed>.05){if(!blocked(nx,nz,s,0,.32,.9)&&ground(nx,nz,s)>-1){pal.x=nx;pal.z=nz}else{pal.target=null;pal.wait=0;pal.h+=1.2}}
+   if(pal.speed>.05){if(walkable(nx,nz,s)){pal.x=nx;pal.z=nz}else{pal.target=null;pal.wait=0;pal.h+=1.2}}
    pal.phase+=dt*(pal.speed>3?11:7.5)*Math.min(1,pal.speed/1.2+.0001);
    const resting=pal.speed<.08&&near;pal.sit+=((resting?1:0)-pal.sit)*(1-Math.exp(-2.2*dt));
    dog.reset();const m=Math.min(1,pal.speed/1.4);
@@ -56,9 +57,9 @@ function createFauna(scene,{ground,blocked}){
    guard.root.position.set(guardAt.x,-.28,guardAt.z);guard.root.rotation.y=guardAt.h;guard.body.scale.y=guard.scale*(1+.012*Math.sin(t*1.7));guard.root.visible=!inside}
   // --- hens scratch and peck around the field house
   for(const hen of hens){const a=hen.a;if(!ok(a))continue;
-   let speed=0;if(hen.target){const dx=hen.target.x-hen.x,dz=hen.target.z-hen.z,d=Math.hypot(dx,dz);if(d<.15)hen.target=null;else{const h=Math.atan2(-dx,-dz);hen.h+=Math.atan2(Math.sin(h-hen.h),Math.cos(h-hen.h))*(1-Math.exp(-8*dt));speed=.9;hen.x-=Math.sin(hen.h)*speed*dt;hen.z-=Math.cos(hen.h)*speed*dt}}
-   else{hen.wait-=dt;if(hen.wait<0){hen.target={x:13.5+rnd()*4.5,z:-58.5+rnd()*4};hen.wait=1.5+rnd()*4}}
-   const fleeing=Math.hypot(p.x-hen.x,p.z-hen.z)<1.6;if(fleeing&&!hen.target){hen.target={x:hen.x+(hen.x-p.x)*1.5,z:hen.z+(hen.z-p.z)*1.5};hen.wait=1}
+   let speed=0;if(hen.target){const dx=hen.target.x-hen.x,dz=hen.target.z-hen.z,d=Math.hypot(dx,dz);if(d<.15)hen.target=null;else{const h=Math.atan2(-dx,-dz);hen.h+=Math.atan2(Math.sin(h-hen.h),Math.cos(h-hen.h))*(1-Math.exp(-8*dt));speed=.9;const nx=hen.x-Math.sin(hen.h)*speed*dt,nz=hen.z-Math.cos(hen.h)*speed*dt;if(walkable(nx,nz,s)){hen.x=nx;hen.z=nz}else{hen.target=null;speed=0}}}
+   else{hen.wait-=dt;if(hen.wait<0){const tx=13.5+rnd()*4.5,tz=-58.5+rnd()*4;if(walkable(tx,tz,s)&&Nav.clear(hen.x,hen.z,tx,tz,(x,z)=>walkable(x,z,s)))hen.target={x:tx,z:tz};hen.wait=1.5+rnd()*4}}
+   const fleeing=Math.hypot(p.x-hen.x,p.z-hen.z)<1.6;if(fleeing&&!hen.target){const tx=hen.x+(hen.x-p.x)*1.5,tz=hen.z+(hen.z-p.z)*1.5;if(walkable(tx,tz,s))hen.target={x:tx,z:tz};hen.wait=1}
    hen.phase+=dt*speed*11;hen.peck=speed?0:Math.max(0,Math.sin(t*2.3+hen.wait*3))**6;
    a.reset();Fauna.chickenWalk(a,hen.phase,speed?1:0);Fauna.chickenPeck(a,hen.peck,Math.sin(t*.7+hen.x)*.4);
    a.root.position.set(hen.x,Math.abs(Math.sin(hen.phase))*.02,hen.z);a.root.rotation.y=hen.h;a.root.visible=!inside}
