@@ -21,7 +21,7 @@ function createWorld(canvas) {
  const iso=new T.IcosahedronGeometry(1,1), ball=new T.SphereGeometry(1,24,14), cube=new T.BoxGeometry(), cyl=new T.CylinderGeometry(1,1,1,24),cone=new T.ConeGeometry(1,1,7), wheel=new T.TorusGeometry(1,.085,6,32);
  const mat=new T.MeshStandardMaterial({flatShading:false,roughness:.86}),mats=new Map(),batches=new Map();
  let seed=718;function rnd(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
- const rotors=[],clouds=[],solids=createSolids(),falls=[],ports=[],islands=[{x:0,z:0,r:25,name:'Windhaven'},{x:0,z:-61,r:23,name:'Bloesemvallei'},{x:0,z:-120,r:24,name:'Sterrenwacht'}];
+ const torrents=[];const rotors=[],clouds=[],solids=createSolids(),falls=[],ports=[],islands=[{x:0,z:0,r:25,name:'Windhaven'},{x:0,z:-61,r:23,name:'Bloesemvallei'},{x:0,z:-120,r:24,name:'Sterrenwacht'}];
  function group(x,y,z,p=scene){let g=new T.Group();g.position.set(x,y,z);p.add(g);return g}
  function shape(geo,color,x,y,z,sx,sy,sz,ry=0,rz=0,rx=0,parent=null){
    if(parent){if(!mats.has(color))mats.set(color,new T.MeshStandardMaterial({color,flatShading:false,roughness:.8}));let o=new T.Mesh(geo,geo.userData.surface||(color===0x92583f?timberMat:mats.get(color)));o.position.set(x,y,z);o.scale.set(sx,sy,sz);o.rotation.set(rx,ry,rz);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
@@ -123,7 +123,16 @@ function createWorld(canvas) {
   g.setAttribute('uv',new T.Float32BufferAttribute([0,0,w/4,0,w/8,rise/4],2));g.computeVertexNormals();g.userData={surface:plasterBox.userData.surface};return g}
  // Places parts in a frame turned by ry: local x runs along a facade, local z points outward.
  function frame(x,y,z,ry){const c=Math.cos(ry),s=Math.sin(ry);
-  return (geo,color,lx,ly,lz,sx,sy,sz,rz=0,rx=0)=>shape(geo,color,x+lx*c+lz*s,y+ly,z-lx*s+lz*c,sx,sy,sz,ry,rz,rx)}
+  const P=(geo,color,lx,ly,lz,sx,sy,sz,rz=0,rx=0)=>shape(geo,color,x+lx*c+lz*s,y+ly,z-lx*s+lz*c,sx,sy,sz,ry,rz,rx);P.at={x,y,z,ry,c,s};return P}
+ // Doors are hinged leaves that swing inward when someone comes close.
+ const doors=[],leafMat=new Map();
+ function hingedDoor(parent,hx,hy,hz,ry,w,h,color){
+  if(!leafMat.has(color))leafMat.set(color,new T.MeshStandardMaterial({map:loadSurface('board.jpg'),color,roughness:.85}));
+  const pivot=new T.Group();pivot.position.set(hx,hy,hz);pivot.rotation.y=ry;parent.add(pivot);
+  const leaf=new T.Mesh(cube,leafMat.get(color));leaf.scale.set(w,h,.08);leaf.position.set(w/2,h/2,0);leaf.castShadow=leaf.receiveShadow=true;pivot.add(leaf);
+  for(const yy of [.22,.78]){const band=new T.Mesh(cube,mats.get(0x2a2622)||new T.MeshStandardMaterial({color:0x2a2622,roughness:.6}));band.scale.set(w*.86,.06,.1);band.position.set(w*.47,h*yy,0);pivot.add(band)}
+  const knob=new T.Mesh(ball,new T.MeshStandardMaterial({color:0xb69765,metalness:.8,roughness:.35}));knob.scale.setScalar(.05);knob.position.set(w-.16,h*.47,.07);pivot.add(knob);
+  const d={pivot,ry,open:0,x:hx+Math.cos(ry)*w/2,z:hz-Math.sin(ry)*w/2,parent};doors.push(d);return d}
  const oak=0x4d3526,paint=[0x3f6b63,0x7c3b2c,0x45603a];
  function windowAt(P,lx,y,out,w,h,shutter,flowers=true){
   P(glass,0xffffff,lx,y,out+.015,w,h,.04);
@@ -136,13 +145,14 @@ function createWorld(canvas) {
   P(planks,0x7a5536,lx,y-h/2-.25,out+.2,w+.18,.2,.24);
   const tones=[0xe2475b,0xf6c443,0xf4f0f2,0xd45a9b,0xe2475b];
   for(let i=0;i<9;i++){const fx=lx-w/2+.08+i*(w-.16)/8;P(blossom,i%2?0x4f7d32:tones[i%5],fx,y-h/2-.08+(i%3)*.03,out+.2+(i%2?.04:-.03),i%2?.09:.065,i%2?.07:.065,i%2?.09:.065)}}
+ // Doorways are sized for the people: 1.25 wide and 2.95 high.
  function doorAt(P,lx,y0,out,color){
-  P(planks,color,lx,y0+.95,out+.03,1.0,1.9,.07);
-  for(const sx of [-1,1])P(beam,oak,lx+sx*.56,y0+1.0,out+.07,.13,2.05,.14);
-  P(beam,oak,lx,y0+2.05,out+.08,1.34,.16,.16);
-  for(const yy of [.55,1.45])P(beam,0x2a2622,lx,y0+yy,out+.075,.9,.05,.02);
-  P(ball,brass,lx+.3,y0+.98,out+.1,.045,.045,.045);
-  P(masonry,0xcfc1a8,lx,.12,out+.42,1.5,.24,.8)}
+  const {x,z,ry,c,s}=P.at,W=1.25,H=2.95,hx=lx-W/2;
+  P(cube,0x1d1712,lx,y0+H/2,out+.012,W,H,.02);P(glass,0xffffff,lx,y0+H*.55,out+.016,W*.7,H*.5,.01);
+  hingedDoor(scene,x+hx*c+(out+.06)*s,y0,z-hx*s+(out+.06)*c,ry,W,H,color).out=true;
+  for(const sx of [-1,1])P(beam,oak,lx+sx*(W/2+.07),y0+H/2+.05,out+.07,.14,H+.1,.15);
+  P(beam,oak,lx,y0+H+.1,out+.08,W+.42,.18,.17);
+  P(masonry,0xcfc1a8,lx,.12,out+.42,W+.5,.24,.8)}
  // Half-timbered facade: corner posts, rails at sill and plate height, St Andrew's crosses under the windows.
  function halfTimber(P,half,out,y0,hgt,openings){
   const sill=y0+hgt*.32,plate=y0+hgt-.07;
@@ -168,13 +178,13 @@ function createWorld(canvas) {
    if(attic){P(glass,0xffffff,0,rise*.62,.03,.42,.42,.04);P(wheel,oak,0,rise*.62,.07,.3,.3,.4)}}}
  function chimney(x,z,yTop,rise){const h=rise+1.1;shape(masonry,0xd9c9ae,x,yTop+h/2,z,.62,h,.62);shape(masonry,0xa89886,x,yTop+h+.08,z,.8,.16,.8);chimneys.push([x,yTop+h+.25,z])}
  function hut(x,z,w,variant=0){
-  const d=w*.86,y0=.48,hgt=w*.6,yTop=y0+hgt,rise=w*.47,colors=paint[variant%3];
+  const d=w*.86,y0=.48,hgt=w*.74,yTop=y0+hgt,rise=w*.47,colors=paint[variant%3];
   shape(masonry,0xd8cdb9,x,y0/2,z,w+.22,y0,d+.22);
   shape(plasterBox,variant?0xf3e4cc:0xffffff,x,yTop/2+y0/2,z,w,hgt,d);
   // front: door with a window either side
-  let P=frame(x,0,z+d/2,0);halfTimber(P,w/2,0,y0,hgt,[[0,1.3,true],[-w*.31,.95],[w*.31,.95]]);doorAt(P,0,y0,0,0x6e4a30);
-  for(const s of [-1,1])windowAt(P,s*w*.31,y0+hgt*.6,0,.78,.86,colors);
-  lantern(x+.85,y0+2.05,z+d/2+.32);
+  let P=frame(x,0,z+d/2,0);halfTimber(P,w/2,0,y0,hgt,[[0,1.6,true],[-w*.33,.95],[w*.33,.95]]);doorAt(P,0,y0,0,0x6e4a30);
+  for(const s of [-1,1])windowAt(P,s*w*.33,y0+hgt*.55,0,.78,.96,colors);
+  lantern(x+1.12,y0+2.75,z+d/2+.32);
   // sides and back
   for(const side of [-1,1]){P=frame(x+side*w/2,0,z,side*Math.PI/2);halfTimber(P,d/2,0,y0,hgt,[[side*-.45,.95]]);windowAt(P,side*-.45,y0+hgt*.6,0,.7,.78,colors,side>0)}
   P=frame(x,0,z-d/2,Math.PI);halfTimber(P,w/2,0,y0,hgt,[[0,.95]]);windowAt(P,0,y0+hgt*.6,0,.78,.86,colors,false);
@@ -188,22 +198,22 @@ function createWorld(canvas) {
  }
  // Stone smithy with a glowing forge, and a timber carpentry shed with a lean-to and lumber.
  function workshop(x,z,w,stone){
-  const d=w*.87,h=stone?2.6:3.0,front=z+d*.5,rise=stone?1.25:1.7;
+  const d=w*.87,h=stone?3.45:3.55,front=z+d*.5,rise=stone?1.25:1.7;
   if(stone){shape(masonry,0xf0dcc0,x,h/2,z,w,h,d);
    let P=frame(x,0,front,0);
-   P(planks,0x5d3f2a,-.22*w,1.05,.04,1.25,2.1,.08);P(beam,oak,-.22*w,2.2,.09,1.55,.18,.18);for(const s of [-1,1])P(beam,oak,-.22*w+s*.7,1.1,.08,.14,2.2,.16);
-   P(ember,0xffffff,.24*w,1.0,.03,.95,.7,.06);P(masonry,0x8c7f72,.24*w,1.42,.12,1.25,.16,.3);P(masonry,0x8c7f72,.24*w,.58,.12,1.25,.16,.3);for(const s of [-1,1])P(masonry,0x8c7f72,.24*w+s*.56,1.0,.12,.16,.95,.3);
+   doorAt(P,-.22*w,0,0,0x5d3f2a);
+   P(ember,0xffffff,.26*w,1.0,.03,.95,.7,.06);P(masonry,0x8c7f72,.26*w,1.42,.12,1.25,.16,.3);P(masonry,0x8c7f72,.26*w,.58,.12,1.25,.16,.3);for(const s of [-1,1])P(masonry,0x8c7f72,.26*w+s*.56,1.0,.12,.16,.95,.3);
    P(cube,0x3a3a3c,.05*w,.42,1.25,.7,.22,.32);P(cube,0x2c2c2e,.05*w,.2,1.25,.32,.4,.26);P(cone,0x3a3a3c,.05*w+.48,.45,1.25,.12,.32,.12,Math.PI/2);
    P(cyl,0x6b4a30,-.48*w,.42,.75,.34,.84,.34);solids.add({x:x-.48*w,z:front+.75,r:.36,base:0,top:.86});solids.add({x:x+.05*w+.1,z:front+1.25,w:.5,d:.2,base:0,top:.55});
-   for(const side of [-1,1]){P=frame(x+side*w/2,0,z,side*Math.PI/2);windowAt(P,0,1.45,0,.7,.72,0x5a4a3c,false)}
+   for(const side of [-1,1]){P=frame(x+side*w/2,0,z,side*Math.PI/2);windowAt(P,0,1.75,0,.7,.82,0x5a4a3c,false)}
    gables(x,z,w,d,h,rise,false);roof(x,z,w,d,h,rise,slate,0xbcb2a6,.42);
    shape(masonry,0xc4ad90,x+.3*w,h/2+1.3,z-.2*d,1.05,h+2.6,1.05);shape(masonry,0x9a8a7a,x+.3*w,h+2.68,z-.2*d,1.25,.2,1.25);chimneys.push([x+.3*w,h+2.9,z-.2*d],[x+.3*w,h+3.2,z-.2*d]);
   }else{
    shape(planks,0xc6a47c,x,h/2,z,w,h,d);shape(masonry,0xcfc3ad,x,.15,z,w+.18,.3,d+.18);
    for(const sx of [-1,1])for(const sz of [-1,1])shape(beam,oak,x+sx*(w/2-.05),h/2,z+sz*(d/2-.05),.2,h,.2);
    for(const sz of [-1,1])shape(beam,oak,x,h-.08,z+sz*(d/2+.02),w+.1,.16,.12);
-   let P=frame(x,0,front,0);doorAt(P,-.22*w,0,0,0x7d5636);windowAt(P,.22*w,1.6,0,.8,.8,0x3f6b63);
-   for(const side of [-1,1]){P=frame(x+side*w/2,0,z,side*Math.PI/2);windowAt(P,0,1.7,0,.7,.7,0x3f6b63,false)}
+   let P=frame(x,0,front,0);doorAt(P,-.22*w,0,0,0x7d5636);windowAt(P,.24*w,1.85,0,.8,.9,0x3f6b63);
+   for(const side of [-1,1]){P=frame(x+side*w/2,0,z,side*Math.PI/2);windowAt(P,0,1.9,0,.7,.8,0x3f6b63,false)}
    gables(x,z,w,d,h,rise,true);roof(x,z,w,d,h,rise,tiles,0xd9b89c,.5);
    // lean-to with stacked timber on the left
    const lx=x-w/2-1.05;for(const sz of [-1,1]){shape(beam,oak,lx-.95,1.05,z+sz*(d/2-.2),.14,2.1,.14);solids.add({x:lx-.95,z:z+sz*(d/2-.2),r:.12,base:0,top:2.1})}solids.add({x:lx-.15,z,w:.75,d:d*.4,base:0,top:1.05});
@@ -215,6 +225,48 @@ function createWorld(canvas) {
    shape(beam,oak,x+.32*w,.55,front+.75,1.1,.12,.18);solids.add({x:x+.32*w,z:front+.75,w:.58,d:.2,base:0,top:.6});for(const s of [-1,1])shape(beam,oak,x+.32*w+s*.42,.28,front+.75,.08,.56,.32,0,s*.25);
   }
   solids.add({x,z,w:w*.52,d:d*.51,base:0,top:h+rise});
+ }
+ // Trading post: a house with a striped awning, a painted sign and goods outside.
+ function canvasTex(w,h,draw){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'));const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.anisotropy=4;return t}
+ function tradingPost(x,z){
+  hut(x,z,5.2,2);const d=5.2*.86,front=z+d/2,yA=3.55;
+  const stripes=canvasTex(256,64,g=>{for(let i=0;i<16;i++){g.fillStyle=i%2?'#efe2c4':'#a8432f';g.fillRect(i*16,0,16,64)}g.fillStyle='rgba(0,0,0,.18)';g.fillRect(0,52,256,12)});
+  const awning=new T.Mesh(new T.PlaneGeometry(5.8,1.7,1,1),new T.MeshStandardMaterial({map:stripes,side:T.DoubleSide,roughness:.95}));
+  awning.position.set(x,yA-.35,front+.8);awning.rotation.x=-Math.PI/2+.42;awning.castShadow=awning.receiveShadow=true;scene.add(awning);
+  for(const s of [-1,1]){shape(beam,oak,x+s*2.8,1.55,front+1.55,.14,3.1,.14);solids.add({x:x+s*2.8,z:front+1.55,r:.12,base:0,top:3.1})}
+  shape(beam,oak,x,3.05,front+1.55,5.8,.14,.14);
+  const sign=canvasTex(512,128,g=>{g.fillStyle='#5a3b22';g.fillRect(0,0,512,128);g.strokeStyle='#c8a25a';g.lineWidth=8;g.strokeRect(8,8,496,112);g.fillStyle='#f0d690';g.font='bold 58px Georgia, serif';g.textAlign='center';g.textBaseline='middle';g.fillText('HANDELSPOST',256,68)});
+  const board=new T.Mesh(cube,[0,1,2,3,4,5].map(i=>i===4||i===5?new T.MeshStandardMaterial({map:sign,roughness:.8}):new T.MeshStandardMaterial({color:0x5a3b22,roughness:.8})));
+  board.scale.set(2.4,.6,.06);board.position.set(x,4.95,front+.1);board.castShadow=true;scene.add(board);
+  for(let i=0;i<3;i++){const cx=x-2.05+i*.0,cz=front+.75+i*.62;shape(cube,0xa77b4f,cx,.27,cz,.62,.5,.5);for(let k=0;k<7;k++)shape(ball,[0xb8322a,0xd8a23a,0x6f8f3a][i],cx+(k%3-1)*.17,.55,cz+(Math.floor(k/3)-1)*.14,.09,.09,.09)}
+  solids.add({x:x-2.05,z:front+1.37,w:.36,d:.95,base:0,top:.6});
+  for(const [bx,bz] of [[x+2.1,front+.9],[x+2.15,front+1.6]]){shape(cyl,0x7a5232,bx,.42,bz,.3,.84,.3);for(const yy of [.18,.66])shape(cyl,0x3b3a36,bx,yy,bz,.315,.05,.315);solids.add({x:bx,z:bz,r:.33,base:0,top:.86})}
+  for(let i=0;i<2;i++)shape(ball,0xa38a5f,x+1.25+i*.5,.3,front+1.9,.32,.36,.27);
+ }
+ // Two-storey manor: stone ground floor, a jettied half-timbered upper floor, a side wing and a porch.
+ function manor(x,z){
+  const w=8.5,d=6.4,y0=.5,h1=3.9,h2=3.4,yTop=y0+h1+h2,rise=3.3,front=z+d/2,tone=0x5a4a6a;
+  shape(masonry,0xc9bda6,x,y0/2,z,w+.3,y0,d+.3);shape(masonry,0xe6d8bf,x,y0+h1/2,z,w,h1,d);
+  shape(plasterBox,0xfff4e0,x,y0+h1+h2/2,z,w+.3,h2,d+.3);shape(beam,oak,x,y0+h1+.06,z,w+.42,.2,d+.42);
+  let P=frame(x,0,front,0);doorAt(P,0,y0,0,0x4a3428);
+  for(const s of [-1,1])for(const lx of [1.9,3.3])windowAt(P,s*lx,y0+2.1,0,.8,1.2,tone,true);
+  P=frame(x,0,front+.15,0);halfTimber(P,w/2+.15,0,y0+h1,h2,[[-2.6,1.05],[0,1.05],[2.6,1.05]]);
+  for(const lx of [-2.6,0,2.6])windowAt(P,lx,y0+h1+h2*.52,0,.85,1.1,tone,lx!==0);
+  for(const s of [-1,1]){shape(column,0xefe6d2,x+s*1.2,y0,front+1.25,1,1.15,1);solids.add({x:x+s*1.2,z:front+1.25,r:.2,base:0,top:3.3})}
+  shape(slate,0x8a8278,x,y0+3.4,front+.8,3.1,.14,1.75,0,0,-.2);shape(masonry,0xcfc1a8,x,y0-.12,front+.9,3.0,.24,1.6);
+  for(const side of [-1,1]){P=frame(x+side*w/2,0,z,side*Math.PI/2);windowAt(P,0,y0+2.1,0,.8,1.1,tone,false);
+   P=frame(x+side*(w/2+.15),0,z,side*Math.PI/2);halfTimber(P,d/2+.15,0,y0+h1,h2,[[0,1.05]]);windowAt(P,0,y0+h1+h2*.52,0,.8,1.0,tone,false)}
+  P=frame(x,0,z-d/2,Math.PI);for(const lx of [-2.6,0,2.6])windowAt(P,lx,y0+2.1,0,.8,1.1,tone,false);
+  gables(x,z,w+.3,d+.3,yTop,rise);roof(x,z,w+.3,d+.3,yTop,rise,tiles,0xffffff,.6);chimney(x-w*.3,z+.4,yTop,rise);chimney(x+w*.28,z-d*.22,yTop,rise);
+  // side wing with a lean-to roof
+  const wx=x+w/2+1.75,ww=3.3,wd=4.6,wh=3.5,wz=z+.5;
+  shape(masonry,0xc9bda6,wx,y0/2,wz,ww+.2,y0,wd+.2);shape(plasterBox,0xf3e4cc,wx,y0+wh/2,wz,ww,wh,wd);
+  P=frame(wx,0,wz+wd/2,0);halfTimber(P,ww/2,0,y0,wh,[[0,1]]);windowAt(P,0,y0+2.0,0,.9,1.1,tone,true);
+  P=frame(wx+ww/2,0,wz,Math.PI/2);windowAt(P,0,y0+2.0,0,.8,1.0,tone,false);
+  shape(tiles,0xffffff,wx+.2,y0+wh+.42,wz,ww+.9,.16,wd+.8,0,-.27);
+  solids.add({x,z,w:w*.52+.15,d:d*.52+.15,base:0,top:yTop+rise});solids.add({x:wx,z:wz,w:ww*.52,d:wd*.52,base:0,top:y0+wh+.9});
+  lantern(x-.95,y0+2.95,front+.35);lantern(x+.95,y0+2.95,front+.35);
+  for(let i=0;i<7;i++){const hx=x-w/2+.6+i*1.25;if(Math.abs(hx-x)<2)continue;shape(blossom,0x3f6a34,hx,.45,front+1.1,.55,.5,.4)}
  }
  const lathe=(points,n=16)=>new T.LatheGeometry(points.map(([r,h])=>new T.Vector2(r,h)),n);
  const column=lathe([[.21,0],[.235,.05],[.23,.15],[.174,.19],[.165,.33],[.13,.39],[.095,.47],[.082,2.46],[.13,2.50],[.125,2.56],[.08,2.59],[.06,2.76],[0,2.83]]);
@@ -287,12 +339,13 @@ function createWorld(canvas) {
  shape(cone,teal,0,4,-6.7,1.6,2.6,1.1,0,.32,0,g);g.rotation.y=1.05;clouds.push([g,y,.45]);}
  const water=new T.MeshBasicMaterial({map:loadSurface('cascade.png'),side:T.DoubleSide,transparent:true,depthWrite:false});
  const land=[0x9cca75,0xa1c884,0xb0d5ca];
+ const reserved=[{x:13,z:-6.6,r:5.2},{x:-12,z:-52.6,r:8.2}],taken=(x,z,m)=>reserved.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+m);
  islands.forEach(({x,z,r},k)=>{island(x,z,r,land[k]);
   for(let j=0;j<150;j++){let a=rnd()*6.28,d=Math.sqrt(rnd())*(r-1),px=x+Math.cos(a)*d,pz=z+Math.sin(a)*d;
    if(Math.abs(px)<3){continue}
-   if(j%13===0 && d>12 && Math.abs(px)>10){let h=4+rnd()*3;if(nearPaving(px,pz,k,h*(k===1?.56:.405))){if(k===1)for(let j=0;j<6;j++)rnd();continue}k===1?cherry(px,pz,h):pine(px,pz,h);solids.add({x:px,z:pz,r:.43,base:0,top:h});solids.add({x:px,z:pz,r:k===1?2.6:h*.23,base:h*.40,top:h})}
-   else if(j%5===0){if(nearPaving(px,pz,k,.8))continue;if(k===2&&[[-7,-112],[7,-120],[0,-126]].some(([a,b])=>Math.hypot(px-a,pz-b)<2)){rnd();continue}solids.add({x:px,z:pz,r:.70,base:0,top:.78});shape(stoneGeo,k===2?0x9caebc:0x9d9b84,px,.25,pz,.8,.57,.75,a)}
-   else if(!nearPaving(px,pz,k,.39)){grove('meadow',px,pz,.45+.3*Math.sin(a)**2,0,.77)}
+   if(j%13===0 && d>12 && Math.abs(px)>10){let h=4+rnd()*3;if(nearPaving(px,pz,k,h*(k===1?.56:.405))||taken(px,pz,h*.5)){if(k===1)for(let j=0;j<6;j++)rnd();continue}k===1?cherry(px,pz,h):pine(px,pz,h);solids.add({x:px,z:pz,r:.43,base:0,top:h});solids.add({x:px,z:pz,r:k===1?2.6:h*.23,base:h*.40,top:h})}
+   else if(j%5===0){if(nearPaving(px,pz,k,.8)||taken(px,pz,.8))continue;if(k===2&&[[-7,-112],[7,-120],[0,-126]].some(([a,b])=>Math.hypot(px-a,pz-b)<2)){rnd();continue}solids.add({x:px,z:pz,r:.70,base:0,top:.78});shape(stoneGeo,k===2?0x9caebc:0x9d9b84,px,.25,pz,.8,.57,.75,a)}
+   else if(!nearPaving(px,pz,k,.39)&&!taken(px,pz,.3)){grove('meadow',px,pz,.45+.3*Math.sin(a)**2,0,.77)}
   }
   for(let j=-r+2;j<r-1;j+=1.55){let px=1.2*Math.sin(j*.18+k);
    for(let f=0;f<2;f++){let fx=px+(f?1:-1)*(2.65+rnd()*.8),fz=z+j;if(!nearPaving(fx,fz,k,.25)&&f===0 && Math.abs(Math.sin(j))>.65)grove("meadow",fx,fz,.31,0,.52)}}
@@ -327,8 +380,63 @@ function createWorld(canvas) {
  for(let i=0;i<8;i++){let x=6+i%3*1.16,z=12+Math.floor(i/3)*1.21;solids.add({x,z,w:.555,d:.555,base:0,top:1.08});shape(cube,0xbc8352,x,.54,z,1.07,1.04,1.08);for(let side of [-1,1])shape(cube,0x745344,x+side*.39,.54,z,.13,1.1,1.11)}
  for(let z of [10,-6,-17,-50,-71,-101,-118]){let x=z%2?3.8:-3.8;solids.add({x,z,r:.22,base:0,top:3.22});lamp(x,z,0,null,x>0?-1:1)}
  pine(8,4,5);solids.add({x:8,z:4,r:.43,base:0,top:5});
+ // ---- Highlands: an eastern lobe of Windhaven with a mountain, a stream, a waterfall and a cable car.
+ // Own random stream, so every earlier placement stays exactly where it was.
+ const lobe={x:27,z:-5,r:15},peak={x:31,z:-6,R:10.5,H:9.5};
+ const brook=[[29.6,-7.6],[31.6,-5.2],[33.6,-4.8],[35.4,-2.6],[37.6,-1.9],[39.4,-.4],[41.3,.6]];
+ function brookDist(x,z){let best=9;for(let i=1;i<brook.length;i++){const [a,b]=brook[i-1],[c,d]=brook[i],dx=c-a,dz=d-b,t=Math.max(0,Math.min(1,((x-a)*dx+(z-b)*dz)/(dx*dx+dz*dz)));best=Math.min(best,Math.hypot(x-a-t*dx,z-b-t*dz))}return best}
+ function mountainH(x,z){const d=Math.hypot(x-peak.x,z-peak.z);if(d>=peak.R)return 0;const k=1-(d/peak.R)**2;
+  return Math.max(0,peak.H*k**1.7+.55*Math.sin(x*.8+z*.3)*Math.cos(z*.7)*k*(1-k)*3-.45*Math.exp(-(brookDist(x,z)**2)/.55)*Math.min(1,k*4))}
+ {const keep=seed;island(lobe.x,lobe.z,lobe.r,0x9cca75);seed=keep;
+  // mountain surface: a polar grid so nothing hangs over the cliff
+  const rings=40,segs=96,pos=[],col=[],uvs=[],idx=[],c=new T.Color();
+  for(let i=0;i<=rings;i++)for(let j=0;j<segs;j++){const rr=peak.R*i/rings,a=j/segs*Math.PI*2,x=peak.x+Math.cos(a)*rr,z=peak.z+Math.sin(a)*rr,h=mountainH(x,z);
+   const sl=Math.hypot(mountainH(x+.3,z)-h,mountainH(x,z+.3)-h)/.3,rock=Math.min(1,Math.max(0,(sl-.55)*1.6+(h-6)*.18));
+   c.setHex(0x6f8f4a).lerp(new T.Color(0x8d877c),rock);if(brookDist(x,z)<.7)c.lerp(new T.Color(0x5b6a4a),.5);col.push(c.r,c.g,c.b);pos.push(x,h+(i===rings?-.06:.02),z);uvs.push(x/4,z/4)}
+  for(let i=0;i<rings;i++)for(let j=0;j<segs;j++){const a=i*segs+j,b=i*segs+(j+1)%segs,c2=(i+1)*segs+j,d=(i+1)*segs+(j+1)%segs;idx.push(a,c2,b,b,c2,d)}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(col,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));g.setIndex(idx);g.computeVertexNormals();
+  const hill=new T.Mesh(g,new T.MeshStandardMaterial({map:rockMap,vertexColors:true,roughness:.95}));hill.receiveShadow=hill.castShadow=true;scene.add(hill);
+  // firs on the slopes, boulders on the shoulders
+  let hs=5150;const hr=()=>(hs=(hs*16807)%2147483647)/2147483647;
+  for(let k=0;k<26;k++){const a=hr()*6.28,rr=2.5+hr()*(lobe.r-3.5),x=lobe.x+Math.cos(a)*rr,z=lobe.z+Math.sin(a)*rr,h=mountainH(x,z);
+   if(brookDist(x,z)<1.4||Math.hypot(x-peak.x,z-peak.z)<2.2||Math.hypot(x-25,z+1)<3||x<26&&Math.hypot(x,z)<24)continue;
+   if(k%3){const t=3.5+hr()*3;pine(x,z,t,h-.15);solids.add({x,z,r:.43,base:h-.2,top:h+t});solids.add({x,z,r:t*.23,base:h+t*.4,top:h+t})}
+   else{shape(stoneGeo,0x9d9b84,x,h+.2,z,.9,.6,.8,a);solids.add({x,z,r:.7,base:h-.3,top:h+.75})}}
+  // the brook: a ribbon that follows the ground and runs off the edge as a waterfall
+  const flow=new T.MeshStandardMaterial({map:loadSurface('cascade.png'),color:0x8cc4d6,transparent:true,opacity:.85,roughness:.1,metalness:.1,depthWrite:false});flow.map.wrapS=flow.map.wrapT=T.RepeatWrapping;flow.map.repeat.set(1,6);
+  const bp=[],bu=[],bi=[];let run=0;const steps=60;
+  for(let i=0;i<=steps;i++){const f=i/steps*(brook.length-1),k=Math.min(brook.length-2,Math.floor(f)),u=f-k,x=brook[k][0]+(brook[k+1][0]-brook[k][0])*u,z=brook[k][1]+(brook[k+1][1]-brook[k][1])*u;
+   const dx=brook[k+1][0]-brook[k][0],dz=brook[k+1][1]-brook[k][1],l=Math.hypot(dx,dz),nx=-dz/l,nz=dx/l,wd=.32+.35*i/steps;if(i)run+=Math.hypot(x-bp[bp.length-6],z-bp[bp.length-4]);
+   for(const s of [-1,1]){const px=x+nx*wd*s,pz=z+nz*wd*s;bp.push(px,Math.max(mountainH(px,pz),mountainH(x,z))+.07,pz);bu.push((s+1)/2,run/3)}
+   if(i){const n=i*2;bi.push(n-2,n-1,n,n,n-1,n+1)}}
+  const bg=new T.BufferGeometry();bg.setAttribute('position',new T.Float32BufferAttribute(bp,3));bg.setAttribute('uv',new T.Float32BufferAttribute(bu,2));bg.setIndex(bi);bg.computeVertexNormals();
+  const stream=new T.Mesh(bg,flow);stream.renderOrder=2;scene.add(stream);
+  const [ex,ez]=brook[brook.length-1],fallMat=new T.MeshBasicMaterial({map:loadSurface('cascade.png'),transparent:true,depthWrite:false,side:T.DoubleSide});fallMat.map.wrapT=T.RepeatWrapping;fallMat.map.repeat.set(1,3);
+  for(const [wd,off,op] of [[2.0,0,1],[2.9,.25,.5]]){const fall=new T.Mesh(new T.PlaneGeometry(wd,26,1,8),fallMat.clone());fall.material.opacity=op;fall.position.set(ex+.35+off,-12.9,ez+.2);fall.rotation.y=Math.PI/2-.12;fall.renderOrder=3;scene.add(fall);torrents.push(fall)}
+  torrents.push(stream);
+  // a small pool where the brook starts, fed by a spring among the rocks
+  const pool=new T.Mesh(new T.CircleGeometry(1.1,24),flow);pool.rotation.x=-Math.PI/2;pool.position.set(brook[0][0],mountainH(brook[0][0],brook[0][1])+.1,brook[0][1]);scene.add(pool);
+  for(let k=0;k<6;k++){const a=k*1.05,x=brook[0][0]+Math.cos(a)*1.3,z=brook[0][1]+Math.sin(a)*1.3;shape(stoneGeo,0x8f8a7e,x,mountainH(x,z)+.15,z,.45,.35,.4,a)}
+ }
+ // ---- Cable car from the summit down to the Bloesemvallei (runs once the harbour bridge is repaired)
+ const cableA={x:peak.x+.2,y:0,z:peak.z-1.6},cableB={x:14,y:0,z:-46.2};cableA.y=mountainH(cableA.x,cableA.z)-.05;
+ function cableStation(st,face){const g=group(st.x,st.y,st.z);g.rotation.y=face;
+  shape(masonry,0xcfc1a8,0,.2,0,3.4,.4,3.0,0,0,0,g);for(const sx of [-1,1])for(const sz of [-1,1])shape(beam,oak,sx*1.45,2.1,sz*1.25,.2,3.8,.2,0,0,0,g);
+  shape(tiles,0xffffff,0,4.15,0,3.9,.16,3.5,0,0,0,g);shape(beam,oak,0,3.7,0,.3,.3,3.4,0,0,0,g);shape(wheel,iron,0,3.4,-1.3,.6,.6,.6,0,0,0,g);
+  solids.add({x:st.x,z:st.z,w:1.75,d:1.6,base:st.y-.5,top:st.y+.4});return g}
+ const stationA=cableStation(cableA,Math.atan2(cableB.x-cableA.x,cableB.z-cableA.z)),stationB=cableStation(cableB,Math.atan2(cableA.x-cableB.x,cableA.z-cableB.z));
+ const cableTop=st=>({x:st.x,y:st.y+3.4,z:st.z});
+ function cableAt(f){const a=cableTop(cableA),b=cableTop(cableB),sag=Math.sin(f*Math.PI)*3.2;return new T.Vector3(a.x+(b.x-a.x)*f,a.y+(b.y-a.y)*f-sag,a.z+(b.z-a.z)*f)}
+ for(const off of [-.35,.35]){const pts=[];for(let i=0;i<=40;i++){const v=cableAt(i/40);pts.push(v.x+off*Math.cos(stationA.rotation.y),v.y,v.z-off*Math.sin(stationA.rotation.y))}
+  const vs=[];for(let i=0;i<pts.length;i+=3)vs.push(new T.Vector3(pts[i],pts[i+1],pts[i+2]));const line=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(vs),80,.035,5),new T.MeshStandardMaterial({color:0x3a3632,metalness:.6,roughness:.5}));scene.add(line)}
+ const gondola=new T.Group();scene.add(gondola);
+ {const P=(geo,color,x,y,z,sx,sy,sz)=>shape(geo,color,x,y,z,sx,sy,sz,0,0,0,gondola);
+  P(cube,0x8a3b2c,0,-2.0,0,1.7,.12,1.3);P(cube,0x8a3b2c,0,-.2,0,1.8,.12,1.4);for(const sx of [-1,1])for(const sz of [-1,1])P(beam,oak,sx*.82,-1.1,sz*.62,.08,1.8,.08);
+  P(planks,0xb08d67,0,-1.75,0,1.7,.5,.06);P(cube,0x3a3a3c,0,.6,0,.08,1.6,.08);P(wheel,iron,0,1.45,0,.22,.22,.3);P(cube,0x3a3a3c,0,1.35,0,.12,.12,.9)}
+ gondola.userData.f=0;
  hut(-10,5,5,0);workshop(-15,-3,4,false);workshop(11,7,4.7,true);mill(-9,-11);pennants(0,4,10);airship(14,12,-15);
  hut(12,-60,5,1);pennants(0,-58,9);mill(-12,-68,true);
+ tradingPost(13,-6.36);manor(-13,-52.94);
  // Copper observatory with a striped dome and telescope.
  shape(cyl,cream,-9,2.4,-125,4.2,4.8,4.2);shape(ball,teal,-9,4.85,-125,4.58,3.6,4.58);shape(cyl,0xc78d61,-9,5,-125,4.65,.5,4.65);solids.add({x:-9,z:-125,r:4.35,base:0,top:8.25});
  for(let i=0;i<30;i++){let s=i%2?1:-1,x=s*(48+rnd()*88),z=32-rnd()*205,r=4+rnd()*12,h=-6+rnd()*15;island(x,z,r,land[i%3],r*.85,h);for(let j=0;j<3;j++)pine(x+rnd()*r*.6,z+rnd()*r*.55,3+rnd()*4,h)}
@@ -390,6 +498,9 @@ function createWorld(canvas) {
  const flame=new T.MeshStandardMaterial({color:0xffd28a,emissive:0xffa040,emissiveIntensity:3});
  const quench=new T.MeshStandardMaterial({color:0x1d2a2c,roughness:.08,metalness:.3});
  const clay=0xa65a38,leatherC=0x5b3b25,ironC=0x3a3a3c,parchC=0xd9c49a,green=0x5c7d3a;
+ // Windows look out on the real village: a small camera behind the house renders into the glass.
+ const portalTarget=context?new T.WebGLRenderTarget(384,224,{type:T.HalfFloatType}):null,portalCam=new T.PerspectiveCamera(58,384/224,.3,420);
+ const portalGlass=new T.MeshBasicMaterial({map:portalTarget?portalTarget.texture:null,color:portalTarget?0xffffff:0x9fb8c0,toneMapped:false});let portalTick=0;
  // Woven rugs: border in the house colour, a band pattern and wool noise.
  function rugMaterial(color){const c=document.createElement('canvas');c.width=256;c.height=192;const g=c.getContext('2d'),base=new T.Color(color),css=(k,l=0)=>{const q=base.clone().offsetHSL(0,0,l);return `rgb(${q.r*255*k|0},${q.g*255*k|0},${q.b*255*k|0})`};
   g.fillStyle=css(.5);g.fillRect(0,0,256,192);g.fillStyle='#9c8257';g.fillRect(14,14,228,164);g.fillStyle=css(.72,.04);g.fillRect(20,20,216,152);
@@ -403,15 +514,21 @@ function createWorld(canvas) {
   const mesh=(geo,material,x,y,z,sx=1,sy=1,sz=1,ry=0,rx=0,rz=0)=>{const m=new T.Mesh(geo,material);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.rotation.set(rx,ry,rz);m.castShadow=m.receiveShadow=true;room.add(m);return m};
   build(i===2?stoneFloor:woodFloor,0xffffff,0,-.14,0,10,.28,10);
   const wall=i===2?surfaced(cube.clone(),'masonry'):withSurface(cube.clone(),new T.MeshStandardMaterial({map:plasterMap.clone(),color:0xf3e6cf,roughness:.95}));wall.userData.surface.map.repeat.set(i===2?4:3,i===2?2:1.4);wall.userData.surface.map.needsUpdate=true;
-  build(wall,0xefdfbc,0,2.3,-5,10.3,4.6,.22);
+  const H=house.manor?8.8:4.6;if(house.manor)wall.userData.surface.map.repeat.set(3,2.6);
+  build(wall,0xefdfbc,0,H/2,-5,10.3,H,.22);
   for(const side of [-1,1]){
-   build(wall,0xe1cfaa,side*5,2.3,0,.22,4.6,10);
-   for(const zz of [-4.8,0,4.8])build(beam,wood,side*4.84,2.18,zz,.19,4.4,.22);
+   build(wall,0xe1cfaa,side*5,H/2,0,.22,H,10);
+   for(const zz of [-4.8,0,4.8])build(beam,wood,side*4.84,(H-.2)/2,zz,.19,H-.2,.22);
    build(beam,wood,side*4.84,3.55,0,.21,.21,10);
   }
   build(beam,wood,0,3.75,-4.82,10,.21,.20);for(const xx of [-3,0,3])build(beam,wood,xx,4.32,0,.24,.26,10);
+  // closed room: front wall with a real door, and a plank ceiling
+  for(const side of [-1,1])build(wall,0xe1cfaa,side*2.9,H/2,5,4.4,H,.22);build(wall,0xe1cfaa,0,(H+3.1)/2,5,1.6,H-3.1,.22);
+  for(const sx of [-1,1])build(beam,wood,sx*.72,1.5,4.86,.14,3.05,.16);build(beam,wood,0,3.05,4.86,1.6,.18,.17);build(beam,wood,0,3.75,4.82,10,.21,.2);
+  const roomDoor=hingedDoor(room,-.625,0,4.92,0,1.25,2.95,0x6e4a30);
+  build(withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('wood.jpg',3),color:0x8a6a4c,roughness:.9})),0xffffff,0,H+.12,0,10.3,.18,10.3);
   // window with light coming in
-  build(glass,0x689298,-2,2.6,-4.86,2.45,1.45,.06);
+  mesh(new T.PlaneGeometry(2.45,1.45),portalGlass,-2,2.6,-4.87);
   for(const xx of [-3.24,-2,-.76])build(beam,wood,xx,2.6,-4.75,.11,1.58,.12);
   for(const yy of [1.85,2.6,3.35])build(beam,wood,-2,yy,-4.75,2.59,.09,.12);
   build(beam,wood,-2,1.8,-4.66,2.8,.1,.3);
@@ -500,15 +617,67 @@ function createWorld(canvas) {
    for(const [cx,cz] of [[-3.9,2.2],[-3.4,2.6]]){build(ball,0xa38a5f,cx,.38,cz,.38,.42,.32);build(cyl,0x8a7550,cx,.8,cz,.12,.1,.12)}solid(-3.7,2.4,1.2,1.0);
    stations=[{x:1.1,z:-3.35,h:0,clip:'work'},{x:-3.6,z:-.5,face:[-4.6,-.5],clip:'take'},{x:3.05,z:0,face:[3.9,0],clip:'take'},{x:-2.4,z:-2.3,h:0,clip:'look2'}];
   }
+  if(house.key==='wies'){
+   // counter with scales and a till, shelves full of goods, barrels and sacks
+   build(beam,0x8a5a34,0,.52,-1.6,5.2,1.04,.8);build(beam,0xa77b4f,0,1.08,-1.6,5.5,.08,1.0);solid(0,-1.6,5.4,.95);
+   build(cyl,0xb48a3c,-1.6,1.15,-1.55,.05,.12,.05);build(cube,0xb48a3c,-1.6,1.42,-1.55,.7,.03,.03);for(const s of [-1,1]){build(cyl,0xb48a3c,-1.6+s*.33,1.3,-1.55,.12,.02,.12);build(cyl,0xb48a3c,-1.6+s*.33,1.37,-1.55,.005,.14,.005)}
+   build(cube,0x5a3b22,1.4,1.25,-1.65,.6,.28,.4);for(let k=0;k<8;k++)build(cyl,0xd8b84a,.4+k*.07,1.13,-1.4,.045,.012,.045);
+   for(let k=0;k<4;k++){const sx=.9+k*.95;build(beam,0x6e4a2e,sx-.47,1.6,-4.6,.08,3.2,.45)}build(beam,0x6e4a2e,3.75,1.6,-4.6,.08,3.2,.45);
+   for(let row=0;row<4;row++){const y=.4+row*.75;build(beam,0x6e4a2e,2.3,y,-4.6,3.0,.05,.45);
+    for(let k=0;k<9;k++){const gx=.95+k*.32;const kind=(row*3+k)%5;if(kind===0)build(cyl,0xb7c7b4,gx,y+.16,-4.55,.1,.26,.1);else if(kind===1)build(ball,0xc9a25a,gx,y+.12,-4.55,.14,.1,.12);else if(kind===2)build(cube,[0x7a2e24,0x2f4a5e,0x5d5a2c][row%3],gx,y+.18,-4.6,.24,.34,.3);else if(kind===3)build(cyl,0xa65a38,gx,y+.13,-4.55,.11,.22,.11);else build(cube,0xe8dcc0,gx,y+.08,-4.55,.26,.14,.2)}}
+   solid(2.3,-4.6,3.2,.6);
+   for(const [bx,bz] of [[-4.2,-3.6],[-4.2,-2.6],[-3.4,-4.2]])barrel(bx,bz,.9,.38);for(let k=0;k<4;k++)build(ball,0xa38a5f,-4.1+(k%2)*.6,.36,1.2+Math.floor(k/2)*.7,.36,.4,.3);solid(-3.8,1.55,1.3,1.5);
+   for(const [cx,cz,c] of [[4.1,-.6,0xb8322a],[4.1,.5,0xd8a23a],[4.1,1.6,0x6f8f3a]]){build(beam,0x8a6a48,cx,.25,cz,.75,.5,.95);for(let k=0;k<9;k++)build(ball,c,cx+(k%3-1)*.2,.55,cz+(Math.floor(k/3)-1)*.25,.1,.1,.1);solid(cx,cz,.8,1.0)}
+   for(let k=0;k<5;k++)build(cone,[0x6e7d3a,0x8a7a3a,0xc9a96a][k%3],-2+k*.9,3.6,-3.2,.16,.42,.16,0,Math.PI);
+   stations=[{x:0,z:-2.55,face:[0,0],clip:'idle'},{x:2.2,z:-3.75,h:0,clip:'take'},{x:-.9,z:-2.6,face:[-1.6,-1.6],clip:'work'}];
+  }
+  if(house.manor){
+   // ground floor: fireplace, dining table, armchairs, clock; stairs up to a gallery library
+   build(masonry,0xb9ab98,1.6,1.3,-4.6,2.6,2.6,.6);build(ember,0xffffff,1.6,.45,-4.32,1.2,.5,.08);build(beam,0x5a3d26,1.6,2.65,-4.4,3.0,.16,.75);build(masonry,0xb9ab98,1.6,3.6,-4.7,1.6,2.0,.4);
+   for(let k=0;k<3;k++)build(cyl,0x8a6a4a,1.3+k*.3,.32,-4.25,.06,.5,.06,0,0,Math.PI/2);solid(1.6,-4.5,2.8,.9);
+   accent.position.set(1.6,1.1,-3.6);accent.intensity=5;
+   mesh(new T.PlaneGeometry(1.1,.8),mapPaper[1],1.6,3.5,-4.48,1,1,1,0);build(beam,0x5a3d26,1.6,3.5,-4.5,1.25,.95,.04);
+   table(-2.4,-1.2,2.4,1.2,.85,0x6e4a2e);for(const s of [-1,1])for(const t of [-.6,.6]){build(beam,0x6e4a2e,-2.4+t,.45,-1.2+s*.95,.45,.06,.45);build(beam,0x6e4a2e,-2.4+t,.85,-1.2+s*1.15,.45,.8,.06)}
+   build(cyl,0xefe6cf,-2.4,.98,-1.2,.05,.2,.05);mesh(ball,flame,-2.4,1.12,-1.2,.025,.05,.025);
+   for(const sx of [-.3,3.3]){build(beam,0x7a2e24,sx,.42,-2.6,.9,.3,.85);build(beam,0x7a2e24,sx,.85,-3.0,.9,.7,.18);for(const s of [-1,1])build(beam,0x7a2e24,sx+s*.4,.6,-2.6,.12,.45,.85);solid(sx,-2.7,1.0,1.0)}
+   build(beam,0x4a3426,-4.55,1.3,1.8,.4,2.6,.5);build(cyl,0xe8dcc0,-4.32,2.0,1.8,.16,.02,.16,0,0,Math.PI/2);solid(-4.55,1.8,.5,.6);
+   mesh(new T.PlaneGeometry(1.4,1),mapPaper[0],-4.88,2.6,-1.5,1,1,1,Math.PI/2);
+   // stairs along the right wall, from the front up to the gallery
+   const steps=14;for(let k=0;k<steps;k++){const z0=3.6-(k+.5)*4.6/steps,y=4.2*(k+1)/steps;build(beam,0x7a5232,4.32,y-.06,z0,.95,.12,4.6/steps+.02);build(beam,0x5a3d26,4.32,y/2,z0,.9,y,.05)}
+   for(let k=0;k<=steps;k+=2){const z0=3.6-k*4.6/steps,y=4.2*k/steps;build(beam,0x5a3d26,3.8,y+.5,z0,.06,1,.06)}
+   build(beam,0x5a3d26,3.8,2.1+1,1.3,.08,.08,6.3,0,0,Math.atan2(4.2,4.6));
+   // gallery floor with railing
+   build(withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('wood.jpg',2),color:0xb08a62,roughness:.85})),0xffffff,0,4.1,-3,9.78,.2,4);
+   build(beam,0x5a3d26,-.45,3.95,-1.02,9.1,.12,.16);for(let k=0;k<22;k++)build(beam,0x5a3d26,-4.8+k*.41,4.65,-1.05,.05,.9,.05);build(beam,0x5a3d26,-.45,5.12,-1.05,9.1,.08,.12);
+   for(const xx of [-4.0,-.8,2.4])build(beam,wood,xx,2.0,-1.05,.2,4.0,.2);solid(-4,-1.05,.3,.3);solid(-.8,-1.05,.3,.3);solid(2.4,-1.05,.3,.3);
+   // gallery: library and a reading corner
+   for(const bx of [.6,2.8]){for(const sx of [-1.05,1.05])build(beam,0x5a3d26,bx+sx,5.8,-4.6,.08,3.2,.45);for(let k=0;k<5;k++){const y=4.35+k*.62;build(beam,0x5a3d26,bx,y,-4.6,2.15,.05,.45);let xx=bx-1;while(xx<bx+.95){const wdt=.06+frnd()*.06,hh=.34+frnd()*.18;build(cube,[0x7a2e24,0x2f4a5e,0x5d5a2c,0x6b4a2a,0x3d2f45][Math.floor(frnd()*5)],xx+wdt/2,y+.03+hh/2,-4.58,wdt,hh,.28);xx+=wdt+.01}}}
+   build(beam,0x6e4a2e,-2.6,4.98,-3.6,1.6,.08,.8);for(const sx of [-1,1])for(const sz of [-1,1])build(beam,0x6e4a2e,-2.6+sx*.7,4.59,-3.6+sz*.3,.08,.78,.08);build(cyl,0xefe6cf,-2.9,5.1,-3.6,.05,.2,.05);mesh(ball,flame,-2.9,5.24,-3.6,.025,.05,.025);mesh(new T.PlaneGeometry(.7,.5),mapPaper[0],-2.4,5.0,-3.6,1,1,1,.2,-Math.PI/2);
+   mesh(new T.PlaneGeometry(2.45,1.45),portalGlass,-2,6.7,-4.87);for(const xx of [-3.24,-2,-.76])build(beam,wood,xx,6.7,-4.75,.11,1.58,.12);
+   const up=new T.PointLight(0xffc27a,6,9,1.6);up.position.set(0,7.6,-3);room.add(up);lantern(0,7.9,-3,room);
+   stations=[{x:1.6,z:-3.4,h:0,clip:'look'},{x:-2.4,z:-.05,h:0,clip:'take'},{x:-1.6,z:1.4,face:[-4.5,1.8],clip:'idle2'}];
+  }
   for(const st of stations)if(st.face)st.h=Math.atan2(-(st.face[0]-st.x),-(st.face[1]-st.z));
   room.visible=false;
-  return {house,x,z,room,rects,stations,lamp,accent,exit:{x,z:4.05},npc:{x:x+.55,z:-1.83},actor:null,life:null}
+  roomDoor.room=true;
+  const ceil=(lx,z,y)=>house.manor?(y<3&&z<-.9?3.95:8.5):4.5;
+  // manor: stairs along the right wall (x 3.85..4.8, z 3.6 up to -1.0) and a gallery behind z -1 at 4.2
+  const floorAt=house.manor?(lx,z,y)=>{let f=0;if(lx>3.8&&lx<4.85&&z<3.7&&z>-1.3){const h=4.2*Math.max(0,Math.min(1,(3.6-z)/4.6));if(y>=h-.55)f=Math.max(f,h)}if(z<-.95&&y>=3.6)f=Math.max(f,4.2);return f}:()=>0;
+  const blockAt=house.manor?(lx,z,y,r)=>{const onStairX=lx>3.75-r&&lx<4.9+r;if(onStairX&&z<3.6+r&&z>-1.2){const h=4.2*Math.max(0,Math.min(1,(3.6-z)/4.6));if(h>.5&&y<h-.55)return true}
+   if(y>3&&z>-1.05-r&&!(lx>3.75&&lx<4.9))return true;if(y>3&&onStairX&&z>-.6&&!(lx>3.75&&lx<4.9))return true;return false}:()=>false;
+  return {house,x,z,room,rects,stations,lamp,accent,ceil,floorAt,blockAt,door:roomDoor,exit:{x,z:4.05},npc:{x:x+.55,z:-1.83},actor:null,life:null}
  });
- const residents={linde:{gender:'f',height:2.62},bram:{gender:'m',height:2.78},mara:{gender:'f',height:2.66},tomas:{gender:'m',height:2.74}};
+ function renderPortal(){
+  if(!portalTarget||!inside)return;const h=inside.house,back=h.z-({mara:4.4,bram:3.9,wies:4.9,vandalen:7.0}[h.key]??4.6);
+  portalCam.position.set(h.x+(h.key==='bram'?.9:h.key==='mara'?1.0:0),2.6,back);portalCam.lookAt(portalCam.position.x-1.2,2.2,back-10);
+  const auto=renderer.shadowMap.autoUpdate;renderer.shadowMap.autoUpdate=false;inside.room.visible=false;
+  renderer.setRenderTarget(portalTarget);renderer.render(scene,portalCam);renderer.setRenderTarget(null);
+  inside.room.visible=true;renderer.shadowMap.autoUpdate=auto}
+ const residents={linde:{gender:'f',height:2.62},bram:{gender:'m',height:2.78},mara:{gender:'f',height:2.66},tomas:{gender:'m',height:2.74},wies:{gender:'f',height:2.6},vandalen:{gender:'m',height:2.78}};
  let inside=null;
  function enterRoom(room){
   if(inside)inside.room.visible=false;
-  inside=room;if(!room)return;room.room.visible=true;
+  inside=room;if(!room)return;room.room.visible=true;room.entered=performance.now()/1000;
   if(!room.actor){
    room.actor=context?Rig.person(room.room,room.house.key,residents[room.house.key]):embodiedPerson(room.room,room.house.key);room.actor.root.position.set(.55,0,-1.83);room.actor.root.rotation.y=Math.PI;
    room.actor.ready.catch(()=>console.error('Bewoner kon niet laden'))
@@ -548,6 +717,8 @@ function createWorld(canvas) {
   a.root.position.set(v.x,0,v.z);a.root.rotation.y=v.h;r.npc.x=r.x+v.x;r.npc.z=v.z;a.update(dt)
  }
 
+ const walkers=context?createWalkers(scene):null;
+ const fauna=context?createFauna(scene,{ground:(x,z,s)=>ground(x,z,s),blocked:(x,z,s,y,r,h)=>blocked(x,z,s,y,r,h)}):null;solids.add({x:12.5,z:11.5,r:.6,base:0,top:.8});
  const hero=expeditionPilot(scene,!!context),shadow=new T.Mesh(new T.PlaneGeometry(1.46,.94),new T.MeshBasicMaterial({map:loadSurface("footshadow.png"),transparent:true,depthWrite:false}));shadow.rotation.x=-Math.PI/2;scene.add(shadow);
  const nodes=[[-5,7,'hout'],[5,-1,'hout'],[-5,-9,'steen'],[6,-15,'steen'],[-6,-47,'hout'],[5,-54,'steen'],[-5,-66,'hout'],[5,-73,'steen'],[-5,-104,'steen'],[6,-114,'hout'],[-5,-120,'steen'],[7,-132,'hout']].map(([x,z,type],i)=>{
   solids.add(type==='hout'?{x,z,w:.83,d:1.12,base:0,top:1.48,harvest:i}:{x,z,r:1.16,base:0,top:1.74,harvest:i});
@@ -574,45 +745,60 @@ function createWorld(canvas) {
  const probe={stage:9,harvest:{},builds:[]};
  const grassAreas=(count,r)=>{const out=[];for(let k=0;k<3;k++){const {x,z,r:R}=islands[k];let made=0,tries=0;
   while(made<count/3&&tries++<count*4){const a=r()*Math.PI*2,d=Math.sqrt(r())*(R-.7),px=x+Math.cos(a)*d,pz=z+Math.sin(a)*d;
-   if(nearPaving(px,pz,k,-.15)||solids.blocked(px,pz,probe,0,.18,.5)||Math.abs(px)<2.9&&[-21,-81].some(q=>Math.abs(pz-q)<2.9))continue;out.push([px,pz]);made++}}return out};
+   if(nearPaving(px,pz,k,-.15)||solids.blocked(px,pz,probe,0,.18,.5)||Math.abs(px)<2.9&&[-21,-81].some(q=>Math.abs(pz-q)<2.9))continue;out.push([px,pz]);made++}}
+  {let made=0,tries=0;while(made<count/9&&tries++<count*2){const a=r()*Math.PI*2,d=Math.sqrt(r())*(lobe.r-.7),px=lobe.x+Math.cos(a)*d,pz=lobe.z+Math.sin(a)*d;if(Math.hypot(px,pz)<24.5||mountainH(px,pz)>.04||brookDist(px,pz)<.9||solids.blocked(px,pz,probe,0,.18,.5))continue;out.push([px,pz]);made++}}
+  return out};
  const meadow=context?Nature.grass(scene,grassAreas,24000,77):[];
  const life=context?Nature.life(scene,{chimneys,glades:[[-15,11],[16,-6],[-14,-52],[15,-66],[12,-108]],valley:[0,0,-61]}):null;
  const gates=[[-7,-112],[7,-120],[0,-126]].map(([x,z])=>{let g=group(x,2.85,z);shape(wheel,0xffad39,0,0,0,1.7,1.7,1.7,0,0,0,g);return {g,x,z}});
  const sail=group(0,2.55,0,hero.root);
  for(let side of [-1,1]){shape(iso,side===1?red:0xffbc65,side*1.17,.16,.1,1.57,.19,.89,side*.22,side*.15,0,sail);shape(cube,wood,side*.54,-.39,0,.09,1.2,.1,0,-side*.56,0,sail)}
  sail.visible=false;
- const builds=group(0,0,0);function construction(x,z,y,type,parent=builds){let g=group(x,y,z,parent);
+ const flags=[];const builds=group(0,0,0);function construction(x,z,y,type,parent=builds){let g=group(x,y,z,parent);
  if(type==='blok'){shape(cube,0xc18d5c,0,.56,0,2,1.12,2,0,0,0,g);for(let s of [-1,1])for(let d of [-1,1])shape(cube,wood,s*.9,.56,d*.9,.24,1.16,.24,0,0,0,g);shape(cube,cream,0,.56,1.01,2.1,.16,.09,0,.43,0,g)}
+ else if(type==='bloembak'){shape(planks,0x8a5a34,0,.27,0,1.0,.5,.5,0,0,0,g);shape(cube,0x3b2a1e,0,.5,0,.92,.06,.42,0,0,0,g);const tones=[0xe2475b,0xf6c443,0xf4f0f2,0xd45a9b];for(let i=0;i<12;i++)shape(blossom,i%3?tones[i%4]:0x4f7d32,-.38+(i%6)*.15,.58+(i%2)*.05,-.1+Math.floor(i/6)*.2,.09,.08,.09,0,0,0,g)}
+ else if(type==='bankje'){shape(planks,0xb08d67,0,.48,0,1.3,.08,.42,0,0,0,g);shape(planks,0xb08d67,0,.85,-.2,1.3,.3,.06,0,0,0,g);for(const s of [-1,1]){shape(beam,oak,s*.55,.24,0,.08,.48,.38,0,0,0,g);shape(beam,oak,s*.55,.66,-.2,.08,.4,.06,0,0,0,g)}}
+ else if(type==='vlag'){shape(cyl,0x6b5a48,0,1.7,0,.05,3.4,.05,0,0,0,g);shape(ball,0xb69765,0,3.45,0,.08,.08,.08,0,0,0,g);const f=new T.Mesh(new T.PlaneGeometry(1.1,.7,8,1),new T.MeshStandardMaterial({map:canvasTex(128,80,c=>{c.fillStyle='#2f5d63';c.fillRect(0,0,128,80);c.fillStyle='#e7c46a';c.beginPath();c.moveTo(40,40);c.lineTo(64,16);c.lineTo(88,40);c.lineTo(64,64);c.fill()}),side:T.DoubleSide,roughness:.9}));f.position.set(.58,3.0,0);f.castShadow=true;g.add(f);flags.push(f)}
  else {lamp(0,0,0,g)}return g}
- function sync(s){bridgeGroups.forEach((gg,i)=>gg.forEach(g=>g.visible=s.stage>i));beaconBeam.visible=s.stage===3;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
- function ground(x,z,s,y=100){if(inside)return 0;let h=islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.35)?0:-100;
+ function sync(s){flags.length=0;bridgeGroups.forEach((gg,i)=>gg.forEach(g=>g.visible=s.stage>i));beaconBeam.visible=s.stage===3;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
+ function ground(x,z,s,y=100){if(inside)return inside.floorAt(x-inside.x,z,y);let h=islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.35)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r-.35?0:-100;if(h===0)h=mountainH(x,z);
  if(Math.abs(x)<1.78 && ((s.stage>0 && z< -20&&z> -42)||(s.stage>1 && z< -80&&z> -100)))h=.19;
  return Math.max(h,solids.floor(x,z,s,y))}
  function blocked(x,z,s,y,r=.355,height=2.68){
-  if(inside){const lx=x-inside.x;return Math.abs(lx)>4.75-r||Math.abs(z)>4.73-r||Math.hypot(x-inside.npc.x,z-inside.npc.z)<r+.27||inside.rects.some(q=>Math.abs(lx-q.x)<q.w/2+r&&Math.abs(z-q.z)<q.d/2+r)}
-  if(y<-.16&&y> -16&&islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.32))return true;
+  if(inside){const lx=x-inside.x,up=y>3;return Math.abs(lx)>4.75-r||Math.abs(z)>4.73-r||!up&&Math.hypot(x-inside.npc.x,z-inside.npc.z)<r+.27||!up&&inside.rects.some(q=>Math.abs(lx-q.x)<q.w/2+r&&Math.abs(z-q.z)<q.d/2+r)||inside.blockAt(lx,z,y,r)}
+  if(y<-.16&&y> -16&&(islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.32)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r-.32))return true;
+  if(r>=.3&&height>2&&walkers?.blocks(x,z,r))return true;
   return solids.blocked(x,z,s,y,r,height)
  }
  function animate(t,s,p,view,start,dt){rotors.forEach((v,i)=>v.rotation.z=t*(i?.48:.61));clouds.forEach(([g,y,k])=>g.position.y=y+Math.sin(t*k)*.52);falls.forEach(([f,y],i)=>f.position.y=y+.28*Math.sin(t*3+i));core.rotation.y=t;
   nodes.forEach(n=>{const was=n.g.visible;n.g.visible=!(s.harvest[n.i]>Date.now());n.g.scale.setScalar(.62+.095*(s.yield?.[n.i]??4));if(was&&!n.g.visible&&!start&&life)life.burst(n.x,2.1,n.z,n.type==='hout'?0xffcf6a:0x9fe3ff);n.marker.rotation.y=t;n.marker.position.y=2.25+.17*Math.sin(t*2+n.i)});
+  for(const d of doors){let near;
+   if(d.room){const r=inside&&inside.door===d?inside:null;near=!!r&&(Math.hypot(p.x-r.x-d.x,p.z-d.z)<1.9||t<r.entered+1.3)}
+   else near=!inside&&!start&&Math.hypot(p.x-d.x,p.z-d.z)<2.7;
+   d.open+=((near?1:0)-d.open)*(1-Math.exp(-(near?5:2.5)*Math.min(dt,.1)));d.pivot.rotation.y=d.ry+d.open*(d.out?-1.42:1.42)}
+  {const f=gondola.userData.f,c=cableAt(f),a=cableTop(cableA),b=cableTop(cableB);gondola.position.copy(c);gondola.rotation.y=Math.atan2(b.x-a.x,b.z-a.z)}
+  for(const f of torrents)f.material.map.offset.y=(f.material.map.offset.y-dt*(f.geometry.type==='PlaneGeometry'?1.6:.9))%1;
+  for(const f of flags){const q=f.geometry.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i)+.55;q.setZ(i,Math.sin(t*5-x*4)*.09*x)}q.needsUpdate=true}
+  fauna?.update(t,dt,start?{x:0,y:0,z:13}:p,s,inside);walkers?.update(t,dt,start?{x:0,y:0,z:13}:p,inside);
   sail.visible=!start&&!!p.glide;const portrait=start?{x:0,y:0,z:13,heading:Math.PI+.32+.13*Math.sin(t*.37),on:true,speed:0,walk:0}:p;hero.pose(t,portrait,dt,view.yaw);
   shadow.position.set(portrait.x,Math.max(ground(portrait.x,portrait.z,s,portrait.y),-.6)+.082,portrait.z);
   let a=view.yaw,dist=view.dist,height=view.height;
   let target=start?new T.Vector3(cam.aspect<.85?-.48:-1.65,1.58,12.5):new T.Vector3(p.x,p.y+1.35,p.z);
   let eye=start?new T.Vector3(-1+.14*Math.sin(t*.22),1.95,17.5):new T.Vector3(p.x+Math.sin(a)*dist,p.y+height,p.z+Math.cos(a)*dist);
-  if(inside){target.set(p.x,p.y+1.22,p.z);eye.set(inside.x+(p.x-inside.x)*.40,3.75,Math.min(6.55,p.z+4.25));if(inside.actor.mixer||inside.actor.update)resident(inside,t,Math.min(dt,.1),p);else{inside.actor.root.rotation.y=Math.atan2(inside.npc.x-p.x,inside.npc.z-p.z);inside.actor.blend([])}if(inside.accent.intensity)inside.accent.intensity=6+1.6*Math.sin(t*9)*Math.sin(t*3.7)}
+  if(inside){target.set(p.x,p.y+1.45,p.z);const dd=Math.min(dist,4.2);{const ex=Math.max(inside.x-4.45,Math.min(inside.x+4.45,p.x+Math.sin(a)*dd)),ez=Math.max(-4.45,Math.min(4.45,p.z+Math.cos(a)*dd));eye.set(ex,Math.min(inside.ceil(ex-inside.x,ez,p.y)-.4,p.y+3.1),ez)}if(inside.actor.mixer||inside.actor.update)resident(inside,t,Math.min(dt,.1),p);else{inside.actor.root.rotation.y=Math.atan2(inside.npc.x-p.x,inside.npc.z-p.z);inside.actor.blend([])}if(inside.accent.intensity)inside.accent.intensity=6+1.6*Math.sin(t*9)*Math.sin(t*3.7)}
   cam.position.lerp(eye,dt>=1?1:1-Math.exp(-dt*10));
   if(!start&&!inside){
    const offset=cam.position.clone().sub(target),distance=offset.length();offset.normalize();
    const near=canopies.filter(o=>Math.abs(o.x-target.x)<16&&Math.abs(o.z-target.z)<16);
    for(let d=.25;d<=distance;d+=.17){
     const sample=target.clone().addScaledVector(offset,d);
-    if(blocked(sample.x,sample.z,s,sample.y-.10,.17,.22)||rotorDiscs.some(o=>Math.abs(sample.z-o.z)<.7&&Math.hypot(sample.x-o.x,sample.y-o.y)<o.r)||near.some(o=>{const k=(sample.y-o.y)/o.h;return k>.12&&k<1&&Math.hypot(sample.x-o.x,sample.z-o.z)<o.r*(1-k)+.25})){
+    if(sample.y<mountainH(sample.x,sample.z)+.35||blocked(sample.x,sample.z,s,sample.y-.10,.17,.22)||rotorDiscs.some(o=>Math.abs(sample.z-o.z)<.7&&Math.hypot(sample.x-o.x,sample.y-o.y)<o.r)||near.some(o=>{const k=(sample.y-o.y)/o.h;return k>.12&&k<1&&Math.hypot(sample.x-o.x,sample.z-o.z)<o.r*(1-k)+.25})){
      cam.position.copy(target).addScaledVector(offset,Math.max(.22,d-.24));break;
     }
    }
   }
   cam.lookAt(target);
+  if(inside&&(portalTick++%6===0||dt>=1))renderPortal();
   if(context){sun.position.set(portrait.x-36,portrait.y+34,portrait.z+22);sun.target.position.set(portrait.x,portrait.y,portrait.z)}
   else {const angle=Math.atan2(eye.x-target.x,eye.z-target.z);skyCanvas.style.backgroundPosition=(50+angle*100/Math.PI)+'% 62%'}
   if(life)life.update(t,target,cam,renderer.domElement.height);
@@ -627,5 +813,5 @@ function createWorld(canvas) {
   renderer.setPixelRatio(Math.min(devicePixelRatio,q>=2?1.65:q===1?1.2:1));resize();
   if(context&&!fx){renderer.toneMapping=T.ACESFilmicToneMapping}else if(q===0){renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15}}
  function resize(){let w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();if(fx){const r=renderer.getPixelRatio();fx.setSize(Math.round(w*r),Math.round(h*r))}}resize();
- return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),rooms,enterRoom,outfit:hero.outfit,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
+ return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),rooms,enterRoom,outfit:hero.outfit,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
 }

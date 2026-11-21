@@ -25,3 +25,7 @@ Original FBX surfaces and colour textures, adapted walk, reach and glide poses.
 with normal maps and the Rocketbox motion-capture animation library, converted to compact skinned meshes and clips.
 The explorer outfit is a recolour of the child body textures; scarf, backpack, belt and tools are modelled for Skybound.
 License text: ../people/LICENSE.txt
+
+1.9: animals (Dog_Beagle_01, Dog_GermanShepard_01, Bird_Sparrow_01, Bird_Chicken_Brown_01) and villagers
+(Female_Adult_09, Female_Adult_11, Male_Adult_02, Male_Adult_03, Male_Adult_05) from the Microsoft Rocketbox
+Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
