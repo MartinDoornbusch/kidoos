@@ -17,16 +17,16 @@ function createFX(renderer,scene,cam){
   `uniform sampler2D tDiffuse;uniform vec2 dir;varying vec2 vUv;void main(){vec3 s=texture2D(tDiffuse,vUv).rgb*.227;
    s+=(texture2D(tDiffuse,vUv+dir*1.385).rgb+texture2D(tDiffuse,vUv-dir*1.385).rgb)*.316;
    s+=(texture2D(tDiffuse,vUv+dir*3.231).rgb+texture2D(tDiffuse,vUv-dir*3.231).rgb)*.07;gl_FragColor=vec4(s,1.);}`);
- const finish=shader({tScene:{value:null},tBloomA:{value:null},tBloomB:{value:null},exposure:{value:1},bloom:{value:.55},time:{value:0},res:{value:new T.Vector2()},useBloom:{value:1}},
+ const finish=shader({tScene:{value:null},tBloomA:{value:null},tBloomB:{value:null},exposure:{value:.97},bloom:{value:.6},time:{value:0},res:{value:new T.Vector2()},useBloom:{value:1}},
   `uniform sampler2D tScene,tBloomA,tBloomB;uniform float exposure,bloom,time,useBloom;uniform vec2 res;varying vec2 vUv;
    vec3 aces(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}
    vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(.0031308,c));}
    void main(){vec3 c=texture2D(tScene,vUv).rgb;
     c+=useBloom*bloom*(texture2D(tBloomA,vUv).rgb*.55+texture2D(tBloomB,vUv).rgb*.75);
-    c*=exposure;float l=dot(c,vec3(.2126,.7152,.0722));
-    c=mix(c*vec3(.9,.98,1.1),c*vec3(1.08,1.,.88),smoothstep(.02,.75,l));
-    c=max(mix(vec3(l),c,1.12),0.);c=aces(c);
-    vec2 d=(vUv-.5)*vec2(res.x/res.y,1.);c*=mix(.72,1.,smoothstep(1.05,.35,length(d)));
+    c*=exposure;c=max((c-.16)*1.1+.16,0.);float l=dot(c,vec3(.2126,.7152,.0722));
+    c=mix(c*vec3(.8,.96,1.08),c*vec3(1.13,.99,.84),smoothstep(.03,.8,l));
+    c=max(mix(vec3(l),c,1.04),0.);c=aces(c);
+    vec2 d=(vUv-.5)*vec2(res.x/res.y,1.);c*=mix(.6,1.,smoothstep(1.1,.32,length(d)));
     c=srgb(c);float n=fract(sin(dot(vUv*res+fract(time)*61.,vec2(12.9898,78.233)))*43758.5453);
     gl_FragColor=vec4(c+(n-.5)*.012,1.);}`);
  function pass(material,out){quad.material=material;renderer.setRenderTarget(out);renderer.render(quadScene,quadCam)}

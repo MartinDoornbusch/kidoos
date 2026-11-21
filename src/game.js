@@ -153,12 +153,18 @@ function move(dt){
   if(due>now&&due<now+300&&dist(n)<1.97&&p.y<1.8)s.harvest[n.i]=now+600;
   else if(due<=now)delete s.harvest[n.i];
  }
- let dx=joyX+Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft')),dz=joyZ+Number(keys.has('s')||keys.has('arrowdown'))-Number(keys.has('w')||keys.has('arrowup')),l=Math.max(1,Math.hypot(dx,dz));dx/=l;dz/=l;p.speed=Math.hypot(dx,dz);
+ // Steering: W/S (or the stick up/down) walk forward and back along the pilot's own heading, A/D (or the stick
+ // left/right) turn. Letting go of a turn key keeps the new direction; dragging the view while walking steers too.
+ const clamp=v=>Math.max(-1,Math.min(1,v));
+ const turn=clamp(joyX+Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft')));
+ const drive=clamp(-joyZ+Number(keys.has('w')||keys.has('arrowup'))-Number(keys.has('s')||keys.has('arrowdown')));
+ if(Math.abs(turn)>.05)p.heading-=turn*dt*(Math.abs(drive)>.05?2.3:2.9);
+ if(drag&&drive>.05&&!currentRoom)p.heading=view.yaw;
+ p.speed=Math.max(Math.abs(drive),Math.abs(turn)*.3);
  if(p.speed>.03){
-  if(movementYaw===null)movementYaw=view.yaw;
-  const vx=dx*Math.cos(movementYaw)+dz*Math.sin(movementYaw),vz=dz*Math.cos(movementYaw)-dx*Math.sin(movementYaw);
-  p.heading=Math.atan2(-vx,-vz);if(!drag)followHeading=p.heading;p.walk+=dt*9*p.speed;let speed=keys.has('shift')?12:8;
- if(!world.blocked(p.x+vx*dt*speed,p.z,s,p.y))p.x+=vx*dt*speed;if(!world.blocked(p.x,p.z+vz*dt*speed,s,p.y))p.z+=vz*dt*speed}else movementYaw=null;
+  if(!drag)followHeading=p.heading;p.walk+=dt*9*p.speed;
+  const speed=(keys.has('shift')?12:8)*(drive<0?.6:1)*drive,vx=-Math.sin(p.heading)*speed,vz=-Math.cos(p.heading)*speed;
+  if(!world.blocked(p.x+vx*dt,p.z,s,p.y))p.x+=vx*dt;if(!world.blocked(p.x,p.z+vz*dt,s,p.y))p.z+=vz*dt}
  // The glider only drifts forward while you steer; let go and it sinks slowly in place.
  if(p.glide&&p.speed>.03){let gx=p.x-Math.sin(p.heading)*dt*2.6,gz=p.z-Math.cos(p.heading)*dt*2.6;if(!world.blocked(gx,gz,s,p.y)){p.x=gx;p.z=gz}else p.glide=false}let floor=world.ground(p.x,p.z,s,p.y);p.vy-=20*dt;if(p.glide)p.vy=Math.max(-1.15,p.vy);if(p.vy>0){let limit=world.ceiling(p.x,p.z,s,p.y,2.68)-2.68;if(p.y+p.vy*dt>limit){p.y=limit;p.vy=0}}p.y+=p.vy*dt;if(p.y<=floor&&p.vy<=0){p.y=floor;p.glide=false;p.vy=0;p.on=true}else p.on=false;if(p.y< -12)respawn();
  touchRings();

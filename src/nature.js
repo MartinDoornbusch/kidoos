@@ -30,50 +30,53 @@ const Nature=(()=>{
   out.computeBoundingSphere();return out}
  const mix=(a,b,t)=>new T.Color(a).lerp(new T.Color(b),Math.max(0,Math.min(1,t)));
 
- // Layered fir with drooping, ragged branch tiers. Height 1, base radius about .5.
- function firGeometry(seed){const parts=[],s=seed*1.37;
-  const trunk=new T.CylinderGeometry(.03,.075,.5,8);trunk.translate(0,.25,0);parts.push({geo:trunk,color:0x3a2a20});
-  const tiers=8;
-  for(let k=0;k<tiers;k++){const t=k/(tiers-1),rad=.5*(1-t*.86)+.035,hgt=.25-.1*t,y=.12+t*.72;
-   const cone=new T.ConeGeometry(rad,hgt,18,3);cone.translate(0,y+hgt/2,0);
-   displace(cone,v=>{const dx=v.x,dz=v.z,d=Math.hypot(dx,dz)/rad,a=Math.atan2(dz,dx);
-    const ragged=1+.24*Math.max(0,Math.sin(a*9+k*2.1+s))+.08*Math.sin(a*17+s);
-    v.x=dx*ragged;v.z=dz*ragged;v.y-=d*d*.11+wave(v.x*5,v.y*3,v.z*5,s+k)*.025});
-   parts.push({geo:cone,uvScale:[Math.round(4+rad*10),1.2],color:(x,y,z)=>{const d=Math.hypot(x,z)/rad,h=.85+.3*(Math.sin(x*91+z*57+y*33)*.5+.5);return mix(0x31402c,0x8fa878,d*.85+t*.15).multiplyScalar(h)}})}
-  const tip=new T.ConeGeometry(.04,.14,6);tip.translate(0,.93,0);parts.push({geo:tip,uvScale:[2,1],color:0x8fa878});
+ // Fir built from whorls of drooping, fan-shaped branches around a visible trunk. Height 1, base radius about .5.
+ function firGeometry(seed){const r=rng(seed*613+29),parts=[];
+  const trunk=new T.CylinderGeometry(.012,.06,.98,7);trunk.translate(0,.49,0);parts.push({geo:trunk,color:0x3b2a1f});
+  const whorls=12;
+  for(let k=0;k<whorls;k++){const t=k/(whorls-1),y=.13+t*.8,L=.5*Math.pow(1-t,.95)+.05,n=k%2?7:6;
+   for(let j=0;j<n;j++){const a=(j+r()*.5)/n*Math.PI*2+k*.9+seed,len=L*(.8+r()*.35),w=.05+len*.18;
+    const b=new T.ConeGeometry(w,len,5,2);b.rotateZ(-Math.PI/2);b.translate(len/2,0,0);b.scale(1,.42,1.9);
+    displace(b,v=>{const q=Math.max(0,v.x)/len;v.y-=q*q*len*.42+q*len*.05;v.z+=Math.sin(q*3+j)*.012});
+    b.rotateY(a);b.translate(0,y+r()*.03,0);
+    parts.push({geo:b,uvScale:[2,3],color:(x,yy,z)=>{const q=Math.hypot(x,z)/len;return mix(0x22331f,0x9ab27e,q*.8+t*.2).multiplyScalar(.85+.3*r())}})}}
+  const tip=new T.ConeGeometry(.035,.12,6);tip.translate(0,.98,0);parts.push({geo:tip,uvScale:[2,1],color:0x8aa673});
   return merge(parts)}
 
- // Blossom tree: twisted trunk, a few limbs and soft pink canopy clusters.
+ // Blossom tree: forked trunk, spreading limbs and many small clusters of blossom with a few leaves.
  function blossomGeometry(seed){const r=rng(seed*977+11),parts=[];
-  const trunk=new T.CylinderGeometry(.045,.085,.52,8,4);trunk.translate(0,.26,0);
-  displace(trunk,v=>{v.x+=Math.sin(v.y*5+seed)*.03;v.z+=Math.cos(v.y*4+seed)*.02});parts.push({geo:trunk,color:0x5a4238});
-  const blobs=[];
-  for(let i=0;i<4;i++){const a=i*1.7+seed,limb=new T.CylinderGeometry(.018,.035,.36,6);limb.translate(0,.18,0);
-   limb.rotateZ(.75+r()*.3);limb.rotateY(a);limb.translate(0,.42,0);parts.push({geo:limb,color:0x5f463a});
-   blobs.push([Math.cos(a)*.28,.68+r()*.12,-Math.sin(a)*.28,.2+r()*.06])}
-  blobs.push([0,.86,0,.27],[.08,.62,.1,.17]);
-  for(const [x,y,z,rad] of blobs){const g=new T.IcosahedronGeometry(rad,2);
-   displace(g,v=>{const k=1+.22*wave(v.x*9,v.y*9,v.z*9,seed+x*10);v.multiplyScalar(k);v.y*=.8});g.translate(x,y,z);
-   parts.push({geo:g,color:(px,py,pz)=>mix(0xa8506c,0xffc4d8,(py-y+rad)/(rad*2)*.85+(r()*.15))})}
+  const trunk=new T.CylinderGeometry(.04,.08,.5,8,5);trunk.translate(0,.25,0);
+  displace(trunk,v=>{v.x+=Math.sin(v.y*6+seed)*.035;v.z+=Math.cos(v.y*5+seed)*.025});parts.push({geo:trunk,color:0x4f3a31});
+  const tips=[];
+  for(let i=0;i<5;i++){const a=i*1.26+seed+r()*.4,tilt=.55+r()*.45,len=.32+r()*.14,limb=new T.CylinderGeometry(.014,.032,len,6);limb.translate(0,len/2,0);
+   limb.rotateZ(tilt);limb.rotateY(a);limb.translate(0,.42+r()*.06,0);parts.push({geo:limb,color:0x553f34});
+   const ex=-Math.sin(tilt)*len,ey=Math.cos(tilt)*len;tips.push([Math.cos(a)*ex,.44+ey,-Math.sin(a)*ex])}
+  for(let i=0;i<26;i++){const [bx,by,bz]=tips[i%tips.length],rad=.07+r()*.07,g=new T.IcosahedronGeometry(rad,1);
+   const ox=bx+(r()-.5)*.28,oy=by+(r()-.3)*.18,oz=bz+(r()-.5)*.28;
+   displace(g,v=>{v.multiplyScalar(1+.25*wave(v.x*20,v.y*20,v.z*20,seed+i));v.y*=.78});g.translate(ox,oy,oz);
+   const leaf=i%7===3,tone=r();
+   parts.push({geo:g,color:(px,py,pz)=>leaf?mix(0x3d5a2a,0x7d9a52,(py-oy+rad)/(rad*2)):mix(0x9c4a66,tone>.75?0xfff4f6:0xffc3d6,(py-oy+rad)/(rad*2)*.8+.2*r())})}
+  const crown=new T.IcosahedronGeometry(.16,1);displace(crown,v=>{v.multiplyScalar(1+.2*wave(v.x*15,v.y*15,v.z*15,seed));v.y*=.75});crown.translate(0,.92,0);
+  parts.push({geo:crown,color:(px,py)=>mix(0xa65172,0xffd1df,(py-.8)*3)});
   return merge(parts)}
 
  // Wildflower tuft: curved blades plus a few flower heads.
- function tuftGeometry(seed,petal){const r=rng(seed*331+7),parts=[];
+ function tuftGeometry(seed,petal,spike=false){const r=rng(seed*331+7),parts=[];
   for(let i=0;i<9;i++){const h=.55+r()*.45,blade=new T.PlaneGeometry(.05,h,1,3);blade.translate(0,h/2,0);
    const lean=.15+r()*.35,a=r()*Math.PI*2;
    displace(blade,v=>{const t=v.y/h;v.x*=1-t*.85;v.z+=t*t*lean});blade.rotateY(a);
-   parts.push({geo:blade,up:true,color:(x,y)=>mix(0x3c4a1f,0x9aa548,y/h)})}
+   parts.push({geo:blade,up:true,color:(x,y)=>mix(0x2c4422,0x86a656,y/h)})}
   for(let i=0;i<4;i++){const a=r()*Math.PI*2,d=r()*.16,h=.65+r()*.35,stem=new T.CylinderGeometry(.007,.01,h,4);stem.translate(Math.cos(a)*d,h/2,Math.sin(a)*d);
    parts.push({geo:stem,color:0x55652a});
-   const head=new T.IcosahedronGeometry(.055+r()*.03,1);head.scale(1,.55,1);head.translate(Math.cos(a)*d,h,Math.sin(a)*d);
-   parts.push({geo:head,color:(x,y)=>mix(petal,0xfff3cf,(y-h+.03)*8)})}
+   const head=new T.IcosahedronGeometry(.055+r()*.03,1);if(spike){head.scale(.55,2.3,.55);head.translate(0,.08,0)}else head.scale(1,.55,1);head.translate(Math.cos(a)*d,h,Math.sin(a)*d);
+   parts.push({geo:head,color:(x,y)=>spike?mix(petal,0xe9dcff,Math.max(0,(y-h-.1)*3)):mix(petal,0xfff3cf,(y-h+.03)*8)})}
   return merge(parts)}
 
  // One clump of grass blades; normals point up so blades light like the ground they grow from.
  function clumpGeometry(seed){const r=rng(seed+5),parts=[];
   for(let i=0;i<4;i++){const h=.7+r()*.3,blade=new T.PlaneGeometry(.1,h,1,2);blade.translate(0,h/2,0);const lean=.1+r()*.3,a=r()*Math.PI*2,ox=(r()-.5)*.2,oz=(r()-.5)*.2;
    displace(blade,v=>{const t=v.y/h;v.x*=1-t*.9;v.z+=t*t*lean});blade.rotateY(a);blade.translate(ox,0,oz);
-   parts.push({geo:blade,up:true,color:(x,y)=>mix(0x4a5226,0xb3ad66,y/h)})}
+   parts.push({geo:blade,up:true,color:(x,y)=>mix(0x2a4220,0x8fae5c,y/h)})}
   return merge(parts)}
 
  function needles(){const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d'),r=rng(19);
@@ -91,7 +94,7 @@ const Nature=(()=>{
   const meshes=[];
   for(const list of tiles.values()){const mesh=new T.InstancedMesh(geo,plantMaterial,list.length);
    list.forEach(([x,z],i)=>{const s=.14+r()*.2;m.position.set(x,0,z);m.rotation.set(0,r()*6.28,0);m.scale.set(s*1.2,s*(.8+r()*.6),s*1.2);m.updateMatrix();mesh.setMatrixAt(i,m.matrix);
-    mesh.setColorAt(i,tint.setHSL(.13+r()*.06,.22+r()*.16,.5+r()*.14))});
+    mesh.setColorAt(i,tint.setHSL(.2+r()*.07,.28+r()*.18,.5+r()*.13))});
    mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);meshes.push(mesh)}
   return meshes}
 

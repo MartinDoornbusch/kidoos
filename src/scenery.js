@@ -36,7 +36,7 @@ function embodiedPerson(parent,name){
  function blend(layers){
   const mark=layers.map(([f,w])=>f+':'+Math.round(w*240)).join('/');if(mark===stamp||!parts.length)return;stamp=mark;
   for(const {pos,geo,poses} of parts){
-   const idle=poses[0],dst=pos.array,used=layers.filter(([f,w])=>f&&w);
+   const idle=poses[0],dst=pos.array,used=layers.filter(([f,w])=>f&&w&&poses[f]);
    for(let i=0;i<dst.length;i++){let v=idle[i];for(const [f,w] of used)v+=w*(poses[f][i]-idle[i]);dst[i]=v/8000}
    pos.needsUpdate=true;geo.computeVertexNormals()
   }
