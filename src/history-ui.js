@@ -22,7 +22,7 @@ function historyQuestion(section,mission,round={count:0,good:0}){
   const ok=HistoryCourse.accepts(q,value);German.record(log,q,ok);round.count++;round.good+=Number(ok);if(ok&&mission)s.seals++;if(ok&&!mission)coin();persist();
   show('<small>DE OPSTAND · '+(ok?'GOED BEANTWOORD':'HERHALING INGEPLAND')+'</small><h2>'+(ok?'Dat klopt!':'Zo zit het')+'</h2><p class="source"></p><p class="youranswer"></p><div class="question"></div><p class="why"></p><div class="row"><button class="primary" id="historyNext"></button><button id="historyHome">Paragrafen</button></div>'+buttons());back();
   document.querySelector('.source').textContent=q.prompt;document.querySelector('.youranswer').textContent=ok?'':'Jouw antwoord: '+value.trim()+' · Het goede antwoord is:';document.querySelector('.question').textContent=q.answer.split('|')[0];document.querySelector('.why').textContent=q.why;
-  const ready=mission&&s.seals>=missions[s.stage][3];
+  const ready=mission&&s.seals>=mission()[3];
   $('historyNext').textContent=ready?'Naar de reparatie':!mission&&round.count>=10?'Bekijk resultaat':'Volgende vraag';
   $('historyHome').onclick=historyMenu;
   $('historyNext').onclick=()=>{if(ready)return workshop();if(!mission&&round.count>=10){

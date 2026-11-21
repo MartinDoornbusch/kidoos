@@ -29,3 +29,7 @@ License text: ../people/LICENSE.txt
 1.9: animals (Dog_Beagle_01, Dog_GermanShepard_01, Bird_Sparrow_01, Bird_Chicken_Brown_01) and villagers
 (Female_Adult_09, Female_Adult_11, Male_Adult_02, Male_Adult_03, Male_Adult_05) from the Microsoft Rocketbox
 Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
+
+1.11.0
+- Gerrit (houtvester), Anke (boerin) en Joost (steenhouwer): Microsoft Rocketbox Avatar Library
+  (Adults/Male_Adult_10, Adults/Female_Adult_07, Adults/Male_Adult_14), MIT-licentie.

@@ -84,10 +84,10 @@ const dutchBanks={"Niek":[
 function dutchStats(){const d=s.dutch||{};return '<div class="meter">Nederlands · goede antwoorden<b>'+(d.good||0)+' / '+(d.total||0)+'</b></div>'}
 function dutchRound(mission){
  const bank=dutchBanks[profile],stats=s.dutch ||= {good:0,total:0,cursor:0};
- let turn=0,score=0;const count=mission?missions[s.stage][3]-s.seals:5;
+ let turn=0,score=0;const count=mission?mission()[3]-s.seals:5;
  function ask(){
   const [topic,prompt,answer,why,task]=bank[stats.cursor%bank.length];
-  show('<small>NEDERLANDS · '+profile.toUpperCase()+' · '+(profile==='Floor'?'HAVO 3':'HAVO 2')+'</small><h2>'+topic+'</h2><p>'+(mission?'Werkplaats · '+s.seals+' van '+missions[s.stage][3]+' instructies opgelost':'Vraag '+(turn+1)+' van '+count)+'</p><div class="question"></div><p id="nlTask"></p><form id="nlForm"></form>'+buttons());back();
+  show('<small>NEDERLANDS · '+profile.toUpperCase()+' · '+(profile==='Floor'?'HAVO 3':'HAVO 2')+'</small><h2>'+topic+'</h2><p>'+(mission?'Werkplaats · '+s.seals+' van '+mission()[3]+' instructies opgelost':'Vraag '+(turn+1)+' van '+count)+'</p><div class="question"></div><p id="nlTask"></p><form id="nlForm"></form>'+buttons());back();
   document.querySelector('.question').textContent=prompt;$('nlTask').textContent=task||(Array.isArray(answer)?'Kies het beste antwoord.':'Typ je antwoord.');const form=$('nlForm');
   function grade(value){
    // Quotes, commas and end punctuation never decide whether an answer is right.
@@ -97,7 +97,7 @@ function dutchRound(mission){
    show('<small>NEDERLANDS · '+topic.toUpperCase()+'</small><h2>'+(ok?'Goed geantwoord':'Bekijk het antwoord')+'</h2><p class="youranswer"></p><div class="question"></div><p id="why"></p><button class="primary" id="nlNext">Verder</button>'+buttons());back();
    document.querySelector('.youranswer').textContent=ok?'':'Jouw antwoord: '+value.trim()+' · Het goede antwoord is:';
    document.querySelector('.question').textContent=accepted[0];$('why').textContent=why;
-   const done=mission?s.seals>=missions[s.stage][3]:turn>=count;
+   const done=mission?s.seals>=mission()[3]:turn>=count;
    $('nlNext').textContent=done?(mission?'Naar de reparatie':'Bekijk je resultaat'):'Volgende opdracht';
    $('nlNext').onclick=()=>{if(!done)return ask();if(mission)return workshop();
     show('<small>NEDERLANDS · '+profile.toUpperCase()+'</small><h2>'+score+' van '+count+' goed</h2>'+dutchStats()+'<button id="againNL">Nog een ronde</button>'+buttons());back();$('againNL').onclick=()=>dutchRound(false)}
