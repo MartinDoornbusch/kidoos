@@ -53,6 +53,8 @@ function createWorld(canvas) {
  const detailsMat=[timberMat,...['roof','wall','rock'].map(name=>new T.MeshStandardMaterial({map:loadSurface(name+'.jpg'),roughness:.93}))];
  const dirtMap=loadSurface('paving.jpg');
  const roofGeo=cube.clone(),wallGeo=cube.clone(),stoneGeo=iso.clone();
+ // boulders: a lumpy, faceted stone instead of a smooth ball
+ {const q=stoneGeo.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),k=1+.24*Math.sin(x*3.1+y*1.7)*Math.cos(z*2.9)+.13*Math.sin(y*5.3+x*4.1);q.setXYZ(i,x*k,y*k*.8,z*k)}stoneGeo.computeVertexNormals()}
  const bark=new T.MeshStandardMaterial({map:loadSurface("ridged-bark.jpg"),color:0xffffff,roughness:1});
  const cutEnd=new T.MeshStandardMaterial({map:loadSurface('sawn-rings.jpg'),roughness:1});
  const ore=new T.MeshStandardMaterial({map:rockMap,color:0xabb7b3,roughness:.88});
@@ -63,7 +65,7 @@ function createWorld(canvas) {
   for(const [geo,rows] of batches){
    const groups=[rows.filter(r=>!woodenColors.has(r[1])),rows.filter(r=>woodenColors.has(r[1]))];
    groups.forEach((items,i)=>{if(!items.length)return;const surface=geo===roofGeo?1:geo===wallGeo?2:geo===stoneGeo?3:i?0:-1;const m=new T.InstancedMesh(geo,geo.userData.surface||(surface>=0?detailsMat[surface]:mat),items.length);
-    items.forEach(([matrix,color],j)=>{m.setMatrixAt(j,matrix);m.setColorAt(j,new T.Color(surface===0?0xe9d6bd:surface===1?0xe4d1be:surface===2?0xf1e0c7:surface===3?0xc3c1b8:color))});m.castShadow=m.receiveShadow=true;scene.add(m)})
+    items.forEach(([matrix,color],j)=>{m.setMatrixAt(j,matrix);m.setColorAt(j,new T.Color(surface===0?0xe9d6bd:surface===1?0xe4d1be:surface===2?0xf1e0c7:surface===3?0xb3b1a9:color))});m.castShadow=m.receiveShadow=true;scene.add(m)})
   }
   batches.clear()
  }
@@ -85,13 +87,13 @@ function createWorld(canvas) {
   for(let ring=0;ring<fr.length-1;ring++)for(let i=0;i<N;i++){const a=1+ring*(N+1)+i,b=a+N+1;topIdx.push(a,a+1,b,a+1,b+1,b)}
   const rows=profile.length;
   for(let k=0;k<rows;k++){const [rr,yy,bi]=profile[k],deep=k>=3;
-   for(let i=0;i<=N;i++){const a=i/N*Math.PI*2,rad=r*rr*(deep?1+.11*n(a,yy):rim(a)),wob=deep?n(a*1.3,yy*2)*depth*.05+.25*Math.sin(a*29+k*2.1+s):0;
+   for(let i=0;i<=N;i++){const a=i/N*Math.PI*2,rad=r*rr*(deep?1+.11*n(a,yy):rim(a)),wob=deep?n(a*1.3,yy*2)*depth*.012+.08*Math.sin(a*29+k*2.1+s):0;
     const crag=deep?1+.07*Math.sin(a*41+s+k)+.05*Math.sin(a*67+yy)+.04*Math.sin(a*23-k*1.7):1;const px=x+Math.cos(a)*rad*crag,py=h+yy+wob,pz=z+Math.sin(a)*rad*crag;cliff.push(px,py,pz);
     c.set(band[bi]).lerp(new T.Color(band[Math.min(3,bi+1)]),(.5+.5*n(a*2,yy))*.6).multiplyScalar(1-k/rows*.25);cliffC.push(c.r,c.g,c.b);cliffUv.push(a*r/4,py/4)}}
   for(let k=0;k<rows-1;k++)for(let i=0;i<N;i++){const a=k*(N+1)+i,b=a+N+1;cliffIdx.push(a,b,a+1,a+1,b,b+1)}
   for(const [points,tints,uv,index,map] of [[top,topC,topUv,topIdx,turf],[cliff,cliffC,cliffUv,cliffIdx,rockMap]]){
    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(points,3));g.setAttribute('color',new T.Float32BufferAttribute(tints,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(index);g.computeVertexNormals();
-   const m=new T.Mesh(g,new T.MeshStandardMaterial({vertexColors:true,map,roughness:1,flatShading:map===rockMap,side:map===turf?T.DoubleSide:T.FrontSide}));m.receiveShadow=map===turf;m.castShadow=map===rockMap;scene.add(m)
+   const m=new T.Mesh(g,new T.MeshStandardMaterial({vertexColors:true,map,roughness:1,flatShading:map===rockMap,side:T.DoubleSide}));m.receiveShadow=map===turf;m.castShadow=map===rockMap;scene.add(m)
   }
   // hanging rocks under the island and roots dangling from the soil band (own random stream, absolute heights)
   let q=Math.floor(s*1000)+7;const R=()=>(q=(q*16807)%2147483647)/2147483647;liftOff=true;
@@ -115,7 +117,11 @@ function createWorld(canvas) {
  function patch(){}
  const canopies=[];
  function pine(x,z,h,y=0){canopies.push({x,z,y:y+liftAt(x,z),h,r:h*.37});shape(pick(firs,x,z),shade(x,z,0xf2eee2,0xc9d6c0),x,y,z,h*.74,h,h*.74,(x+z)*2.4)}
- function cherry(x,z,h){canopies.push({x,z,y:h*.45+liftAt(x,z),h:h*.6,r:h*.5});shape(pick(blossoms,x,z),shade(x,z,0xffffff,0xffe0ea),x,0,z,h*1.15,h,h*1.15,(x+z)*2.4);for(let i=0;i<6;i++)rnd()}
+ // Blossom tree: a dark trunk with two limbs and a crown of petal clusters around a soft core.
+ function cherry(x,z,h){canopies.push({x,z,y:h*.45+liftAt(x,z),h:h*.6,r:h*.5});const L=liftAt(x,z),tone=[0xf4bccb,0xf8d3de,0xeaa7bc,0xfbe4ea];
+  shape(cyl,0x4e3a2e,x,h*.22,z,.13,h*.44,.13,0,.05);liftOff=true;cord(x,L+h*.38,z,x+h*.16,L+h*.58,z+h*.06,.06,0x4e3a2e);cord(x,L+h*.36,z,x-h*.12,L+h*.55,z-h*.1,.06,0x4e3a2e);liftOff=false;
+  shape(ball,0xc98ea2,x,h*.66,z,h*.3,h*.2,h*.3);for(let k=0;k<6;k++){const a=k*1.05+x*.7,d=h*.2;shape(bushGeo,tone[k%4],x+Math.cos(a)*d,h*.5+(k%2)*h*.08,z+Math.sin(a)*d,h*.21,h*.19,h*.21,a)}
+  shape(bushGeo,tone[1],x,h*.7,z,h*.22,h*.18,h*.22,z);for(let i=0;i<6;i++)rnd()}
  const wood=0x92583f,dark=0x3f4441,cream=0xdfcda6,teal=0x526558,red=0x925c40;
  function surfaced(geometry,file) {
   geometry.userData={};geometry.userData.surface=new T.MeshStandardMaterial({map:loadSurface(file+'.jpg'),roughness:.96});
@@ -655,18 +661,32 @@ void main(){float y=vUv.y;
   trail(farm,[g0(farm),[-45,-59.2],[-52,-58.6],[-58,-57.2],[-63,-58.8],[-64.6,-61.9]]);
   mill(-68,-62);farmRotor=rotors[rotors.length-1];solids.add({x:-68,z:-62,r:2.6,base:0,top:9});keepOut(-68,-62,4.2);
   hut(-50,-67,6,1);keepOut(-50,-67,4.8);
-  {const wx=-62,wz=-54;shape(cyl,0xcfc1a8,wx,.45,wz,.85,.9,.85);shape(cyl,0x2b3a40,wx,.92,wz,.66,.04,.66);for(const o of [-.75,.75])shape(beam,0xffffff,wx+o,1.4,wz,.1,1.9,.1);shape(beam,0xffffff,wx,2.3,wz,1.8,.1,.12);
-   for(const s of [-1,1])shape(tiles,0xffffff,wx,2.55,wz+s*.42,2,.07,1,0,0,s*.6);shape(cyl,0x8a6a4a,wx,1.75,wz,.08,1.4,.08,0,Math.PI/2);solids.add({x:wx,z:wz,r:.95,base:0,top:2.6});keepOut(wx,wz,1.8)}
+  {const wx=-62,wz=-54,ring=new T.CylinderGeometry(1,1,1,24,1,true);ring.userData.surface=new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xd8cfbf,roughness:.95,side:T.DoubleSide});
+   // fieldstone well: an open stone ring with a capstone rim, dark water, a timber frame with a shingle roof, a crank, rope and bucket
+   shape(ring,0xffffff,wx,.45,wz,.85,.9,.85);shape(ring,0xffffff,wx,.45,wz,.66,.9,.66);shape(new T.TorusGeometry(.76,.11,6,24),0xcfc4b0,wx,.92,wz,1,1,1,0,0,Math.PI/2);shape(cyl,0x1c2a30,wx,.55,wz,.66,.02,.66);
+   for(const o of [-.78,.78])shape(beam,0xffffff,wx+o,1.45,wz,.12,1.9,.12);shape(beam,0xffffff,wx,2.36,wz,1.9,.1,.12);
+   for(const s of [-1,1])shape(tiles,0xffffff,wx,2.6,wz+s*.4,2.1,.06,.95,0,0,s*.62);shape(beam,0xffffff,wx,2.86,wz,2.15,.08,.08);
+   shape(cyl,0x6b4f3a,wx,1.78,wz,.09,1.45,.09,0,0,Math.PI/2);shape(beam,0x3a3a3c,wx+.86,1.7,wz+.12,.04,.04,.3);cord(wx,1.78,wz,wx,1.12,wz,.012,0x8a7350);
+   shape(cyl,0x7a5a3c,wx,1.0,wz,.13,.2,.13);shape(new T.TorusGeometry(.13,.012,4,16),0x3a3a3c,wx,1.08,wz,1,1,1,0,0,Math.PI/2);solids.add({x:wx,z:wz,r:.95,base:0,top:2.9});keepOut(wx,wz,1.8)}
+  const straw=canvasTex(256,256,c=>{c.fillStyle='#c4a256';c.fillRect(0,0,256,256);for(let i=0;i<1400;i++){const x=Math.random()*256,y=Math.random()*256,l=6+Math.random()*16,a=1.25+Math.random()*.6;c.strokeStyle=['#e3c779','#a8833f','#d6b768','#8f6d33'][i%4];c.lineWidth=.8+Math.random();c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l);c.stroke()}});straw.wrapS=straw.wrapT=T.RepeatWrapping;
+  const strawMat=new T.MeshStandardMaterial({map:straw,roughness:1}),hayGeo=new T.LatheGeometry([[0,0],[1.3,0],[1.4,.45],[1.36,1.25],[1.15,1.95],[.8,2.5],[.4,2.85],[0,2.95]].map(([r,y])=>new T.Vector2(r,y)),28);hayGeo.userData.surface=strawMat;
+  const baleGeo=new T.CylinderGeometry(1,1,1,28);baleGeo.userData.surface=strawMat;
+  const wheatGeo=plantGeo((pos,idx)=>{for(let k=0;k<9;k++){const a=k*2.4,r0=.03+.09*((k*7)%5)/5,x=Math.cos(a)*r0,z=Math.sin(a)*r0,h=.72+.12*((k*3)%4)/3,lean=.05*Math.cos(a*3);
+    for(const [ox,oz] of [[.006,0],[0,.006]]){const b=pos.length/3;pos.push(x-ox,0,z-oz,x+ox,0,z+oz,x+lean+ox,h,z+oz,x+lean-ox,h,z-oz);idx.push(b,b+1,b+2,b,b+2,b+3)}
+    leafSet(pos,idx,x+lean,h-.03,z,a,1.32,.14,.04)}},new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.8}));
+  function appleTree(x,z,h){shape(cyl,0x5e4634,x,h*.24,z,.15,h*.48,.15,0,.04);cord(x,h*.42,z,x+.7,h*.62,z+.3,.07,0x5e4634);cord(x,h*.4,z,x-.5,h*.6,z-.5,.07,0x5e4634);
+   shape(ball,0x35582a,x,h*.68,z,1.35,1.0,1.35);for(let k=0;k<5;k++){const a=k*1.26+x,dx=Math.cos(a)*.75,dz=Math.sin(a)*.75;shape(bushGeo,k%2?0x5b8b3b:0x4f7d32,x+dx,h*.52+(k%2)*.3,z+dz,1.05,.95,1.05,a)}
+   shape(bushGeo,0x5b8b3b,x,h*.78,z,1.1,.9,1.1,x);for(let k=0;k<12;k++){const a=k*2.4+z,e=.2+(k%4)*.25,r=1.35*Math.cos(e);shape(ball,k%3?0xb3262a:0xc9572c,x+Math.cos(a)*r,h*.68+Math.sin(e)*.9,z+Math.sin(a)*r,.075,.075,.075)}}
   function field(x0,x1,z0,z1,crop){const cx=(x0+x1)/2,cz=(z0+z1)/2;shape(cube,0x6b4a2e,cx,.04,cz,x1-x0,.08,z1-z0);
-   for(let z=z0+.5;z<z1-.3;z+=.8){shape(cube,0x5e4128,cx,.12,z,x1-x0-.4,.16,.42);for(let x=x0+.45;x<x1-.3;x+=crop?.42:.7){const j=Math.sin(x*12.9+z*7.3);crop?shape(cone,j>0?0xcfae5c:0xbf9c4c,x+j*.05,.55,z,.12,.75+.1*j,.12,j):shape(ball,j>0?0x557d36:0x62893c,x,.28,z,.22,.15,.22,j)}}
+   for(let z=z0+.5;z<z1-.3;z+=.8){shape(cube,0x5e4128,cx,.12,z,x1-x0-.4,.16,.42);for(let x=x0+.45;x<x1-.3;x+=crop?.42:.7){const j=Math.sin(x*12.9+z*7.3);crop?shape(wheatGeo,j>0?0xd9b862:0xc9a552,x+j*.05,.16,z,1,.9+.12*j,1,j*3):(shape(leafGeo,j>0?0x5d8f4c:0x6b9a52,x,.14,z,1.7,1.05,1.7,j*3),shape(ball,0x9cc37a,x,.24,z,.1,.09,.1))}}
    for(let x=x0;x<=x1+.01;x+=2){for(const z of [z0,z1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}for(let z=z0;z<=z1+.01;z+=2){for(const x of [x0,x1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}
    for(const y of [.45,.85]){for(const z of [z0,z1])shape(beam,0xffffff,cx,y,z,x1-x0,.07,.05);for(const x of [x0,x1])shape(beam,0xffffff,x,y,cz,.05,.07,z1-z0)}
    solids.add({x:cx,z:cz,w:(x1-x0)/2+.1,d:(z1-z0)/2+.1,base:0,top:1.1});keepOut(cx,cz,Math.hypot(x1-x0,z1-z0)/2+.6)}
   field(-66,-56,-52,-45,true);field(-53,-46,-53,-47,false);
-  {const hx=-44.5,hz=-64.5;shape(cyl,0xb89a58,hx,.9,hz,1.3,1.8,1.3);shape(cone,0xab8d4e,hx,2.35,hz,1.38,1.25,1.38);for(const y of [.5,1.3])shape(new T.TorusGeometry(1.31,.035,4,32),0x6b5636,hx,y,hz,1,1,1,0,0,Math.PI/2);solids.add({x:hx,z:hz,r:1.35,base:0,top:2.9});keepOut(hx,hz,2)
-   for(let i=0;i<3;i++)shape(cyl,0xbfa05c,-57+i*1.3,.45,-63.6,.45,.9,.45,0,0,Math.PI/2);solids.add({x:-55.7,z:-63.6,w:2,d:.5,base:0,top:.9});keepOut(-55.7,-63.6,2)}
+  {const hx=-44.5,hz=-64.5;shape(hayGeo,0xffffff,hx,0,hz,1,1,1,hx);for(const y of [.55,1.4])shape(new T.TorusGeometry(1.39,.03,4,32),0x6b5636,hx,y,hz,1,1,1,0,0,Math.PI/2);solids.add({x:hx,z:hz,r:1.35,base:0,top:2.9});keepOut(hx,hz,2)
+   for(let i=0;i<3;i++)shape(baleGeo,0xffffff,-57+i*1.3,.45,-63.6,.45,.9,.45,0,0,Math.PI/2);solids.add({x:-55.7,z:-63.6,w:2,d:.5,base:0,top:.9});keepOut(-55.7,-63.6,2)}
   lamp(-54,-56.6,0,null,1);solids.add({x:-54,z:-56.6,r:.22,base:0,top:3.2});keepOut(-54,-56.6,.8);
-  for(let i=0;i<5;i++)tree(farm,4.2,5.6,true);for(let i=0;i<8;i++)tree(farm,5,8);for(let i=0;i<6;i++)boulder(farm,0x9d9b84,.6,1.1);tufts(farm,40);
+  for(let i=0;i<6;i++)scatter(farm,1,(x,z)=>{if(!free(farm,x,z,2.4))return false;const h=4+((x*7+z*3)%1+1)%1*1.2;appleTree(x,z,h);solids.add({x,z,r:.3,base:0,top:h});solids.add({x,z,r:1.7,base:h*.45,top:h*1.1});keepOut(x,z,2.4);return true});for(let i=0;i<8;i++)tree(farm,5,8);for(let i=0;i<6;i++)boulder(farm,0x9d9b84,.6,1.1);tufts(farm,40);
 
   // Steengroeve: a limestone quarry face, a derrick crane, stacked blocks, a stone shed and a cart.
   trail(quarry,[g0(quarry),[45,-76.5],[51,-79],[55.5,-80.5],[58,-84]]);
