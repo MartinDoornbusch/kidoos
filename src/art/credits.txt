@@ -33,3 +33,8 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
 1.11.0
 - Gerrit (houtvester), Anke (boerin) en Joost (steenhouwer): Microsoft Rocketbox Avatar Library
   (Adults/Male_Adult_10, Adults/Female_Adult_07, Adults/Male_Adult_14), MIT-licentie.
+
+1.14.0
+- Gescande rotsen, rotsblokken, boomstronk en rots-/klifoppervlakken: Poly Haven (polyhaven.com),
+  CC0 1.0. Modellen: moon_rock_02, moon_rock_04, rock_07, rock_09, tree_stump_01.
+  Texturen: cliff_side, aerial_rocks_02.
