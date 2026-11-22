@@ -5,6 +5,31 @@
 **Reviewmethode:** code, assetregistratie en publieke modelpagina's; **geen live walkthrough / systematische screenshots**. "Waarschijnlijk te simpel" is een codegebaseerde kwaliteitsinschatting, niet een bewezen visueel defect. Exacte uiterlijk, clipping en zichtbaarheid in game moeten door Claude worden bevestigd.  
 **Status:** alleen onderzoek en reviewdocument. Geen assets gedownload, geconverteerd, gekoppeld of gedeployed.  
 
+## 0. Correcties en vastgesteld toepassingsplan voor 1.18.0 (gebruikersbericht 22 november 2026)
+
+**Licentiecorrectie:** `Wooden Cart 01` van Nichgon heeft volgens de meegeleverde `license.txt` de licentie **Sketchfab Standard**, niet CC0/CC BY. Model **niet opnemen in openbare GitHub-repository**. Gebruik uitsluitend de **handkar uit `Medieval Market Asset Pack`** (CC BY) indien benodigd, met bronvermelding. De oorspronkelijke online bronmetadata kan niet in plaats van de meegestuurde licentietekst worden gebruikt.
+
+**Smidsset:** Mike Farrant `Asset Pack — Blacksmith Equipment` is CC BY. Claude neemt **alleen aambeeld, hamer, tang en slijpsteen** uit de set over, niet de volledige omgeving.
+
+**Gekozen voor versie 1.18.0** (nog geen bevestiging dat assets werkelijk in de runtime geïntegreerd zijn):
+- Smederij Mara: vier smidsgereedschappen uit de set hierboven.
+- Tomas, Anke, Wies: terracotta potten met kruiden — Poly Haven `planter_pot_clay`, **glTF 1K**, CC0.
+- Linde en landhuis; later ook meubels in level 4: `wooden_bookshelf_worn`, **glTF 1K**, CC0.
+- Anke: `brass_pot_01`, **glTF 1K**, CC0.
+- Boomgaard/handel: `food_apple_01`, **glTF 1K**, CC0. Voor herhaling terugbrengen tot enkele honderden triangles.
+- Observatorium: **KRei Armillary sphere** uit Sketchfab, glTF, CC BY volgens modelvermelding; **19.800 triangles → doel onder 8.000**.
+
+**Bronnen voor handmatige of gescripte download**:
+1. https://polyhaven.com/a/planter_pot_clay
+2. https://polyhaven.com/a/wooden_bookshelf_worn
+3. https://polyhaven.com/a/brass_pot_01
+4. https://polyhaven.com/a/food_apple_01
+5. https://sketchfab.com/3d-models/armillary-sphere-534e240ac6b0412cb526dd2b14bf8909
+
+Poly Haven's officiële API `https://api.polyhaven.com/files/<asset-id>` bevat de glTF-1K-URL en de bijbehorende `include`-afhankelijkheden voor bin/textures. **Alle dependencies moeten in dezelfde relative directorystructuur mee in een ZIP**. Sketchfab-download vereist mogelijk inloggen en is niet via de publieke HTML-tekst opvraagbaar.
+
+**Feitelijke beschikbaarheid:** ChatGPT heeft in deze werksessie wel bronpagina's geverifieerd, maar kon de glTF-binarydata **niet** downloaden (uitgaande netwerktoegang in de bestandsomgeving geblokkeerd). De modellen zijn daarom nog niet aan Claude geüpload; niet als gedownload of geïntegreerd aanmerken. De gebruiker kan de bestanden via de bronnen of een lokaal script ophalen en aan Claude toevoegen.
+
 ## TL;DR — wat moet eerst?
 
 **P0 (zichtbare placeholder / direct verbeteren):**
@@ -66,7 +91,7 @@ De acht genoemde woon-/werkhuizen zijn echte kamers in `world.js:1132–1331`. M
 
 | Ref | Past bij | Bron | Bronstatus | Polygon- / licentiecheck | Actie |
 |---|---|---|---|---|---|
-| **R01** | E01 | [Wooden Cart 01 — Nichgon](https://sketchfab.com/3d-models/wooden-cart-01-07a97f4ecf994f579ac4ec70d74c561c) | Sketchfab-modelpagina en preview vindbaar; realistisch verweerde latten en spaken | Driehoeken en **exacte herdistributielicentie opnieuw in viewer controleren** (index is tegenstrijdig over CC0 versus CC BY). | **Eerste visuele vergelijking voor stenenkar**. Geen GO tot license, polygons en glTF download zijn geverifieerd |
+| **R01 — AFGEWEZEN** | E01 | [Wooden Cart 01 — Nichgon](https://sketchfab.com/3d-models/wooden-cart-01-07a97f4ecf994f579ac4ec70d74c561c) | Gebruiker/Claude heeft de **meegeleverde license.txt** gecontroleerd | **Sketchfab Standard — GEEN CC0/CC BY**. Niet toegestaan in de openbare assetrepository volgens het vastgestelde licentiebeleid. | **Niet downloaden of in openbare repo integreren.** Gebruik R02, de CC BY-handkar uit het Medieval Market Asset Pack, als karvervanger. |
 | **R02** | E01, E07, I08 | [Medieval Market Asset Pack — vmatthew](https://sketchfab.com/3d-models/medieval-market-asset-pack-006ffc4ac5f34a1782f567b07e6605f2) | Gratis Sketchfab, CC BY 4.0 volgens pagina; bevat **handcart circa 2k tris**, kratten, marktdecoraties | Volledige set kan groot zijn; alleen 1 kar + relevante props exporteren | Praktisch alternatief als R01 niet voldoet |
 | **R03** | E02 | [Armillary sphere — KRei](https://sketchfab.com/3d-models/armillary-sphere-534e240ac6b0412cb526dd2b14bf8909) | Sketchfab, download + CC BY | Triangles / materiaaldetails **nog niet geverifieerd** | Eerst preview versus huidige armillarium; geen verkeerde gewone zonnewijzer bestellen |
 | **R04** | I01, I02, E10 | [Planter Pot Clay — Poly Haven](https://polyhaven.com/a/planter_pot_clay) | **CC0, glTF, 3k tris** | Direct binnen maximaal herhaald-prop-budget, maar 1–2 materialen en 512–1k atlas checken | **Sterke laag-risico kandidaat** voor terracotta pot. Voeg eigen goede kruidenmesh toe |
@@ -134,7 +159,7 @@ Belangrijk auditpunt: `world.js:728` gebruikt `scanProp('long_table',...)` als *
 ## 7. Voorstel minimale downloadbatch na A/B-review
 
 **Eerste downloadadvies (pas na Claude's visuele en licentiecontrole):**
-- **R01 OF R02** voor de stenenkar, niet beide blind.
+- **Alleen R02**, de handkar uit het **Medieval Market Asset Pack** (CC BY), na verificatie van polygonen, daadwerkelijke bronbestanden en attributie. **R01 is uitgesloten wegens Sketchfab Standard**.
 - **R04** Poly Haven terracotta pot (CC0, 3k).
 - **R08** Blacksmith Equipment Pack (CC BY) als per-model reduceren kan.
 
