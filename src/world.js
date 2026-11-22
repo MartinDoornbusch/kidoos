@@ -30,11 +30,11 @@ function createWorld(canvas) {
   {x:56,z:-80,r:23,name:'Steengroeve',lift:8,open:1,kind:'quarry',land:0xa9b486},{x:55,z:-128,r:20,name:'Valkenrots',lift:13,open:2,kind:'peak',land:0x98c38a}];
  // Bridges run rim to rim; the deck climbs or descends evenly between the two island heights.
  const bridges=[];
- function span(A,B,stage){const ex=B.x-A.x,ez=B.z-A.z,d=Math.hypot(ex,ez),dx=ex/d,dz=ez/d,a={x:A.x+dx*A.r,z:A.z+dz*A.r},b={x:B.x-dx*B.r,z:B.z-dz*B.r};
-  bridges.push({ax:a.x,az:a.z,bx:b.x,bz:b.z,ya:A.lift,yb:B.lift,len:Math.hypot(b.x-a.x,b.z-a.z),dx,dz,hw:1.8,stage,from:A,to:B})}
- span(islands[0],islands[1],1);span(islands[1],islands[2],2);
- span(islands[0],extraIslands[0],0);span(islands[1],extraIslands[1],0);span(islands[1],extraIslands[2],0);span(islands[2],extraIslands[3],0);
- const onBridge=(b,x,z,pad=0)=>{const t=(x-b.ax)*b.dx+(z-b.az)*b.dz;if(t<-pad||t>b.len+pad)return null;return {t,v:Math.abs((x-b.ax)*b.dz-(z-b.az)*b.dx),y:b.ya+(b.yb-b.ya)*Math.max(0,Math.min(1,t/b.len))}};
+ function span(A,B,stage,rope=false){const ex=B.x-A.x,ez=B.z-A.z,d=Math.hypot(ex,ez),dx=ex/d,dz=ez/d,a={x:A.x+dx*A.r,z:A.z+dz*A.r},b={x:B.x-dx*B.r,z:B.z-dz*B.r};
+  bridges.push({ax:a.x,az:a.z,bx:b.x,bz:b.z,ya:A.lift,yb:B.lift,len:Math.hypot(b.x-a.x,b.z-a.z),dx,dz,hw:rope?1.1:1.8,stage,from:A,to:B,rope,sag:rope?Math.hypot(b.x-a.x,b.z-a.z)*.035:0})}
+ span(islands[0],islands[1],1);span(islands[1],islands[2],2,true);
+ span(islands[0],extraIslands[0],0,true);span(islands[1],extraIslands[1],0);span(islands[1],extraIslands[2],0);span(islands[2],extraIslands[3],0,true);
+ const onBridge=(b,x,z,pad=0)=>{const t=(x-b.ax)*b.dx+(z-b.az)*b.dz;if(t<-pad||t>b.len+pad)return null;const u=Math.max(0,Math.min(1,t/b.len));return {t,v:Math.abs((x-b.ax)*b.dz-(z-b.az)*b.dx),y:b.ya+(b.yb-b.ya)*u-b.sag*Math.sin(Math.PI*u)}};
  function liftAt(x,z){if(x>300)return 0;
   for(const b of bridges){const o=onBridge(b,x,z);if(o&&o.v<b.hw+1.2)return o.y}
   for(const I of islands)if(Math.hypot(x-I.x,z-I.z)<I.r+4)return I.lift;return 0}
@@ -52,7 +52,7 @@ function createWorld(canvas) {
  const timberMat=new T.MeshStandardMaterial({map:timber,roughness:.91});
  const detailsMat=[timberMat,...['roof','wall','rock-grey'].map(name=>new T.MeshStandardMaterial({map:loadSurface(name+'.jpg'),roughness:.93}))];
  const dirtMap=loadSurface('paving.jpg');
- const roofGeo=cube.clone(),wallGeo=cube.clone(),stoneGeo=iso.clone();
+ const roofGeo=cube.clone(),wallGeo=cube.clone(),stoneGeo=iso.clone(),gableGeo=new T.CylinderGeometry(1,1,1,3).rotateZ(-Math.PI/2).rotateX(-Math.PI/2);
  // boulders: a lumpy, faceted stone instead of a smooth ball
  {const q=stoneGeo.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),k=1+.24*Math.sin(x*3.1+y*1.7)*Math.cos(z*2.9)+.13*Math.sin(y*5.3+x*4.1);q.setXYZ(i,x*k,y*k*.8,z*k)}stoneGeo.computeVertexNormals()}
  const bark=new T.MeshStandardMaterial({map:loadSurface("ridged-bark.jpg"),color:0xffffff,roughness:1});
@@ -116,11 +116,11 @@ function createWorld(canvas) {
  function grove(name,x,z,h,y,width){shape(pick(tufts,x,z),0xffffff,x,y,z,width*.75,h*.95,width*.75,(x+z)*2.4)}
  function patch(){}
  const canopies=[];
- function pine(x,z,h,y=0){canopies.push({x,z,y:y+liftAt(x,z),h,r:h*.37});const v=Math.abs(Math.round(x*3+z*7))%3;shape(cyl,0x4a382b,x,y+h*.14,z,h*.032,h*.3,h*.032);shape(conifers[v],[0x35603a,0x2f5835,0x3d6b3c][v],x,y,z,h*.74,h,h*.74,(x+z)*2.4)}
+ function pine(x,z,h,y=0){canopies.push({x,z,y:y+liftAt(x,z),h,r:h*.37});const v=Math.abs(Math.round(x*3+z*7))%3;shape(cyl,0x4a382b,x,y+h*.14,z,h*.032,h*.3,h*.032);shape(conifers[v],[0x5a9152,0x4f8549,0x66995a][v],x,y,z,h*.74,h,h*.74,(x+z)*2.4)}
  // Blossom tree: a dark trunk with two limbs and a crown of petal clusters around a soft core.
  function cherry(x,z,h){canopies.push({x,z,y:h*.45+liftAt(x,z),h:h*.6,r:h*.5});const L=liftAt(x,z),tone=[0xf4bccb,0xf8d3de,0xeaa7bc,0xfbe4ea];
   shape(cyl,0x4e3a2e,x,h*.22,z,.13,h*.44,.13,0,.05);liftOff=true;cord(x,L+h*.38,z,x+h*.16,L+h*.58,z+h*.06,.06,0x4e3a2e);cord(x,L+h*.36,z,x-h*.12,L+h*.55,z-h*.1,.06,0x4e3a2e);liftOff=false;
-  shape(ball,0xc98ea2,x,h*.66,z,h*.3,h*.2,h*.3);for(let k=0;k<6;k++){const a=k*1.05+x*.7,d=h*.2;shape(bushGeo,tone[k%4],x+Math.cos(a)*d,h*.5+(k%2)*h*.08,z+Math.sin(a)*d,h*.21,h*.19,h*.21,a)}
+  for(let k=0;k<9;k++){const a=k*.72+x*.7,d=k<7?h*.19:h*.06;shape(bushGeo,tone[k%4],x+Math.cos(a)*d,h*.5+(k%3)*h*.06+(k>=7?h*.12:0),z+Math.sin(a)*d,h*.17,h*.15,h*.17,a)}
   shape(bushGeo,tone[1],x,h*.7,z,h*.22,h*.18,h*.22,z);for(let i=0;i<6;i++)rnd()}
  const wood=0x92583f,dark=0x3f4441,cream=0xdfcda6,teal=0x526558,red=0x925c40;
  function surfaced(geometry,file) {
@@ -167,9 +167,13 @@ function createWorld(canvas) {
   new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.75}));
  const flowerGeo=plantGeo((pos,idx)=>{for(const [hx,hy,hz] of plantHeads)for(let f=0;f<3;f++){const fx=hx+(f-1)*.022,fz=hz+(f%2)*.02,fy=hy+(f===1?.012:0);for(let k=0;k<5;k++){const a=k*1.2566+f;leafSet(pos,idx,fx,fy,fz,a,.35,.05,.042)}}},
   new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.6}));
- const conifers=[0,1,2].map(v=>plantGeo((pos,idx)=>{const tiers=10+v;for(let i=0;i<tiers;i++){const f=i/tiers,y=.14+f*.8,rad=.5*(1-f)**.9+.04,n=9+((i+v)%3);
-    for(let k=0;k<n;k++){const a=k/n*6.283+i*.71+v,tw=Math.sin(a*3+i)*.08;leafSet(pos,idx,Math.cos(a)*.02,y+tw*.1,Math.sin(a)*.02,a,-.22-.22*(1-f)+tw,rad*(.9+.2*Math.sin(a*5+i)),rad*.46)}}
-   for(const a of [0,1.57,3.14,4.71])leafSet(pos,idx,0,.93,0,a,1.4,.1,.05)},new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.92})));
+ const conifers=[0,1,2].map(v=>{const pos=[],idx=[],col=[];
+  const blade=(ox,oy,oz,a,tilt,L,W,sh)=>{leafSet(pos,idx,ox,oy,oz,a,tilt,L,W);for(const c of [.45,.82,1,.82,.6])col.push(c*sh,c*sh,c*sh)};
+  const tiers=8+v;for(let i=0;i<tiers;i++){const f=i/tiers,y=.17+f*.77,rad=.52*(1-f)**.85+.05,n=7+((i+v)%3);
+   for(let k=0;k<n;k++){const a=k/n*6.283+i*1.1+v,j=Math.sin(a*5+i*3);blade(Math.cos(a)*.015,y,Math.sin(a)*.015,a,-.32-.25*(1-f)+j*.1,rad*(.85+.25*j),rad*.3,.82+.18*Math.sin(i*1.7));blade(Math.cos(a+.3)*.015,y-.05,Math.sin(a+.3)*.015,a+.3,-.58,rad*.68,rad*.22,.6)}}
+  for(const a of [0,2.1,4.2])blade(0,.92,0,a,1.35,.1,.04,.9);
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(col,3));g.setIndex(idx);g.computeVertexNormals();
+  g.userData.surface=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,side:T.DoubleSide,roughness:.9});return g});
  const bushGeo=plantGeo((pos,idx)=>{for(let i=0;i<110;i++){const a=plantRand()*6.283,el=Math.asin(plantRand()*1.1-.15),r=.92,x=Math.cos(a)*Math.cos(el)*r,y=.15+Math.sin(el)*r*.85,z=Math.sin(a)*Math.cos(el)*r;leafSet(pos,idx,x*.82,y,z*.82,a,el+.35,.34,.24)}},
   new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.8}));
  const ridge=withSurface(new T.CylinderGeometry(1,1,1,10),new T.MeshStandardMaterial({map:tileMap,roughness:.9}));
@@ -677,9 +681,9 @@ void main(){float y=vUv.y;
   const wheatGeo=plantGeo((pos,idx)=>{for(let k=0;k<9;k++){const a=k*2.4,r0=.03+.09*((k*7)%5)/5,x=Math.cos(a)*r0,z=Math.sin(a)*r0,h=.72+.12*((k*3)%4)/3,lean=.05*Math.cos(a*3);
     for(const [ox,oz] of [[.006,0],[0,.006]]){const b=pos.length/3;pos.push(x-ox,0,z-oz,x+ox,0,z+oz,x+lean+ox,h,z+oz,x+lean-ox,h,z-oz);idx.push(b,b+1,b+2,b,b+2,b+3)}
     leafSet(pos,idx,x+lean,h-.03,z,a,1.32,.14,.04)}},new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.8}));
-  function appleTree(x,z,h){shape(cyl,0x5e4634,x,h*.24,z,.15,h*.48,.15,0,.04);cord(x,h*.42,z,x+.7,h*.62,z+.3,.07,0x5e4634);cord(x,h*.4,z,x-.5,h*.6,z-.5,.07,0x5e4634);
-   shape(ball,0x35582a,x,h*.68,z,1.35,1.0,1.35);for(let k=0;k<5;k++){const a=k*1.26+x,dx=Math.cos(a)*.75,dz=Math.sin(a)*.75;shape(bushGeo,k%2?0x5b8b3b:0x4f7d32,x+dx,h*.52+(k%2)*.3,z+dz,1.05,.95,1.05,a)}
-   shape(bushGeo,0x5b8b3b,x,h*.78,z,1.1,.9,1.1,x);for(let k=0;k<12;k++){const a=k*2.4+z,e=.2+(k%4)*.25,r=1.35*Math.cos(e);shape(ball,k%3?0xb3262a:0xc9572c,x+Math.cos(a)*r,h*.68+Math.sin(e)*.9,z+Math.sin(a)*r,.075,.075,.075)}}
+  function appleTree(x,z,h){shape(cyl,0x5a4230,x,h*.24,z,.15,h*.48,.15,0,.04);for(const [dx,dz,top] of [[.8,.3,.66],[-.6,-.55,.62],[.1,-.7,.72],[-.3,.6,.7]])cord(x,h*.42,z,x+dx,h*top,z+dz,.065,0x5a4230);
+   for(let k=0;k<10;k++){const a=k*.68+x,r=k<7?.8+.15*Math.sin(k*2.3):.3,yy=h*(.55+(k%3)*.08)+(k>=7?.4:0);shape(bushGeo,[0x4f7d32,0x5b8b3b,0x3f6e2c][k%3],x+Math.cos(a)*r,yy,z+Math.sin(a)*r,.78,.7,.78,a*2)}
+   for(let k=0;k<12;k++){const a=k*2.4+z,e=.1+(k%4)*.2,r=1.25*Math.cos(e);shape(ball,k%3?0xb3262a:0xc9572c,x+Math.cos(a)*r,h*.62+Math.sin(e)*.8,z+Math.sin(a)*r,.07,.07,.07)}}
   function field(x0,x1,z0,z1,crop){const cx=(x0+x1)/2,cz=(z0+z1)/2;shape(cube,0x6b4a2e,cx,.04,cz,x1-x0,.08,z1-z0);
    for(let z=z0+.5;z<z1-.3;z+=.8){shape(cube,0x5e4128,cx,.12,z,x1-x0-.4,.16,.42);for(let x=x0+.45;x<x1-.3;x+=crop?.42:.7){const j=Math.sin(x*12.9+z*7.3);crop?shape(wheatGeo,j>0?0xd9b862:0xc9a552,x+j*.05,.16,z,1,.9+.12*j,1,j*3):(shape(leafGeo,j>0?0x5d8f4c:0x6b9a52,x,.14,z,1.7,1.05,1.7,j*3),shape(ball,0x9cc37a,x,.24,z,.1,.09,.1))}}
    for(let x=x0;x<=x1+.01;x+=2){for(const z of [z0,z1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}for(let z=z0;z<=z1+.01;z+=2){for(const x of [x0,x1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}
@@ -731,9 +735,27 @@ void main(){float y=vUv.y;
   for(let i=0;i<10;i++)tree(peakI,4.5,7);for(let i=0;i<6;i++)boulder(peakI,0xa7a397,.6,1.3);tufts(peakI,30);
 
   // Distant hamlets floating higher up, each with a cottage and a falling stream.
-  function cottage(x,z,y,w){const d=w*.8;shape(plasterBox,0xf3e4cc,x,y+w*.35,z,w,w*.7,d);for(const s of [-1,1])shape(tiles,0xffffff,x,y+w*.86,z+s*d*.27,w+.5,.14,d*.62,0,0,s*.62);shape(masonry,0xcfc1a8,x+w*.3,y+w*1.0,z,.45,.9,.45);shape(glass,0xffffff,x,y+w*.4,z+d/2+.01,w*.22,w*.24,.04)}
+  function cottage(x,z,y,w){const d=w*.8,hg=w*.7,top=y+.4+hg,rise=w*.42,dk=0xffffff,fz=z+d/2;gableGeo.userData.surface??=plasterBox.userData.surface;
+   // half-timbered cottage: stone plinth, framed plaster walls, plastered gables under a tiled roof, a door, framed windows with flower boxes and a chimney
+   shape(masonry,0xcfc1a8,x,y+.2,z,w+.25,.4,d+.25);shape(plasterBox,0xf3e4cc,x,y+.4+hg/2,z,w,hg,d);shape(gableGeo,0xf3e4cc,x,top+rise/3,z,w,rise/1.5,d/1.732);
+   for(const sz of [-1,1]){for(const sx of [-1,-.33,.33,1])shape(beam,dk,x+sx*w/2,y+.4+hg/2,z+sz*(d/2+.03),.13,hg,.07);for(const yy of [.46,top-y-.05])shape(beam,dk,x,y+yy,z+sz*(d/2+.03),w+.1,.11,.07)}
+   for(const s of [-1,1])for(const oz of [-d/2,0,d/2])shape(beam,dk,x+s*(w/2+.03),y+.4+hg/2,z+oz,.07,hg,.12);
+   for(const s of [-1,1])shape(tiles,0xffffff,x,top+rise/2,z+s*d*.29,w+.6,.14,d*.68,0,0,s*.7);shape(beam,dk,x,top+rise+.05,z,w+.65,.12,.14);
+   shape(cube,0x5d3f2a,x+w*.18,y+.4+.78,fz+.05,.62,1.56,.06);for(const s of [-1,1])shape(beam,dk,x+w*.18+s*.36,y+.4+.8,fz+.07,.09,1.62,.08);
+   for(const wx of [x-w*.24,x+w*.42]){if(wx>x+w*.38&&w<3)continue;shape(glass,0xffffff,wx,y+.4+hg*.58,fz+.02,.5,.55,.04);shape(beam,dk,wx,y+.4+hg*.58,fz+.05,.6,.06,.06);shape(beam,dk,wx,y+.4+hg*.58,fz+.05,.06,.65,.06);
+    shape(planks,0x7a5536,wx,y+.4+hg*.58-.36,fz+.13,.62,.14,.2);shape(leafGeo,0x4f7d32,wx,y+.4+hg*.58-.3,fz+.13,.8,.8,.8);shape(flowerGeo,[0xe2475b,0xf6c443,0xd45a9b][Math.abs(Math.round(wx))%3],wx,y+.4+hg*.58-.3,fz+.13,.8,.8,.8)}
+   shape(masonry,0xcfc1a8,x-w*.3,top+rise*.75,z-d*.15,.45,rise*1.1,.45);shape(masonry,0xb9ae99,x-w*.3,top+rise*1.33,z-d*.15,.55,.12,.55)}
   for(const [x,z,y,r] of [[-112,-30,14,9],[118,-40,18,10],[-96,-150,22,8],[104,-170,12,9],[-130,40,10,8],[96,48,20,8],[0,-205,24,11],[-40,-200,8,7]]){const s=seed;island(x,z,r,land[(x>0)+1],r*1.2,y);seed=s;cottage(x+r*.2,z,y,3.2);for(let j=0;j<3;j++)pine(x-r*.45+j*1.6,z+r*.3-j*.9,4+j,y);
    }
+  function decorRope(A,B){const ex=B.x-A.x,ez=B.z-A.z,d=Math.hypot(ex,ez),dx=ex/d,dz=ez/d,a=[A.x+dx*A.r*.97,A.y,A.z+dz*A.r*.97],b=[B.x-dx*B.r*.97,B.y,B.z-dz*B.r*.97],L=Math.hypot(b[0]-a[0],b[2]-a[2]),sag=L*.06,nx=dz,nz=-dx;liftOff=true;
+   const at=(t,v,dy)=>{const u=t/L;return [a[0]+dx*t+nx*v,a[1]+(b[1]-a[1])*u-sag*Math.sin(Math.PI*u)+dy,a[2]+dz*t+nz*v]};
+   for(let t=.2;t<L;t+=.45){const [x,y,z]=at(t,0,0);shape(planks,0xd8c6a6,x,y,z,1.9,.08,.26,Math.atan2(dx,dz))}
+   for(const v of [-.95,.95])for(const dy of [0,1.05]){for(let t=0;t<L-.01;t+=L/12){const p=at(t,v,dy),q=at(Math.min(L,t+L/12),v,dy);cord(p[0],p[1],p[2],q[0],q[1],q[2],.04,0x8f7350)}}liftOff=false}
+  const far=[];
+  for(const [x,z,y,r,home] of [[-138,-48,17,12,1],[146,-62,21,13,1],[-30,-228,27,12,1],[124,70,22,11,1],[-205,20,45,22,0],[212,-12,55,20,0],[-152,-235,48,24,1],[142,-255,36,26,0],[30,-305,62,30,1],[-62,152,26,22,0],[-230,-120,34,26,1],[235,-150,46,24,0]]){
+   const s2=seed;island(x,z,r,land[(x>0)+1],r*1.3,y);seed=s2;far.push({x,z,y,r});for(let j=0;j<Math.round(r/2.2);j++){const a=j*2.4+x,d=r*(.25+.5*((j*7)%5)/5);pine(x+Math.cos(a)*d,z+Math.sin(a)*d,4+(j%4)*1.3,y)}if(home){cottage(x-r*.15,z+r*.1,y,3.4);if(r>20)cottage(x+r*.3,z-r*.25,y,3)}}
+  const hamlets=[[-112,-30,14,9],[118,-40,18,10],[0,-205,24,11],[96,48,20,8]].map(([x,z,y,r])=>({x,z,y,r}));
+  hamlets.forEach((H,i)=>decorRope(H,far[i]));decorRope(far[2],far[8]);decorRope(far[6],far[10]);
   seed=keep}
  const cloudGeo=new T.PlaneGeometry();
  cloudGeo.userData.surface=new T.MeshBasicMaterial({map:loadSurface('mist.png'),transparent:true,depthWrite:false,side:T.DoubleSide,opacity:.77});
@@ -743,7 +765,7 @@ void main(){float y=vUv.y;
   for(let i=0;i<90;i++){const s=55+sea()*95;o.position.set((sea()-.5)*380,-15-sea()*13,70-sea()*340);o.rotation.set(0,sea()*6.28,0);o.scale.set(s,1,s*(.5+sea()*.4));o.updateMatrix();cloudFloor.setMatrixAt(i,o.matrix);
    cloudFloor.setColorAt(i,tone.set(0xf6dcc0).lerp(new T.Color(0xb9c8d2),sea()*.8))}
   cloudFloor.renderOrder=-1;scene.add(cloudFloor)}
- for(let j=0;j<2;j++){let z=j===0?-21:-81;shape(cube,wood,0,.04,z,5,.32,5);pennants(0,z+1.5,5.5);ports.push(z)}
+ const portPads=[];for(let j=0;j<2;j++){let z=j===0?-21:-81;flush();const n0=scene.children.length;shape(cube,wood,0,.04,z,5,.32,5);flush();portPads.push(scene.children.slice(n0));pennants(0,z+1.5,5.5);ports.push(z)}
  // ---- Observatory: a dressed-stone drum with arched windows and a door, a ribbed verdigris dome with an open
  // shutter slit and a brass telescope pointing out of it, a walkway ring, and an armillary sphere in the garden.
  {const ox=-9,oz=-125,R=4.2,drum=new T.CylinderGeometry(1,1,1,40);drum.userData.surface=masonry.userData.surface;
@@ -807,9 +829,15 @@ void main(){float y=vUv.y;
  {const steel=0x47605c,steelDark=0x2e3c3a;
   for(const b of bridges){liftOff=true;rotOrder='YXZ';
    const yaw=Math.atan2(b.dx,b.dz),nx=b.dz,nz=-b.dx,m=(b.yb-b.ya)/b.len,pitch=-Math.atan(m),L=b.len;
-   const at=(t,v,dy=0)=>{const tt=Math.max(0,Math.min(L,t));return [b.ax+b.dx*t+nx*v,b.ya+m*tt+dy,b.az+b.dz*t+nz*v]};
+   const at=(t,v,dy=0)=>{const tt=Math.max(0,Math.min(L,t));return [b.ax+b.dx*t+nx*v,b.ya+m*tt+dy-b.sag*Math.sin(Math.PI*tt/L),b.az+b.dz*t+nz*v]};
    const box=(geo,color,t,v,dy,sx,sy,sz,tilt=true)=>{const [x,y,z]=at(t,v,dy);shape(geo,color,x,y,z,sx,sy,sz,yaw,0,tilt?pitch:0)};
    const bar=(t1,v1,y1,t2,v2,y2,r,color)=>{const p=at(t1,v1,y1),q=at(t2,v2,y2);cord(p[0],p[1],p[2],q[0],q[1],q[2],r,color)};
+   if(b.rope){const sgd=t=>-b.sag*Math.PI/L*Math.cos(Math.PI*Math.max(0,Math.min(1,t/L)));
+    const n=Math.ceil((L+2.4)/.33);for(let i=0;i<n;i++){const t=-1.2+(i+.5)*(L+2.4)/n,j=Math.sin(i*12.9);if(j>.93&&t>.5&&t<L-.5)continue;const [x,y,z]=at(t,.03*j,.1);shape(plank,0xe0cfb0,x,y,z,2.15+.12*j,.09,.25,yaw+.035*j,0,(t>0&&t<L)?-Math.atan(m+sgd(t)):0)}
+    for(const v of [-1.03,1.03]){for(const dy of [.02,.6,1.12]){const K=Math.ceil(L/1.1);for(let i=0;i<K;i++)bar(i*L/K,v,dy,(i+1)*L/K,v,dy,dy>1?.05:.035,0x9b7b52)}for(let t=0;t<=L+.01;t+=1.1)bar(t,v,.02,t,v,1.12,.022,0x8a6c47)}
+    for(const [t,dir] of [[-.55,-1],[L+.55,1]])for(const v of [-1.25,1.25]){const [x,y,z]=at(t,v,0);shape(cyl,0x5a4230,x,y+.8,z,.16,1.8,.16);for(const yy of [.62,1.14])shape(new T.TorusGeometry(.17,.045,5,12),0x9b7b52,x,y+yy,z,1,1,1,0,0,Math.PI/2);
+     const [ax2,ay2,az2]=at(t+dir*1.7,v*1.35,-.12);cord(x,y+1.55,z,ax2,ay2,az2,.032,0x9b7b52);lantern(x,y+1.95,z);solids.add({x,z,r:.26,base:-.2,top:2.1,stage:b.stage})}
+   }else{
    const t0=-2.2,t1=L+2.2,n=Math.ceil((t1-t0)/.4);
    for(let i=0;i<n;i++){const t=t0+(i+.5)*(t1-t0)/n;box(plank,0xf3e3c9,t,.02*Math.sin(i*7),.055,3.66+.08*Math.sin(i*17),.24,(t1-t0)/n-.025,t>0&&t<L)}
    for(const v of [-1.84,1.84])box(beam,0xffffff,L/2,v,.25,.12,.16,L);
@@ -830,6 +858,7 @@ void main(){float y=vUv.y;
     for(let i=1;i<N;i+=2){const t=i*seg;bar(t,-1.45,dy(t),t,1.45,dy(t),.06,steelDark)}}
    // a lantern on a post at mid span on both sides
    for(const v of [-1.96,1.96]){box(cube,steel,L/2,v,1.7,.1,.5,.1,false);const [x,y,z]=at(L/2,v,2.12);lantern(x,y,z)}
+   }
    liftOff=false;rotOrder='XYZ';
    let k=scene.children.length;flush();bridgeGroups.push({stage:b.stage,list:scene.children.slice(k)})}}
  // Each door opens into a furnished walkable room in a separate part of the scene.
@@ -1164,7 +1193,7 @@ void main(){float y=vUv.y;
  else if(type==='bankje'){shape(planks,0xb08d67,0,.48,0,1.3,.08,.42,0,0,0,g);shape(planks,0xb08d67,0,.85,-.2,1.3,.3,.06,0,0,0,g);for(const s of [-1,1]){shape(beam,oak,s*.55,.24,0,.08,.48,.38,0,0,0,g);shape(beam,oak,s*.55,.66,-.2,.08,.4,.06,0,0,0,g)}}
  else if(type==='vlag'){shape(cyl,0x6b5a48,0,1.7,0,.05,3.4,.05,0,0,0,g);shape(ball,0xb69765,0,3.45,0,.08,.08,.08,0,0,0,g);const f=new T.Mesh(new T.PlaneGeometry(1.1,.7,8,1),new T.MeshStandardMaterial({map:canvasTex(128,80,c=>{c.fillStyle='#2f5d63';c.fillRect(0,0,128,80);c.fillStyle='#e7c46a';c.beginPath();c.moveTo(40,40);c.lineTo(64,16);c.lineTo(88,40);c.lineTo(64,64);c.fill()}),side:T.DoubleSide,roughness:.9}));f.position.set(.58,3.0,0);f.castShadow=true;g.add(f);flags.push(f)}
  else {lamp(0,0,0,g)}return g}
- function sync(s){flags.length=0;bridgeGroups.forEach(b=>b.list.forEach(g=>g.visible=s.stage>=b.stage));beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
+ function sync(s){flags.length=0;portPads.forEach((list,i)=>list.forEach(m=>m.visible=s.stage<=i));bridgeGroups.forEach(b=>b.list.forEach(g=>g.visible=s.stage>=b.stage));beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
  function ground(x,z,s,y=100){if(inside)return inside.floorAt(x-inside.x,z,y);const L=liftAt(x,z);let h=islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.35)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r-.35?L+mountainH(x,z):-100;
  for(const b of bridges){if(b.stage>s.stage)continue;const o=onBridge(b,x,z,2.3);if(o&&o.v<b.hw-.02)h=Math.max(h,o.y+.19)}
  return Math.max(h,solids.floor(x,z,s,y))}
