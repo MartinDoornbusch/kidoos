@@ -81,3 +81,17 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
 1.17.1
 - "Canvas Backpack with Bedroll" van tevy.dev (https://tevy.dev/models/canvas-backpack-bedroll), CC0 1.0
   (zo vermeld in het GLB-bestand zelf). Gebruikt als rugzak van Floor en Niek (LOD1, 2.362 driehoeken).
+
+1.18.0
+- Level 4 "Mijn huis": ontwerp en bouwflow met HouseDesigner en HousePlanner uit de repository.
+- Scans van Poly Haven (polyhaven.com), CC0 1.0: planter_pot_clay (kruidenpotten), brass_pot_01 (pan in Anke's keuken),
+  wooden_bookshelf_worn (boekenkasten bij Linde, in het landhuis en als meubel in je eigen huis), food_apple_01 (appels, vereenvoudigd).
+- "Asset Pack - Blacksmith Equipment" door Mike Farrant (https://sketchfab.com/MikeFarrant), CC BY 4.0,
+  https://sketchfab.com/3d-models/asset-pack-blacksmith-equipment-0f358eaab21d4e70836ad855de34c423
+  Gebruikt: aambeeld met stronk, hamer, tang en slijpsteen in de smederij van Mara.
+- "Armillary sphere" door KRei (https://sketchfab.com/krei1012), CC BY 4.0,
+  https://sketchfab.com/3d-models/armillary-sphere-534e240ac6b0412cb526dd2b14bf8909
+  Gebruikt bij het observatorium (vereenvoudigd tot 7.500 driehoeken).
+- "Da Vinci's - Flying Machine" door vanessalani (https://sketchfab.com/vanessalani), CC BY 4.0,
+  https://sketchfab.com/3d-models/da-vincis-flying-machine-ac60c0bc847e4929bf8aa9772ac49b1a
+  Gebruikt als zwever boven de speler.

@@ -69,3 +69,11 @@ dialog input:focus{outline:none;border-color:#e9a043;box-shadow:0 0 0 4px rgba(2
 @keyframes sq-shine{0%,100%{background-position:100% 0}50%{background-position:0 0}}
 @media(pointer:coarse){#act{transform:none}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* level 4: house design and furnishing */
+.dz{border-top:1px solid #e3d9c4;padding:9px 0}.dz>b{display:block;font-size:13px;margin-bottom:6px;color:#163840}
+.opts{display:flex;flex-wrap:wrap;gap:6px}dialog .opts button,dialog .wingrid button{padding:7px 10px;font-size:13px;border-radius:9px}
+dialog .opts button.on,dialog .wingrid button.on{background:linear-gradient(180deg,#ffe2a3,#f6c36d);border-color:#e9a043;color:#2a1a05}
+dialog .opts button:disabled,dialog .wingrid button:disabled{opacity:.45;transform:none;box-shadow:none;cursor:default}
+.wingrid{display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:5px;align-items:center}.wingrid span{font-size:12px;font-weight:700;padding-right:6px}
+.okline{color:#2e6b44;font-weight:700}.badline{color:#a2482c;font-weight:700}
+.meter b button{padding:5px 9px;font-size:12px;margin-left:4px}
