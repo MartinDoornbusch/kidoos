@@ -6,3 +6,7 @@
 .furniture-item{display:flex;align-items:center;gap:7px;border-bottom:1px solid #304b4c;padding:8px 0;font-size:12px}
 .furniture-item span{flex:1;min-width:70px;overflow-wrap:anywhere;color:#c6d3c8}
 .furniture-item button{padding:7px 9px;font-size:11px}
+
+.plot-controls{margin-top:12px;padding:12px;border-radius:8px;background:#203b3e}
+.plot-controls p{margin:0 0 8px}.plot-controls #plotPosition{margin:8px 0 0}
+.plot-buttons{display:flex;gap:7px}.plot-buttons button{flex:1;font-size:16px;padding:5px 8px}
