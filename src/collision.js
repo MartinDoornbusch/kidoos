@@ -19,7 +19,7 @@ function createSolids(){
   for(let i=Math.floor((x-r)/cellSize);i<=Math.floor((x+r)/cellSize);i++){
    for(let j=Math.floor((z-r)/cellSize);j<=Math.floor((z+r)/cellSize);j++){
     for(const o of cells.get(i+','+j)||[]){
-     if(o.stage>s.stage||o.harvest!=null&&s.harvest[o.harvest]>Date.now())continue;
+     if(o.stage>s.stage||o.when&&!o.when(s)||o.harvest!=null&&s.harvest[o.harvest]>Date.now())continue;
      if(overlaps(o,x,z,r)&&visit(o))return true;
     }
    }

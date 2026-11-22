@@ -45,3 +45,12 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
   watering_can_metal_01, rusted_spade_01, wicker_basket_01, wooden_bucket_01, wooden_bucket_02, wooden_crate_02,
   stone_fire_pit, large_castle_door, gothic_statue.
 - Texturen van Poly Haven, CC0 1.0: castle_wall_slates, castle_brick_broken_06, clay_roof_tiles_02.
+
+1.16.0
+- "Wooden Bridge Modular Kit" door Umar (https://sketchfab.com/123umar123), CC BY 4.0,
+  https://sketchfab.com/3d-models/wooden-bridge-modular-kit-9caac4745ead4d41918bb22c969ea785
+  Gebruikt voor de planken en touwen van de touwbruggen (verkleind, texturen 512 px).
+- "Photogrammetry low poly stone wall" door vicente betoret ferrero (https://sketchfab.com/deathcow), CC BY 4.0,
+  https://sketchfab.com/3d-models/photogrammetry-low-poly-stone-wall-c5059ae65ef24fe3bcb87107b3aa63f9
+  Gebruikt voor de droge stenen muur rond de moestuin van de Molenhoeve (vereenvoudigd tot 1500 driehoeken).
+- Bouwprojecten (wachttoren, level 3): ConstructionProjects, ConstructionStory en ConstructionCampaign uit de repository.

@@ -77,14 +77,18 @@ function createWorld(canvas) {
  const quarryRock=new T.MeshStandardMaterial({map:rockMap,vertexColors:true,roughness:.9});
  const barkPile=new T.MeshStandardMaterial({map:(()=>{const m=loadSurface('ridged-bark.jpg');m.repeat.set(2,1);return m})(),vertexColors:true,roughness:.95});cutEnd.color.set(0xc9ab8a);
  const woodenColors=new Set([0x92583f,0xbc8352,0xb88054,0xca9362,0x745344,0xc18d5c]);
- const stoneMeshes=[],hangMeshes=[],cragMeshes=[];
+ const stoneMeshes=[],hangMeshes=[],cragMeshes=[],ropePlankMeshes=[],ropeRailMeshes=[];
+ // Level 3 watchtower: which parts show at which restoration stage (0-5)
+ const towerProgress=s=>(s&&Array.isArray(s.constructionProjects)?s.constructionProjects.find(p=>p.id==='wachttoren')?.completed:0)||0;
+ const towerShow={ruin:n=>n<3,rubble:n=>n<2,survey:n=>n>=1&&n<3,cleared:n=>n>=2&&n<4,restored:n=>n>=3,scaffold:n=>n>=3&&n<5,stairs:n=>n>=4,roof:n=>n>=5};
+ const towerWhen=part=>s=>towerShow[part](towerProgress(s)),towerGroups={};let tower=null,towerFlag=null;
  // the woodcutters' stumps become a scanned tree stump with roots once it has loaded
  const stumpSpots=[];function dressStumps(){Models.load('stump').then(r=>stumpSpots.forEach(([x,y,z,a,b],k)=>{a.visible=b.visible=false;const m=new T.Mesh(r.geometry,r.material);m.position.set(x,y-.04,z);m.scale.setScalar(.88);m.rotation.y=k*2.4;m.castShadow=m.receiveShadow=true;scene.add(m)})).catch(e=>console.warn('stump',e))}
  // Scanned rocks replace the procedural stones once they have loaded. The original instanced mesh keeps
  // its place in the scene (bridges and landing pads toggle it), it takes a third of the stones itself and
  // carries the other two rock shapes as children, so they show and hide with it.
- function dressStones(meshes,names,shadow,tint){Promise.all(names.map(Models.load)).then(rocks=>{
-  const fix=new T.Matrix4().makeScale(1.1,1.1,1.1),M=new T.Matrix4(),white=new T.Color(1,1,1);
+ function dressStones(meshes,names,shadow,tint,fit=1.1){Promise.all(names.map(Models.load)).then(rocks=>{
+  const fix=new T.Matrix4().makeScale(fit,fit,fit),M=new T.Matrix4(),white=new T.Color(1,1,1);
   for(const m of meshes){const sets=rocks.map(()=>[]);for(let j=0;j<m.count;j++){m.getMatrixAt(j,M);const c=new T.Color();if(m.instanceColor)m.getColorAt(j,c);else c.set(0xd2d0c9);sets[j%rocks.length].push([M.clone().multiply(fix),tint?c.set(tint):c.lerp(white,.08)])}
    rocks.forEach((r,k)=>{const list=sets[k];if(!list.length)return;let t=m;if(k){t=new T.InstancedMesh(r.geometry,r.material,list.length);t.castShadow=shadow;t.receiveShadow=true;m.add(t)}else{m.geometry=r.geometry;m.material=r.material;m.count=list.length}
     list.forEach(([q,c],j)=>{t.setMatrixAt(j,q);t.setColorAt(j,c)});t.instanceMatrix.needsUpdate=true;t.instanceColor.needsUpdate=true;t.computeBoundingSphere()})}
@@ -98,7 +102,7 @@ function createWorld(canvas) {
   for(const [geo,rows] of batches){
    const groups=[rows.filter(r=>!woodenColors.has(r[1])),rows.filter(r=>woodenColors.has(r[1]))];
    groups.forEach((items,i)=>{if(!items.length)return;const surface=geo===roofGeo?1:geo===wallGeo?2:geo===stoneGeo||geo===hangGeo?3:i?0:-1;const m=new T.InstancedMesh(geo,geo.userData.surface||(surface>=0?detailsMat[surface]:mat),items.length);
-    items.forEach(([matrix,color],j)=>{m.setMatrixAt(j,matrix);m.setColorAt(j,new T.Color(surface===0?0xe9d6bd:surface===1?0xe4d1be:surface===2?0xf1e0c7:surface===3?0xd2d0c9:color))});m.castShadow=m.receiveShadow=true;scene.add(m);if(geo===stoneGeo)stoneMeshes.push(m);if(geo===hangGeo){m.castShadow=false;hangMeshes.push(m)}})
+    items.forEach(([matrix,color],j)=>{m.setMatrixAt(j,matrix);m.setColorAt(j,new T.Color(surface===0?0xe9d6bd:surface===1?0xe4d1be:surface===2?0xf1e0c7:surface===3?0xd2d0c9:color))});m.castShadow=m.receiveShadow=true;scene.add(m);if(geo.userData.collect)geo.userData.collect.push(m);if(geo===stoneGeo)stoneMeshes.push(m);if(geo===hangGeo){m.castShadow=false;hangMeshes.push(m)}})
   }
   batches.clear()
  }
@@ -165,11 +169,11 @@ function createWorld(canvas) {
  const frontPanel=surfaced(new T.PlaneGeometry(),'front'),sidePanel=surfaced(new T.PlaneGeometry(),'side');
  const masonry=surfaced(cube.clone(),'masonry'),slate=surfaced(cube.clone(),'slate');
  const rope=new T.CylinderGeometry(1,1,1,7),iron=0x39372e;
- function cord(x1,y1,z1,x2,y2,z2,r,color){
+ function cord(x1,y1,z1,x2,y2,z2,r,color,geo=rope){
   const dx=x2-x1,dy=y2-y1,dz=z2-z1,len=Math.hypot(dx,dy,dz);
   const direction=new T.Vector3(dx,dy,dz).normalize(),q=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),direction);
   const e=new T.Euler().setFromQuaternion(q,rotOrder);
-  shape(rope,color,(x1+x2)/2,(y1+y2)/2,(z1+z2)/2,r,len,r,e.y,e.z,e.x)
+  shape(geo,color,(x1+x2)/2,(y1+y2)/2,(z1+z2)/2,r,len,r,e.y,e.z,e.x)
  }
  // ---- Architecture -------------------------------------------------------
  // Houses are assembled from real parts: plinth, plastered walls, a half-timbered frame in relief,
@@ -733,32 +737,112 @@ void main(){float y=vUv.y;
   {const sx=-63.4,sz=9.4;for(const o of [-.7,.7])for(const k of [-1,1])shape(beam,0xffffff,sx+o,.45,sz,.08,1.05,.08,0,0,k*.5);shape(cyl,0x92583f,sx,.8,sz,.22,2.2,.22,0,Math.PI/2);solids.add({x:sx,z:sz,w:1.2,d:.4,base:0,top:1});keepOut(sx,sz,1.6);
    shape(cyl,0x92583f,-61.6,.3,12,.42,.6,.42);shape(beam,0x4a3426,-61.5,.85,12,.05,.6,.05,0,.4);shape(cube,0x8a9397,-61.3,1.08,12,.06,.22,.3,0,.4);solids.add({x:-61.6,z:12,r:.45,base:0,top:.6});keepOut(-61.6,12,1)}
   lamp(-55.8,4.1,0,null,1);solids.add({x:-55.8,z:4.1,r:.22,base:0,top:3.2});keepOut(-55.8,4.1,.8);
-  // A castle ruin in the south of the wood: a broken round tower, crumbling fieldstone walls, a brick gateway
-  // with an old oak door, a weathered statue on a plinth and rubble. Scanned textures and models (Poly Haven, CC0).
-  if(scanReady){const RX=-54,RZ=-10.5,L=liftAt(RX,RZ);keepOut(RX,RZ,6.6);
+  // ---- Level 3 · De vergeten wachttoren. The castle ruin in the south of Dennenhoek is restored in five stages
+  // (ConstructionCampaign): survey stakes and a plan table, cleared rubble, rebuilt walls with battlements, a wooden
+  // stair up the tower and a roofed lookout. Every stage shows its own parts; collision follows what is built.
+  if(scanReady){const RX=-54,RZ=-10.5,L=liftAt(RX,RZ),TX=RX-3.2,TZ=RZ-2.6;keepOut(RX,RZ,6.6);
    const mat=(name,rep)=>{const map=Models.texture(name+'_diff.jpg',true),nor=Models.texture(name+'_nor.jpg');return new T.MeshStandardMaterial({map,normalMap:nor,roughness:.92,color:rep})};
-   const wallMat=mat('wallslate',0xd9d4cc),brickMat=mat('brickruin',0xe6dcd2);
-   // box with world-scaled box-projected UVs and a broken, uneven top
-   function block(x,z,w,h,d,ry,jag,material,seed=1){const g=new T.BoxGeometry(w,h,d,Math.max(1,Math.round(w/.45)),1,Math.max(1,Math.round(d/.45)));const q=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;
-    for(let i=0;i<q.count;i++){const X=q.getX(i),Y=q.getY(i),Z=q.getZ(i),ax=Math.abs(n.getX(i)),ay=Math.abs(n.getY(i));uv.setXY(i,(ax>.5?Z:X)/2.4,(ay>.5?Z:Y)/2.4)}
+   const wallMat=mat('wallslate',0xd9d4cc),brickMat=mat('brickruin',0xe6dcd2),woodMat=new T.MeshStandardMaterial({map:oakMap,roughness:.85,color:0xc9a77f}),darkMat=new T.MeshStandardMaterial({color:0x14110e,roughness:1});
+   const MAT={stone:wallMat,brick:brickMat,wood:woodMat,dark:darkMat};
+   for(const k of Object.keys(towerShow)){const g=new T.Group();scene.add(g);towerGroups[k]=g}const always=new T.Group();scene.add(always);
+   const solid=(part,o)=>solids.add(part?{...o,when:towerWhen(part)}:o);
+   const kits={},kit=(part,m)=>((kits[part]??={})[m]??=[]);
+   // a box in ruin coordinates with world-scaled box-projected UVs, merged per stage and material
+   function box(part,m,w,h,d,x,y,z,ry=0,rz=0,rx=0){const g=new T.BoxGeometry(w,h,d),q=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;
+    for(let i=0;i<q.count;i++){const X=q.getX(i),Y=q.getY(i),Z=q.getZ(i),ax=Math.abs(n.getX(i)),ay=Math.abs(n.getY(i));uv.setXY(i,((ax>.5?Z:X)+x*.37+z*.21)/2.4,((ay>.5?Z:Y)+y)/2.4)}
+    g.applyMatrix4(new T.Matrix4().compose(new T.Vector3(RX+x,L+y,RZ+z),new T.Quaternion().setFromEuler(new T.Euler(rx,ry,rz)),new T.Vector3(1,1,1)));kit(part,m).push({geo:g,color:0xffffff})}
+   function flushKits(){for(const [part,mats] of Object.entries(kits))for(const [m,list] of Object.entries(mats)){const mesh=new T.Mesh(Nature.merge(list),MAT[m]);mesh.castShadow=mesh.receiveShadow=true;towerGroups[part].add(mesh)}}
+   // a wall with a broken, uneven top (ruin)
+   function broken(part,x,z,w,h,d,jag,material,seed){const g=new T.BoxGeometry(w,h,d,Math.max(1,Math.round(w/.45)),1,Math.max(1,Math.round(d/.45)));const q=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;
     for(let i=0;i<q.count;i++){if(q.getY(i)>h/2-.01){const X=q.getX(i),Z=q.getZ(i),k=.5+.5*Math.sin(X*2.3+Z*1.7+seed)*Math.cos(X*.9-Z*2.1+seed*2);q.setY(i,h/2-jag*k*(.6+.4*Math.abs(Math.sin((X+Z)*.7+seed))))}}
-    g.computeVertexNormals();const m=new T.Mesh(g,material);m.position.set(RX+x,L+h/2,RZ+z);m.rotation.y=ry;m.castShadow=m.receiveShadow=true;scene.add(m);
-    const c=Math.cos(ry),s2=Math.sin(ry),len=Math.max(w,d),along=w>=d;for(let t=-len/2+.4;t<=len/2-.3;t+=.8){const lx=along?t:0,lz=along?0:t;solids.add({x:RX+x+lx*c+lz*s2,z:RZ+z-lx*s2+lz*c,r:Math.min(w,d)/2+.15,base:0,top:h-jag*.5})}return m}
-   // round tower, broken off unevenly, with arrow slits
-   {const shp=new T.Shape();shp.absarc(0,0,2.05,0,Math.PI*2,false);const hole=new T.Path();hole.absarc(0,0,1.45,0,Math.PI*2,true);shp.holes.push(hole);
-    const g=new T.ExtrudeGeometry(shp,{depth:6.4,bevelEnabled:false,curveSegments:28,steps:4});g.rotateX(-Math.PI/2);const q=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;
-    for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),a=Math.atan2(z,x);if(Math.abs(n.getY(i))>.5)uv.setXY(i,x/2.4,z/2.4);else uv.setXY(i,a*2.05/2.4,y/2.4)}
-    for(let i=0;i<q.count;i++){const y=q.getY(i);if(y>6.39){const a=Math.atan2(q.getZ(i),q.getX(i)),k=.5+.5*Math.sin(a*3+.7)+.3*Math.sin(a*7);q.setY(i,6.4-2.1*Math.max(0,Math.min(1.2,k)))}else if(y>4.79){const a=Math.atan2(q.getZ(i),q.getX(i)),k=.5+.5*Math.sin(a*3+.7)+.3*Math.sin(a*7);q.setY(i,Math.min(y,6.4-2.1*Math.max(0,Math.min(1.2,k))-.3))}}
-    g.computeVertexNormals();const m=new T.Mesh(g,wallMat);m.position.set(RX-3.2,L,RZ-2.6);m.castShadow=m.receiveShadow=true;scene.add(m);solids.add({x:RX-3.2,z:RZ-2.6,r:2.1,base:0,top:5})
-    for(const [a,y] of [[1.2,2.2],[.2,3.9],[2.4,4.1]]){const sl=new T.Mesh(new T.BoxGeometry(.16,.85,.3),new T.MeshStandardMaterial({color:0x14110e,roughness:1}));sl.position.set(RX-3.2+Math.cos(a)*2.02,L+y,RZ-2.6+Math.sin(a)*2.02);sl.rotation.y=-a;scene.add(sl)}}
-   block(-3.75,1.1,.9,3.4,4.4,0,1.1,wallMat,1);block(.55,-3.45,6.2,4.2,.9,0,1.6,wallMat,2);block(3.95,-1.1,.9,1.7,3.4,0,.9,wallMat,3);block(-2.6,3.0,1.6,1.1,.85,0,.6,wallMat,4);
-   // gateway: two brick piers, a pointed-arch lintel, and the scanned castle door
-   block(-.95,2.8,1.0,4.1,1.0,0,.35,brickMat,5);block(2.15,2.8,1.0,4.6,1.0,0,.5,brickMat,6);block(.6,2.8,2.1,.75,1.0,0,.25,brickMat,7).position.y=L+3.62;
-   scanProp('castle_door',RX+.6,0,RZ+2.85,0,[1.03,1.0,1.0]);solids.add({x:RX+.6,z:RZ+2.85,w:1.05,d:.2,base:0,top:3})
-   // statue on a plinth in the courtyard
-   block(.6,-1.2,1.15,.7,1.15,.3,0,brickMat,8);scanProp('statue',RX+.6,.7,RZ-1.2,.3,1.08);solids.add({x:RX+.6,z:RZ-1.2,r:.75,base:0,top:2.6});
-   // rubble where the walls came down
-   for(const [x,z,s3] of [[3.4,1.3,.55],[4.4,.6,.4],[3.0,2.2,.35],[-1.6,-3.0,.45],[1.8,-2.5,.5],[-3.9,3.8,.42],[-4.7,-.6,.6],[2.9,-4.4,.38],[4.6,-2.9,.5],[-.9,-4.4,.36]]){shape(stoneGeo,0xb9b3a8,RX+x,s3*.35,RZ+z,s3,s3*.7,s3*.9,x*z);solids.add({x:RX+x,z:RZ+z,r:s3*.8,base:0,top:s3*.7})}
+    // texture coordinates after the top is broken, so the stone courses keep their size instead of squeezing into waves
+    for(let i=0;i<q.count;i++){const X=q.getX(i),Y=q.getY(i),Z=q.getZ(i),ax=Math.abs(n.getX(i)),ay=Math.abs(n.getY(i));uv.setXY(i,(ax>.5?Z:X)/2.4,(ay>.5?Z:Y+h/2)/2.4)}
+    g.computeVertexNormals();const m=new T.Mesh(g,material);m.position.set(RX+x,L+h/2,RZ+z);m.castShadow=m.receiveShadow=true;(part?towerGroups[part]:always).add(m);wallSolids(part,x,z,w,d,h-jag*.5);return m}
+   function wallSolids(part,x,z,w,d,top){const len=Math.max(w,d),along=w>=d;for(let t=-len/2+.4;t<=len/2-.3;t+=.8)solid(part,{x:RX+x+(along?t:0),z:RZ+z+(along?0:t),r:Math.min(w,d)/2+.15,base:0,top})}
+   // a straight wall with a wall-walk parapet and merlons (restored)
+   function battlement(part,x,z,w,h,d){box(part,'stone',w,h,d,x,h/2,z);const along=w>=d,len=along?w:d,n=Math.max(1,Math.floor(len/.9));
+    const th=along?d:w;for(let i=0;i<n;i++){const t=-len/2+(i+.5)*len/n;if(i%2)continue;box(part,'stone',along?len/n*.92:th+.04,.6,along?th+.04:len/n*.92,x+(along?t:0),h+.3,z+(along?0:t))}
+    box(part,'stone',w+(along?.06:.14),.1,d+(along?.14:.06),x,h-.02,z);wallSolids(part,x,z,w,d,h)}
+   function ring(r0,r1,h,seg=28){const shp=new T.Shape();shp.absarc(0,0,r1,0,Math.PI*2,false);const hole=new T.Path();hole.absarc(0,0,r0,0,Math.PI*2,true);shp.holes.push(hole);
+    const g=new T.ExtrudeGeometry(shp,{depth:h,bevelEnabled:false,curveSegments:seg,steps:4});g.rotateX(-Math.PI/2);const q=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;
+    for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),a=Math.atan2(z,x);if(Math.abs(n.getY(i))>.5)uv.setXY(i,x/2.4,z/2.4);else uv.setXY(i,a*r1/2.4,y/2.4)}return g}
+
+   // RUIN (stages 0-2): a broken round tower, crumbling fieldstone walls and a brick gateway stump
+   {const g=ring(1.45,2.05,6.4),q=g.attributes.position;for(let i=0;i<q.count;i++){const y=q.getY(i);if(y>4.79){const a=Math.atan2(q.getZ(i),q.getX(i)),k=.5+.5*Math.sin(a*3+.7)+.3*Math.sin(a*7),cut=6.4-2.1*Math.max(0,Math.min(1.2,k));q.setY(i,y>6.39?cut:Math.min(y,cut-.3))}}
+    {const n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<q.count;i++)if(Math.abs(n.getY(i))<=.5)uv.setY(i,q.getY(i)/2.4)}
+    g.computeVertexNormals();const m=new T.Mesh(g,wallMat);m.position.set(TX,L,TZ);m.castShadow=m.receiveShadow=true;towerGroups.ruin.add(m);solid('ruin',{x:TX,z:TZ,r:2.1,base:0,top:5})}
+   broken('ruin',-3.75,1.1,.9,3.4,4.4,1.1,wallMat,1);broken('ruin',.55,-3.45,6.2,4.2,.9,1.6,wallMat,2);broken('ruin',3.95,-1.1,.9,1.7,3.4,.9,wallMat,3);broken('ruin',-2.6,3.0,1.6,1.1,.85,.6,wallMat,4);
+   broken('ruin',-.95,2.8,1.0,4.1,1.0,.35,brickMat,5);broken('ruin',2.15,2.8,1.0,4.6,1.0,.5,brickMat,6);broken('ruin',.6,2.8,2.1,.75,1.0,.25,brickMat,7).position.y=L+3.62;
+   // the old door and the statue stay through every stage
+   scanProp('castle_door',RX+.6,0,RZ+2.85,0,[1.03,1.0,1.0]);solid(null,{x:RX+.6,z:RZ+2.85,w:1.05,d:.2,base:0,top:3});
+   broken(null,.6,-1.2,1.15,.7,1.15,0,brickMat,8);scanProp('statue',RX+.6,.7,RZ-1.2,.3,1.08);solid(null,{x:RX+.6,z:RZ-1.2,r:.75,base:0,top:2.6});
+   // rubble where the walls came down (gone once the site is cleared)
+   Promise.all(['stone_a','stone_b','stone_c'].map(Models.load)).then(rocks=>[[3.4,1.3,.55],[4.4,.6,.4],[3.0,2.2,.35],[-1.6,-3.0,.45],[1.8,-2.5,.5],[-3.9,3.8,.42],[-4.7,-.6,.6],[2.9,-4.4,.38],[4.6,-2.9,.5],[-.9,-4.4,.36],[2.2,-1.9,.3],[1.2,1.8,.32]].forEach(([x,z,s3],i)=>{
+    const r=rocks[i%3],m=new T.Mesh(r.geometry,r.material);m.position.set(RX+x,L+s3*.25,RZ+z);m.scale.set(s3*1.1,s3*.8,s3);m.rotation.y=x*z;m.castShadow=m.receiveShadow=true;towerGroups.rubble.add(m)})).catch(()=>{});
+   for(const [x,z,s3] of [[3.4,1.3,.55],[4.4,.6,.4],[-1.6,-3.0,.45],[1.8,-2.5,.5],[-3.9,3.8,.42],[-4.7,-.6,.6],[2.9,-4.4,.38],[4.6,-2.9,.5]])solid('rubble',{x:RX+x,z:RZ+z,r:s3*.8,base:0,top:s3*.7});
+
+   // SURVEY (stage 1): stakes with marking tape around the ruin and Linde's plan on a little table
+   {const stakes=[[-6.2,4.8],[5.2,4.8],[5.2,-5.2],[-1.0,-5.2],[-6.2,-1.0]];stakes.forEach(([x,z])=>{box('survey','wood',.07,1.15,.07,x,.57,z);box('survey','dark',.1,.06,.1,x,1.12,z)});
+    for(let i=0;i<stakes.length;i++){const [x0,z0]=stakes[i],[x1,z1]=stakes[(i+1)%stakes.length],len=Math.hypot(x1-x0,z1-z0),ry=-Math.atan2(z1-z0,x1-x0);
+     for(let k=0;k<Math.floor(len/.5);k++){const t=(k+.5)/Math.floor(len/.5);box('survey',k%2?'dark':'brick',len/Math.floor(len/.5)*.98,.05,.012,x0+(x1-x0)*t,.95,z0+(z1-z0)*t,ry)}}
+    const c=document.createElement('canvas');c.width=256;c.height=192;const d=c.getContext('2d');d.fillStyle='#e8d9b5';d.fillRect(0,0,256,192);for(let i=0;i<900;i++){d.fillStyle=`rgba(120,90,50,${Math.random()*.08})`;d.fillRect(Math.random()*256,Math.random()*192,3,3)}
+    d.strokeStyle='#4a3524';d.lineWidth=3;d.beginPath();d.arc(70,120,34,0,7);d.stroke();d.strokeRect(70,40,150,110);d.setLineDash([6,5]);d.strokeStyle='#8c2f28';d.beginPath();d.moveTo(104,150);d.lineTo(220,150);d.lineTo(220,40);d.stroke();d.setLineDash([]);d.fillStyle='#4a3524';d.font='bold 18px serif';d.fillText('Wachttoren',120,30);
+    const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;const plan=new T.Mesh(new T.PlaneGeometry(.62,.46),new T.MeshStandardMaterial({map:tex,roughness:1}));plan.rotation.set(-Math.PI/2,0,.25);plan.position.set(RX+2.6,L+.555,RZ+5.4);towerGroups.survey.add(plan);
+    scanProp('small_table',RX+2.6,0,RZ+5.4,.25,[1,1,1.25]).then?.(m=>{if(m){m.removeFromParent();towerGroups.survey.add(m)}});solid('survey',{x:RX+2.6,z:RZ+5.4,r:.55,base:0,top:.55})}
+
+   // CLEARED (stage 2): the usable stone is stacked neatly, fresh timber waits by the gate
+   for(let k=0;k<3;k++)for(let j=0;j<2;j++)for(let i=0;i<3;i++)if(!(k===2&&i===2))box('cleared','stone',.62,.38,.44,5.6+i*.66,.19+k*.39,1.2+j*.48,(i+k)*.04);
+   for(let k=0;k<3;k++)for(let i=0;i<3-k;i++)box('cleared','wood',.24,.24,3.2,5.8+i*.27+k*.135,.12+k*.22,-2.2);
+   solid('cleared',{x:RX+6.26,z:RZ+1.44,w:1.1,d:.55,base:0,top:1.17});solid('cleared',{x:RX+6.1,z:RZ-2.2,w:.45,d:1.65,base:0,top:.62});
+
+   // RESTORED (stage 3+): the round tower rebuilt to full height with a crenellated top, the walls closed
+   // and capped with battlements, the gate piers raised into a small gatehouse
+   const TOP=6.6,landing=1.62;
+   {const m=new T.Mesh(ring(1.45,2.05,TOP),wallMat);m.position.set(TX,L,TZ);m.castShadow=m.receiveShadow=true;towerGroups.restored.add(m);
+    const floor=new T.Mesh(new T.CircleGeometry(1.47,28),new T.MeshStandardMaterial({map:(()=>{const t=loadSurface('paving.jpg');t.repeat.set(.8,.8);return t})(),color:0xcfc6b6,roughness:.95}));floor.rotation.x=-Math.PI/2;floor.position.set(TX,L+TOP+.01,TZ);towerGroups.restored.add(floor);
+    solid('restored',{x:TX,z:TZ,r:1.95,base:0,top:TOP});
+    for(let i=0;i<16;i++){const a=(i+.5)/16*Math.PI*2;if(Math.abs(Math.atan2(Math.sin(a-landing),Math.cos(a-landing)))<.36)continue;const x=Math.cos(a)*1.76-3.2,z=Math.sin(a)*1.76-2.6;
+     box('restored','stone',.6,.62,.66,x,TOP+.31,z,-a);if(i%2)box('restored','stone',.6,.55,.66,x,TOP+.9,z,-a);solid('restored',{x:RX+x,z:RZ+z,r:.3,base:TOP,top:TOP+1.2})}
+    for(const [a,y] of [[1.2,2.2],[.2,3.9],[2.4,4.1],[3.6,5.6],[5.1,2.8]])box('restored','dark',.16,.85,.3,Math.cos(a)*2.04-3.2,y,Math.sin(a)*2.04-2.6,-a)}
+   battlement('restored',-3.75,1.3,.9,4.4,4.0);battlement('restored',.55,-3.45,6.2,4.6,.9);battlement('restored',3.95,-.3,.9,4.6,6.3);battlement('restored',-2.4,2.8,2.0,4.4,.9);battlement('restored',3.15,2.8,.8,4.6,.9);
+   for(const x of [-.95,2.15]){box('restored','brick',1.0,5.2,1.0,x,2.6,2.8);solid('restored',{x:RX+x,z:RZ+2.8,w:.55,d:.55,base:0,top:5.2});for(const [dx,dz] of [[-.3,-.3],[.3,.3],[-.3,.3],[.3,-.3]])if((dx+dz)%2===0||dx>0)box('restored','brick',.32,.45,.32,x+dx,5.42,2.8+dz)}
+   box('restored','brick',2.2,1.05,1.0,.6,4.1,2.8);box('restored','stone',3.3,.1,1.12,.6,4.66,2.8);
+
+   // SCAFFOLD (stages 3-4): poles and boards on the outside of the tower while the stair goes in
+   for(const a of [2.3,3.0,3.7,4.4]){const x=Math.cos(a)*2.75-3.2,z=Math.sin(a)*2.75-2.6;box('scaffold','wood',.1,7.2,.1,x,3.6,z);solid('scaffold',{x:RX+x,z:RZ+z,r:.1,base:0,top:7.2})}
+   for(const y of [2.2,4.4,6.4])for(const a of [2.65,3.35,4.05]){const x=Math.cos(a)*2.85-3.2,z=Math.sin(a)*2.85-2.6;box('scaffold','wood',1.95,.05,.42,x,y,z,-a+Math.PI/2)}
+
+   // STAIRS (stage 4+): a straight timber stair along the inside of the south wall, then a stair that winds
+   // up round the tower to a landing through the parapet. Walkable: see tower.stairs below.
+   const S1={x0:3.4,x1:-.9,z0:-3.0,z1:-2.1,h0:.25,h1:3.4},S2={r0:2.32,r1:3.25,a0:0,a1:landing,h0:3.4,h1:TOP};
+   const h1At=x=>S1.h0+(S1.x0-x)/(S1.x0-S1.x1)*(S1.h1-S1.h0),h2At=a=>S2.h0+(a-S2.a0)/(S2.a1-S2.a0)*(S2.h1-S2.h0);
+   {const n=14;for(let i=0;i<n;i++){const x=S1.x0-(i+.5)*(S1.x0-S1.x1)/n;box('stairs','wood',.3,.07,.86,x,h1At(x)-.035,(S1.z0+S1.z1)/2)}
+    const run=Math.hypot(S1.x0-S1.x1,S1.h1-S1.h0),ang=Math.atan2(S1.h1-S1.h0,S1.x0-S1.x1);for(const z of [S1.z0+.04,S1.z1-.04])box('stairs','wood',run,.24,.07,(S1.x0+S1.x1)/2,(S1.h0+S1.h1)/2-.14,z,0,-ang);
+    for(let x=S1.x0-.5;x>S1.x1;x-=1.4){box('stairs','wood',.1,h1At(x),.1,x,h1At(x)/2,S1.z1-.05);box('stairs','wood',.06,1.0,.06,x,h1At(x)+.5,S1.z1-.04)}
+    box('stairs','wood',run,.07,.07,(S1.x0+S1.x1)/2,(S1.h0+S1.h1)/2+1.0,S1.z1-.04,0,-ang)}
+   {const n=16;for(let i=0;i<n;i++){const a=S2.a0+(i+.5)/n*(S2.a1-S2.a0),r=(S2.r0+S2.r1)/2-.06,x=Math.cos(a)*r-3.2,z=Math.sin(a)*r-2.6;box('stairs','wood',S2.r1-2.06,.08,.36,x,h2At(a)-.04,z,-a)}
+    for(let i=0;i<=8;i++){const a=S2.a0+i/8*(S2.a1-S2.a0),x=Math.cos(a)*S2.r1-3.2,z=Math.sin(a)*S2.r1-2.6,h=h2At(a);box('stairs','wood',.1,h,.1,x,h/2,z);box('stairs','wood',.06,1.0,.06,x,h+.5,z);
+     if(i<8){const b=S2.a0+(i+1)/8*(S2.a1-S2.a0),x2=Math.cos(b)*S2.r1-3.2,z2=Math.sin(b)*S2.r1-2.6,hb=h2At(b),len=Math.hypot(x2-x,z2-z,hb-h);
+      box('stairs','wood',Math.hypot(x2-x,z2-z)+.04,.07,.07,(x+x2)/2,(h+hb)/2+1.0,(z+z2)/2,-Math.atan2(z2-z,x2-x),Math.atan2(hb-h,Math.hypot(x2-x,z2-z)))}}
+    const lx=Math.cos(landing)*2.05-3.2,lz=Math.sin(landing)*2.05-2.6;box('stairs','wood',1.9,.1,1.0,lx,TOP-.05,lz,-landing)}
+
+   // ROOF (stage 5): a timber lookout with a conical tiled roof, a flag and the sealed map in a chest
+   {const g=towerGroups.roof;for(let i=0;i<6;i++){const a=i/6*Math.PI*2+.26;box('roof','wood',.16,1.95,.16,Math.cos(a)*1.22-3.2,TOP+.97,Math.sin(a)*1.22-2.6)}
+    for(let i=0;i<6;i++){const a=(i+.5)/6*Math.PI*2+.26;box('roof','wood',1.3,.16,.16,Math.cos(a)*1.06-3.2,TOP+1.95,Math.sin(a)*1.06-2.6,-a+Math.PI/2)}
+    const cone=new T.Mesh(new T.ConeGeometry(2.3,2.0,16,1,true),tiles.userData.surface.clone());cone.material.side=T.DoubleSide;cone.position.set(TX,L+TOP+2.95,TZ);cone.castShadow=true;g.add(cone);
+    const pole=new T.Mesh(new T.CylinderGeometry(.035,.045,1.6,8),new T.MeshStandardMaterial({color:0x4a3a2a,roughness:.8}));pole.position.set(TX,L+TOP+4.6,TZ);g.add(pole);
+    const fc=document.createElement('canvas');fc.width=128;fc.height=80;const f=fc.getContext('2d');f.fillStyle='#2f5d63';f.fillRect(0,0,128,80);f.fillStyle='#e7c46a';f.beginPath();f.moveTo(40,40);f.lineTo(64,14);f.lineTo(88,40);f.lineTo(64,66);f.fill();
+    const ft=new T.CanvasTexture(fc);ft.colorSpace=T.SRGBColorSpace;const flag=new T.Mesh(new T.PlaneGeometry(.95,.6,8,1),new T.MeshStandardMaterial({map:ft,side:T.DoubleSide,roughness:.9}));flag.position.set(TX+.5,L+TOP+5.05,TZ);g.add(flag);towerFlag=flag;
+    lantern(TX,L+TOP+1.6,TZ,g);scanProp('chest',TX+.55,TOP,TZ-.35,.6,.9).then?.(m=>{if(m){m.removeFromParent();g.add(m)}});solid('roof',{x:TX+.55,z:TZ-.35,r:.45,base:TOP,top:TOP+.5})}
+   flushKits();
+   tower={stairs(x,z,s,y){if(towerProgress(s)<4)return -100;const lx=x-RX,lz=z-RZ;let h=-100;
+     if(lx<=S1.x0+.15&&lx>=S1.x1-.1&&lz>=S1.z0&&lz<=S1.z1)h=h1At(Math.max(S1.x1,Math.min(S1.x0,lx)));
+     const dx=lx+3.2,dz=lz+2.6,r=Math.hypot(dx,dz),a=Math.atan2(dz,dx);if(r>=S2.r0-.1&&r<=S2.r1+.05&&a>=S2.a0-.08&&a<=S2.a1+.12)h=Math.max(h,h2At(Math.max(S2.a0,Math.min(S2.a1,a))));
+     if(Math.abs(Math.atan2(Math.sin(a-landing),Math.cos(a-landing)))<.36&&r>=1.4&&r<S2.r0)h=Math.max(h,TOP);
+     return h>-50&&y>=L+h-.7?L+h:-100},
+    block(x,z,s,y){y-=L;if(towerProgress(s)<4||y<.9)return false;const lx=x-RX,lz=z-RZ,dx=lx+3.2,dz=lz+2.6,r=Math.hypot(dx,dz),a=Math.atan2(dz,dx);
+     if(lx<S1.x0-.2&&lx>S1.x1&&lz>S1.z1-.05&&lz<S1.z1+1.2&&y>h1At(lx)-.4)return true;
+     if(a>S2.a0+.05&&a<S2.a1&&r>S2.r1-.05&&r<S2.r1+1.4&&y>h2At(a)-.4)return true;return false}};
   }
   for(let i=0;i<26;i++)tree(den,5,10);for(let i=0;i<9;i++)boulder(den,0x8f9184,.7,1.5);tufts(den,60);
 
@@ -782,12 +866,16 @@ void main(){float y=vUv.y;
   function appleTree(x,z,h){shape(cyl,0x5a4230,x,h*.24,z,.15,h*.48,.15,0,.04);for(const [dx,dz,top] of [[.8,.3,.66],[-.6,-.55,.62],[.1,-.7,.72],[-.3,.6,.7]])cord(x,h*.42,z,x+dx,h*top,z+dz,.065,0x5a4230);
    for(let k=0;k<10;k++){const a=k*.68+x,r=k<7?.8+.15*Math.sin(k*2.3):.3,yy=h*(.55+(k%3)*.08)+(k>=7?.4:0);shape(bushGeo,[0x4f7d32,0x5b8b3b,0x3f6e2c][k%3],x+Math.cos(a)*r,yy,z+Math.sin(a)*r,.78,.7,.78,a*2)}
    for(let k=0;k<12;k++){const a=k*2.4+z,e=.1+(k%4)*.2,r=1.25*Math.cos(e);shape(ball,k%3?0xb3262a:0xc9572c,x+Math.cos(a)*r,h*.62+Math.sin(e)*.8,z+Math.sin(a)*r,.07,.07,.07)}}
-  function field(x0,x1,z0,z1,crop){const cx=(x0+x1)/2,cz=(z0+z1)/2;shape(cube,0x6b4a2e,cx,.04,cz,x1-x0,.08,z1-z0);
+  function field(x0,x1,z0,z1,crop,stone=false){const cx=(x0+x1)/2,cz=(z0+z1)/2;shape(cube,0x6b4a2e,cx,.04,cz,x1-x0,.08,z1-z0);
    for(let z=z0+.5;z<z1-.3;z+=.8){shape(cube,0x5e4128,cx,.12,z,x1-x0-.4,.16,.42);for(let x=x0+.45;x<x1-.3;x+=crop?.42:.7){const j=Math.sin(x*12.9+z*7.3);crop?shape(wheatGeo,j>0?0xd9b862:0xc9a552,x+j*.05,.16,z,1,.9+.12*j,1,j*3):(shape(leafGeo,j>0?0x5d8f4c:0x6b9a52,x,.14,z,1.7,1.05,1.7,j*3),shape(ball,0x9cc37a,x,.24,z,.1,.09,.1))}}
-   for(let x=x0;x<=x1+.01;x+=2){for(const z of [z0,z1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}for(let z=z0;z<=z1+.01;z+=2){for(const x of [x0,x1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}
-   for(const y of [.45,.85]){for(const z of [z0,z1])shape(beam,0xffffff,cx,y,z,x1-x0,.07,.05);for(const x of [x0,x1])shape(beam,0xffffff,x,y,cz,.05,.07,z1-z0)}
+   // a scanned dry-stone wall (Sketchfab, CC-BY) around the vegetable plot; post-and-rail fence elsewhere or as fallback
+   const fence=()=>{for(let x=x0;x<=x1+.01;x+=2){for(const z of [z0,z1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}for(let z=z0;z<=z1+.01;z+=2){for(const x of [x0,x1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}
+    for(const y of [.45,.85]){for(const z of [z0,z1])shape(beam,0xffffff,cx,y,z,x1-x0,.07,.05);for(const x of [x0,x1])shape(beam,0xffffff,x,y,cz,.05,.07,z1-z0)}};
+   if(stone&&scanReady){for(const [ax,az,bx,bz,ry] of [[x0,z0,x1,z0,Math.PI],[x0,z1,x1,z1,0],[x0,z0,x0,z1,-Math.PI/2],[x1,z0,x1,z1,Math.PI/2]]){const len=Math.hypot(bx-ax,bz-az)+.5,n=Math.ceil(len/2.4);
+     for(let i=0;i<n;i++){const t=(i+.5)/n,j=Math.sin(i*7.1+ax),f=(t*len-.25)/(len-.5);scanProp('sf_drywall',ax+(bx-ax)*f,-.12,az+(bz-az)*f,ry,[len/n/34.5*1.04,.07+.006*j,.048])}}}
+   else fence();
    solids.add({x:cx,z:cz,w:(x1-x0)/2+.1,d:(z1-z0)/2+.1,base:0,top:1.1});keepOut(cx,cz,Math.hypot(x1-x0,z1-z0)/2+.6)}
-  field(-66,-56,-52,-45,true);field(-53,-46,-53,-47,false);
+  field(-66,-56,-52,-45,true);field(-53,-46,-53,-47,false,true);
   // farm clutter (scanned): soil and manure sacks, a watering can, a spade, a basket of apples, a tub by the well, a picnic table
   if(scanReady){
    for(const [x,z,ry,dy] of [[-45.3,-52.3,.3,0],[-44.8,-51.6,-.5,0],[-45.05,-51.95,1.3,.38]])scanProp('compost_bag',x,dy,z,ry,1);solids.add({x:-45.05,z:-51.95,r:.7,base:0,top:.8});keepOut(-45.05,-51.95,1.2);
@@ -945,7 +1033,8 @@ void main(){float y=vUv.y;
   shape(new T.TorusGeometry(5.2,.05,4,64),brass,BX,.09,BZ,1,1,1,0,0,Math.PI/2);for(let k=0;k<8;k++)shape(cube,brass,BX,.085,BZ,k%2?.06:.1,.02,k%2?7.4:10.2,k*Math.PI/4)}
  flush();
  const bridgeGroups=[];
- const plank=surfaced(cube.clone(),'board');
+ const plank=surfaced(cube.clone(),'board'),ropePlank=surfaced(cube.clone(),'board'),ropeRail=new T.CylinderGeometry(1,1,1,7);
+ ropePlank.userData.collect=ropePlankMeshes;ropeRail.userData={collect:ropeRailMeshes};
  // ---- Bridges: stone abutments with portal pillars and lanterns, a timber deck on steel stringers,
  // riveted Warren trusses with an oak handrail, and a shallow steel arch underneath.
  {const steel=0x47605c,steelDark=0x2e3c3a;
@@ -953,10 +1042,10 @@ void main(){float y=vUv.y;
    const yaw=Math.atan2(b.dx,b.dz),nx=b.dz,nz=-b.dx,m=(b.yb-b.ya)/b.len,pitch=-Math.atan(m),L=b.len;
    const at=(t,v,dy=0)=>{const tt=Math.max(0,Math.min(L,t));return [b.ax+b.dx*t+nx*v,b.ya+m*tt+dy-b.sag*Math.sin(Math.PI*tt/L),b.az+b.dz*t+nz*v]};
    const box=(geo,color,t,v,dy,sx,sy,sz,tilt=true)=>{const [x,y,z]=at(t,v,dy);shape(geo,color,x,y,z,sx,sy,sz,yaw,0,tilt?pitch:0)};
-   const bar=(t1,v1,y1,t2,v2,y2,r,color)=>{const p=at(t1,v1,y1),q=at(t2,v2,y2);cord(p[0],p[1],p[2],q[0],q[1],q[2],r,color)};
+   const bar=(t1,v1,y1,t2,v2,y2,r,color,geo)=>{const p=at(t1,v1,y1),q=at(t2,v2,y2);cord(p[0],p[1],p[2],q[0],q[1],q[2],r,color,geo)};
    if(b.rope){const sgd=t=>-b.sag*Math.PI/L*Math.cos(Math.PI*Math.max(0,Math.min(1,t/L)));
-    const n=Math.ceil((L+2.4)/.33);for(let i=0;i<n;i++){const t=-1.2+(i+.5)*(L+2.4)/n,j=Math.sin(i*12.9);const [x,y,z]=at(t,.03*j,.1);shape(plank,0xe0cfb0,x,y,z,2.15+.12*j,.09,.25,yaw+.035*j,0,(t>0&&t<L)?-Math.atan(m+sgd(t)):0)}
-    for(const v of [-1.03,1.03]){for(const dy of [.02,.6,1.12]){const K=Math.ceil(L/1.1);for(let i=0;i<K;i++)bar(i*L/K,v,dy,(i+1)*L/K,v,dy,dy>1?.05:.035,0x9b7b52)}for(let t=0;t<=L+.01;t+=1.1)bar(t,v,.02,t,v,1.12,.022,0x8a6c47)}
+    const n=Math.ceil((L+2.4)/.33);for(let i=0;i<n;i++){const t=-1.2+(i+.5)*(L+2.4)/n,j=Math.sin(i*12.9);const [x,y,z]=at(t,.03*j,.1);shape(ropePlank,0xe0cfb0,x,y,z,2.15+.12*j,.09,.25,yaw+.035*j,0,(t>0&&t<L)?-Math.atan(m+sgd(t)):0)}
+    for(const v of [-1.03,1.03]){for(const dy of [.02,.6,1.12]){const K=Math.ceil(L/1.1);for(let i=0;i<K;i++)bar(i*L/K,v,dy,(i+1)*L/K,v,dy,dy>1?.05:.035,0x9b7b52,ropeRail)}for(let t=0;t<=L+.01;t+=1.1)bar(t,v,.02,t,v,1.12,.022,0x8a6c47)}
     for(const [t,dir] of [[-.55,-1],[L+.55,1]])for(const v of [-1.25,1.25]){const [x,y,z]=at(t,v,0);shape(cyl,0x5a4230,x,y+.8,z,.16,1.8,.16);for(const yy of [.62,1.14])shape(new T.TorusGeometry(.17,.045,5,12),0x9b7b52,x,y+yy,z,1,1,1,0,0,Math.PI/2);
      const [ax2,ay2,az2]=at(t+dir*1.7,v*1.35,-.12);cord(x,y+1.55,z,ax2,ay2,az2,.032,0x9b7b52);lantern(x,y+1.95,z);solids.add({x,z,r:.26,base:-.2,top:2.1,stage:b.stage})}
    }else{
@@ -1315,18 +1404,20 @@ void main(){float y=vUv.y;
  else if(type==='bankje'){shape(planks,0xb08d67,0,.48,0,1.3,.08,.42,0,0,0,g);shape(planks,0xb08d67,0,.85,-.2,1.3,.3,.06,0,0,0,g);for(const s of [-1,1]){shape(beam,oak,s*.55,.24,0,.08,.48,.38,0,0,0,g);shape(beam,oak,s*.55,.66,-.2,.08,.4,.06,0,0,0,g)}}
  else if(type==='vlag'){shape(cyl,0x6b5a48,0,1.7,0,.05,3.4,.05,0,0,0,g);shape(ball,0xb69765,0,3.45,0,.08,.08,.08,0,0,0,g);const f=new T.Mesh(new T.PlaneGeometry(1.1,.7,8,1),new T.MeshStandardMaterial({map:canvasTex(128,80,c=>{c.fillStyle='#2f5d63';c.fillRect(0,0,128,80);c.fillStyle='#e7c46a';c.beginPath();c.moveTo(40,40);c.lineTo(64,16);c.lineTo(88,40);c.lineTo(64,64);c.fill()}),side:T.DoubleSide,roughness:.9}));f.position.set(.58,3.0,0);f.castShadow=true;g.add(f);flags.push(f)}
  else {lamp(0,0,0,g)}return g}
- function sync(s){flags.length=0;portPads.forEach((list,i)=>list.forEach(m=>m.visible=s.stage<=i));bridgeGroups.forEach(b=>b.list.forEach(g=>g.visible=s.stage>=b.stage));beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
+ function sync(s){flags.length=0;{const tn=towerProgress(s);for(const k in towerGroups)towerGroups[k].visible=towerShow[k](tn)}portPads.forEach((list,i)=>list.forEach(m=>m.visible=s.stage<=i));bridgeGroups.forEach(b=>b.list.forEach(g=>g.visible=s.stage>=b.stage));beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
  function ground(x,z,s,y=100){if(inside)return inside.floorAt(x-inside.x,z,y);const L=liftAt(x,z);let h=islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.35)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r-.35?L+mountainH(x,z):-100;
  for(const b of bridges){if(b.stage>s.stage)continue;const o=onBridge(b,x,z,2.3);if(o&&o.v<b.hw-.02)h=Math.max(h,o.y+.19)}
+ if(tower)h=Math.max(h,tower.stairs(x,z,s,y));
  return Math.max(h,solids.floor(x,z,s,y))}
  function blocked(x,z,s,y,r=.355,height=2.68){
   if(inside){const lx=x-inside.x,up=y>3;return Math.abs(lx)>4.75-r||Math.abs(z)>4.73-r||!up&&Math.hypot(x-inside.npc.x,z-inside.npc.z)<r+.27||!up&&inside.rects.some(q=>Math.abs(lx-q.x)<q.w/2+r&&Math.abs(z-q.z)<q.d/2+r)||inside.blockAt(lx,z,y,r)}
   {const yy=y-liftAt(x,z);if(yy<-.16&&yy> -16&&(islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.32)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r-.32))return true}
   for(const b of bridges){if(b.stage>(s?.stage??3))continue;const o=onBridge(b,x,z,.3);if(o&&o.v>b.hw-r&&o.v<b.hw+.9&&y-o.y>-1&&y-o.y<1.7)return true}
   if(r>=.3&&height>2&&walkers?.blocks(x,z,r))return true;
+  if(tower&&tower.block(x,z,s,y))return true;
   return solids.blocked(x,z,s,y,r,height)
  }
- function animate(t,s,p,view,start,dt){swingBunting(t);rotors.forEach((v,i)=>{if(!v.userData.stopped)v.rotation.z=t*(i?.48:.61)});if(craneHook){const u=craneHook.userData,up=u.live?2.2+1.7*Math.sin(t*.45):.4;u.block.position.y=up;u.rope.position.y=(up+.4+6.35)/2;u.rope.scale.y=6.35-(up+.4)}
+ function animate(t,s,p,view,start,dt){swingBunting(t);if(towerFlag&&towerFlag.parent?.visible){const q=towerFlag.geometry.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i)+.475;q.setZ(i,Math.sin(t*5-x*5)*.08*x)}q.needsUpdate=true}rotors.forEach((v,i)=>{if(!v.userData.stopped)v.rotation.z=t*(i?.48:.61)});if(craneHook){const u=craneHook.userData,up=u.live?2.2+1.7*Math.sin(t*.45):.4;u.block.position.y=up;u.rope.position.y=(up+.4+6.35)/2;u.rope.scale.y=6.35-(up+.4)}
   if(signalFire?.visible)signalFire.children.forEach((c,i)=>{if(c.isMesh){c.scale.y=1+.25*Math.sin(t*9+i*2);c.rotation.y=t*(1+i*.3)}else c.intensity=12+4*Math.sin(t*13)});clouds.forEach(([g,y,k])=>g.position.y=y+Math.sin(t*k)*.52);falls.forEach(([f,y],i)=>f.position.y=y+.28*Math.sin(t*3+i));core.rotation.y=t;if(sweep.visible)sweep.rotation.y=t*.7;
   nodes.forEach(n=>{const was=n.g.visible;n.g.visible=!(s.harvest[n.i]>Date.now());n.g.scale.setScalar(.62+.095*(s.yield?.[n.i]??4));if(was&&!n.g.visible&&!start&&life)life.burst(n.x,2.1,n.z,n.type==='hout'?0xffcf6a:0x9fe3ff);n.marker.rotation.y=t;n.marker.position.y=2.25+.17*Math.sin(t*2+n.i)});
   for(const d of doors){let near;
@@ -1372,6 +1463,6 @@ void main(){float y=vUv.y;
   renderer.setPixelRatio(Math.min(devicePixelRatio,q>=2?1.65:q===1?1.2:1));resize();
   if(context&&!fx){renderer.toneMapping=T.ACESFilmicToneMapping}else if(q===0){renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15}}
  function resize(){let w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();if(fx){const r=renderer.getPixelRatio();fx.setSize(Math.round(w*r),Math.round(h*r))}}resize();
- if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb39c86);dressCrags();dressStumps()}
+ if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb39c86);dressStones(ropePlankMeshes,['sf_plank_a','sf_plank_b','sf_plank_c','sf_plank_d'],true,0xf2e9dc,1);dressStones(ropeRailMeshes,['sf_rope'],false,0xeadfca,1);dressCrags();dressStumps()}
  return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),rooms,enterRoom,outfit:hero.outfit,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
 }

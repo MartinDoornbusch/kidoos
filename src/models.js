@@ -15,7 +15,8 @@ const Models = (() => {
     const o = { roughness: 1, metalness: m.arm ? 1 : 0 };
     if (m.diff) o.map = texture(m.diff, true);
     if (m.nor) { o.normalMap = texture(m.nor); o.normalScale = new T.Vector2(1, 1); }
-    if (m.arm) { const t = texture(m.arm); o.roughnessMap = t; o.metalnessMap = t; o.aoMap = t; o.aoMapIntensity = .85; }
+    if (m.arm) { const t = texture(m.arm); o.roughnessMap = t; o.metalnessMap = t; if (m.ao !== false) { o.aoMap = t; o.aoMapIntensity = .85; } }
+    if (m.emi) { o.emissiveMap = texture(m.emi, true); o.emissive = new T.Color(...(m.emissive || [1, 1, 1])); o.emissiveIntensity = 1.6; }
     if (m.alpha === 'MASK') { o.alphaTest = m.cutoff ?? .5; o.side = T.DoubleSide; }
     if (m.alpha === 'BLEND') { o.transparent = true; o.depthWrite = false; o.opacity = .55; }
     if (m.double) o.side = T.DoubleSide;
