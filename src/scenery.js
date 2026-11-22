@@ -61,33 +61,52 @@ function explorerGear(person,girl){
  leather.map=tex(128,128,(g,w,h)=>{g.fillStyle='#6b4428';g.fillRect(0,0,w,h);for(let i=0;i<500;i++){g.fillStyle=`rgba(${Math.random()<.5?20:120},${Math.random()<.5?12:80},6,${Math.random()*.18})`;g.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*3,1+Math.random()*3)}},2);leather.color.set(0xb08868);
  roll.map=tex(64,128,(g,w,h)=>{g.fillStyle='#8c2f28';g.fillRect(0,0,w,h);for(const [y,c] of [[18,'#e8dcc2'],[26,'#2c3e4a'],[94,'#e8dcc2'],[102,'#2c3e4a']]){g.fillStyle=c;g.fillRect(0,y,w,5)}for(let i=0;i<300;i++){g.fillStyle=`rgba(255,255,255,${Math.random()*.06})`;g.fillRect(Math.random()*w,Math.random()*h,2,2)}});roll.color.set(0xffffff);
  const body=person.body;body.updateMatrixWorld(true);
- function part(geo,mat,x,y,z,bone,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1){const m=new T.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.scale.set(sx,sy,sz);m.castShadow=true;body.add(m);m.updateMatrixWorld(true);(B[bone]||B.Spine2).attach(m);made.push(m);return m}
+ // Measure this body in bind pose, so pack, straps, belt and scarf sit on it whatever its build.
+ if(person.mixer){person.mixer.update(0);body.updateMatrixWorld(true)}
+ const fit=(()=>{const inv=new T.Matrix4().copy(body.matrixWorld).invert(),v=new T.Vector3(),rows=new Map(),hips=[];
+  body.traverse(o=>{if(!o.isSkinnedMesh)return;o.skeleton.update();const pos=o.geometry.attributes.position,M=new T.Matrix4().multiplyMatrices(inv,o.matrixWorld);
+   for(let i=0;i<pos.count;i++){o.getVertexPosition(i,v);v.applyMatrix4(M);const k=Math.round(v.y/2.5);if(Math.abs(v.x)<9){const r=rows.get(k)||[1e9,-1e9];r[0]=Math.min(r[0],v.z);r[1]=Math.max(r[1],v.z);rows.set(k,r)}if(Math.abs(v.y-(girl?83:80))<2)hips.push([Math.abs(v.x),v.z])}});
+  const range=(y0,y1,f)=>{const out=[];for(let k=Math.round(y0/2.5);k<=Math.round(y1/2.5);k++)if(rows.has(k))out.push(f(rows.get(k)));return out};
+  hips.sort((a,b)=>a[0]-b[0]);let hw=hips.length?hips[0][0]:14;for(let i=1;i<hips.length;i++){if(hips[i][0]-hips[i-1][0]>1.4)break;hw=hips[i][0]}
+  const at=y=>{const r=rows.get(Math.round(y/2.5));return r||[-10,10]};
+  const backAt=(y0,y1)=>Math.min(...range(y0,y1,r=>r[0]));
+  return {back:backAt(84,108),top:backAt(101,110),low:backAt(84,93),front:y=>Math.max(...range(y-6,y+6,r=>r[1])),belt:at(girl?83:80),hw}})();
+ const neckZ=(()=>{const w=new T.Vector3(),inv=new T.Matrix4().copy(body.matrixWorld).invert();(B.Neck||B.Head).getWorldPosition(w);return w.applyMatrix4(inv).z})();
+ let frame=body;
+ function part(geo,mat,x,y,z,bone,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1){const m=new T.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.scale.set(sx,sy,sz);m.castShadow=true;frame.add(m);m.updateMatrixWorld(true);(B[bone]||B.Spine2).attach(m);made.push(m);return m}
  const box=(w,h,d)=>new T.BoxGeometry(w,h,d,2,2,2);
  // backpack
- const pz=-15.5,py=97;
+ const py=97,pz=fit.back-6.2,tilt=Math.asin(Math.max(-.35,Math.min(.35,(fit.top-fit.low)/17)));
+ // the pack leans with the back: build it in a frame tilted to the measured slope of the back
+ const packFrame=new T.Group();packFrame.position.set(0,py,pz);packFrame.rotation.x=tilt;body.add(packFrame);packFrame.updateMatrixWorld(true);
+ const P0=(fn)=>{frame=packFrame;fn();frame=body};
  const bag=box(25,29,11);{const p=bag.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i);p.setXYZ(i,x*(1-.12*Math.abs(y)/14.5),y,z*(1-.1*Math.abs(x)/12.5)+(z>0?0:-1.2*Math.cos(x/12.5*1.5)))}bag.computeVertexNormals()}
- part(bag,canvas,0,py,pz,'Spine2');part(box(25.6,9,11.8),canvas,0,py+10.5,pz-.4,'Spine2',.18);
- part(box(9,10,4),canvas,-7,py-6,pz-6.8,'Spine2');part(box(9,10,4),canvas,7,py-6,pz-6.8,'Spine2');
- for(const x of [-6,6])part(box(2.2,30,.8),leather,x,py,pz-6,'Spine2');
- const bed=new T.CylinderGeometry(6.3,6.3,30,14,1);part(bed,roll,0,girl?py-19:py+19,pz+1,'Spine2',0,0,Math.PI/2);
- for(const x of [-9,9])part(new T.TorusGeometry(6.5,.55,6,16),leather,x,girl?py-19:py+19,pz+1,'Spine2',0,Math.PI/2);
+ P0(()=>{
+ part(bag,canvas,0,0,0,'Spine2');part(box(25.6,9,11.8),canvas,0,0+10.5,0-.4,'Spine2',.18);
+ part(box(9,10,4),canvas,-7,0-6,0-6.8,'Spine2');part(box(9,10,4),canvas,7,0-6,0-6.8,'Spine2');
+ for(const x of [-6,6])part(box(2.2,30,.8),leather,x,0,0-6,'Spine2');
+ const bed=new T.CylinderGeometry(6.3,6.3,30,14,1);part(bed,roll,0,girl?0-19:0+19,0+1,'Spine2',0,0,Math.PI/2);
+ for(const x of [-9,9])part(new T.TorusGeometry(6.5,.55,6,16),leather,x,girl?0-19:0+19,0+1,'Spine2',0,Math.PI/2);
+ });
  // shoulder straps
- for(const s of [-1,1]){const c=new T.CatmullRomCurve3([[7,py+11,pz+4],[8.2,py+16,pz+9],[8.6,py+15,pz+15.5],[8.4,py+7,pz+25],[8.4,py-3,pz+26.5],[8,py-12,pz+26]].map(([x,y,z])=>new T.Vector3(s*x,y,z)));
-  part(new T.TubeGeometry(c,18,1.05,5),leather,0,0,0,'Spine2',0,0,0,1,1,1);part(box(2.8,2.4,.7),brass,s*8.4,py+2,pz+26.3,'Spine2')}
- for(const x of [-5.5,5.5]){part(box(2,12,1),leather,x,py+12,pz-6.4,'Spine2',.18);part(box(2.6,2.2,.6),brass,x,py+7.6,pz-6.9,'Spine2')}
- part(new T.CylinderGeometry(2.4,2.1,4.2,16,1,true),new T.MeshStandardMaterial({color:0xaab0b4,metalness:.8,roughness:.4,side:T.DoubleSide}),11.5,py-10,pz-2,'Spine2');
+ const pad=girl?2.2:.9,f1=fit.front(py+7)+pad,f2=fit.front(py-3)+pad,f3=fit.front(py-12)+pad;
+ for(const s of [-1,1]){const c=new T.CatmullRomCurve3([[7,py+11,pz+4],[8.2,py+16,pz+9],[8.6,py+15.5,(pz+9+f1)/2],[8.4,py+7,f1],[8.4,py-3,f2],[8,py-12,f3]].map(([x,y,z])=>new T.Vector3(s*x,y,z)));
+  part(new T.TubeGeometry(c,18,1.05,5),leather,0,0,0,'Spine2',0,0,0,1,1,1);part(box(2.8,2.4,.7),brass,s*8.4,py+2,(f1+f2)/2+.3,'Spine2')}
+ P0(()=>{for(const x of [-5.5,5.5]){part(box(2,12,1),leather,x,12,-6.4,'Spine2',.18);part(box(2.6,2.2,.6),brass,x,7.6,-6.9,'Spine2')}
+ part(new T.CylinderGeometry(2.4,2.1,4.2,16,1,true),new T.MeshStandardMaterial({color:0xaab0b4,metalness:.8,roughness:.4,side:T.DoubleSide}),11.5,-10,-2,'Spine2')});
  // belt, buckle, pouch, compass
- const by=girl?81:80;
- part(new T.CylinderGeometry(1,1,3.6,40,1,true),leather,0,by,.4,'Pelvis',0,0,0,14.2,1,12.1);
- part(box(4.2,4,1.2),brass,0,by,12.6,'Pelvis');
- part(box(7,8,4.5),leather,-12.5,by-4,3,'Pelvis',0,-.25);part(box(7.4,2.6,5),leather,-12.5,by+.4,3,'Pelvis',0,-.25);
- part(new T.CylinderGeometry(2.9,2.9,1.1,20),brass,7.8,by-3.8,11.2,'Pelvis',Math.PI/2-.25,0,0);
+ const by=girl?83:80,bz=(fit.belt[0]+fit.belt[1])/2,rz=(fit.belt[1]-fit.belt[0])/2+(girl?1.6:.55),rx=Math.max(rz*1.22,fit.hw+.55);
+ part(new T.CylinderGeometry(1,1,3.6,40,1,true),leather,0,by,bz,'Pelvis',0,0,0,rx,1,rz);
+ part(box(4.2,4,1.2),brass,0,by,bz+rz+.1,'Pelvis');
+ part(box(7,8,4.5),leather,-rx*.86,by-4,bz+2.6,'Pelvis',0,-.25);part(box(7.4,2.6,5),leather,-rx*.86,by+.4,bz+2.6,'Pelvis',0,-.25);
+ part(new T.CylinderGeometry(2.9,2.9,1.1,20),brass,rx*.55,by-3.8,bz+rz*.86,'Pelvis',Math.PI/2-.25,0,0);
  // scarf: collar around the neck plus two tails that trail behind
  const ny=girl?120.5:120;
- part(new T.CylinderGeometry(1,1.12,6.2,28,2,true),scarf,0,ny,.4,'Neck',0,0,0,7.4,1,7.2);
- part(new T.SphereGeometry(3.1,10,8),scarf,3.6,ny-3.6,6.6,'Neck',0,0,0,1,.8,.7);
+ const nz=neckZ+1.4,nr=girl?6.3:7.4;
+ part(new T.CylinderGeometry(1,1.12,6.2,28,2,true),scarf,0,ny,nz,'Neck',0,0,0,nr,1,nr*.97);
+ part(new T.SphereGeometry(3.1,10,8),scarf,3.2,ny-3.6,nz+nr*.84,'Neck',0,0,0,1,.8,.7);
  const tails=[0,1].map(i=>{const g=new T.PlaneGeometry(1,1,1,9);const m=new T.Mesh(g,scarf);m.castShadow=true;m.frustumCulled=false;person.root.add(m);return {g,m,i}});
- const knot=new T.Object3D();knot.position.set(3.6,ny-3.6,6.6);body.add(knot);knot.updateMatrixWorld(true);(B.Neck||B.Head).attach(knot);
+ const knot=new T.Object3D();knot.position.set(3.2,ny-3.6,nz+nr*.84);body.add(knot);knot.updateMatrixWorld(true);(B.Neck||B.Head).attach(knot);
  const w=new T.Vector3();let blow=0;
  // Tails hang from the knot and stream backwards with speed (the person faces -z in root space).
  function wave(t,dt,speed){

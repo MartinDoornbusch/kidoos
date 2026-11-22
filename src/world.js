@@ -5,7 +5,23 @@ function createWorld(canvas) {
  const context=canvas.getContext('webgl2',options)||canvas.getContext('webgl',options);
  const renderer=context?new T.WebGLRenderer({canvas,context,...options}):softwareRenderer(canvas);
  renderer.setPixelRatio(Math.min(devicePixelRatio,1.65));renderer.outputColorSpace=T.SRGBColorSpace;
- scene.fog=new T.FogExp2(0x7f979e,.0068);
+ scene.fog=new T.FogExp2(0x7f979e,.0037);
+ // Aerial perspective: lit surfaces fade towards the sky panorama that lies behind them (sampled from the
+ // environment map in the view direction), so distant islands sink into the mountains instead of turning
+ // into flat blue-grey cut-outs. Materials without the environment map keep the plain fog colour.
+ T.ShaderChunk.fog_fragment=`#ifdef USE_FOG
+ #ifdef FOG_EXP2
+  float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+ #else
+  float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+ #endif
+ vec3 fogTint = fogColor;
+ #if defined( STANDARD ) && defined( USE_ENVMAP ) && defined( ENVMAP_TYPE_CUBE_UV )
+  vec3 fogDir = inverseTransformDirection( normalize( - vViewPosition ), viewMatrix );
+  fogTint = mix( fogColor, textureCubeUV( envMap, fogDir, 0.06 ).rgb * envMapIntensity, 0.8 );
+ #endif
+ gl_FragColor.rgb = mix( gl_FragColor.rgb, fogTint, fogFactor );
+#endif`;
  scene.add(new T.HemisphereLight(0xbfd6e4,0x3c4a2e,2.05));
  const sun=new T.DirectionalLight(0xffbb78,2.25);sun.position.set(-36,34,22);scene.add(sun);
  const turf=loadSurface('grass.jpg'),rockMap=loadSurface('rock.jpg'),timber=loadSurface('wood.jpg');
@@ -52,23 +68,39 @@ function createWorld(canvas) {
  const timberMat=new T.MeshStandardMaterial({map:timber,roughness:.91});
  const detailsMat=[timberMat,...['roof','wall','rock-grey'].map(name=>new T.MeshStandardMaterial({map:loadSurface(name+'.jpg'),roughness:.93}))];
  const dirtMap=loadSurface('paving.jpg');
- const roofGeo=cube.clone(),wallGeo=cube.clone(),stoneGeo=iso.clone(),gableGeo=new T.CylinderGeometry(1,1,1,3).rotateZ(-Math.PI/2).rotateX(-Math.PI/2);
+ const roofGeo=cube.clone(),wallGeo=cube.clone(),stoneGeo=iso.clone(),hangGeo=new T.BufferGeometry(),gableGeo=new T.CylinderGeometry(1,1,1,3).rotateZ(-Math.PI/2).rotateX(-Math.PI/2);
  // boulders: a lumpy, faceted stone instead of a smooth ball
- {const q=stoneGeo.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),k=1+.24*Math.sin(x*3.1+y*1.7)*Math.cos(z*2.9)+.13*Math.sin(y*5.3+x*4.1);q.setXYZ(i,x*k,y*k*.8,z*k)}stoneGeo.computeVertexNormals()}
+ {const q=stoneGeo.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),k=1+.24*Math.sin(x*3.1+y*1.7)*Math.cos(z*2.9)+.13*Math.sin(y*5.3+x*4.1);q.setXYZ(i,x*k,y*k*.8,z*k)}stoneGeo.computeVertexNormals();hangGeo.copy(stoneGeo)}
  const bark=new T.MeshStandardMaterial({map:loadSurface("ridged-bark.jpg"),color:0xffffff,roughness:1});
  const cutEnd=new T.MeshStandardMaterial({map:loadSurface('sawn-rings.jpg'),roughness:1});
  const ore=new T.MeshStandardMaterial({map:rockMap,color:0xabb7b3,roughness:.88});
  const quarryRock=new T.MeshStandardMaterial({map:rockMap,vertexColors:true,roughness:.9});
  const barkPile=new T.MeshStandardMaterial({map:(()=>{const m=loadSurface('ridged-bark.jpg');m.repeat.set(2,1);return m})(),vertexColors:true,roughness:.95});cutEnd.color.set(0xc9ab8a);
  const woodenColors=new Set([0x92583f,0xbc8352,0xb88054,0xca9362,0x745344,0xc18d5c]);
+ const stoneMeshes=[],hangMeshes=[],cragMeshes=[];
+ // the woodcutters' stumps become a scanned tree stump with roots once it has loaded
+ const stumpSpots=[];function dressStumps(){Models.load('stump').then(r=>stumpSpots.forEach(([x,y,z,a,b],k)=>{a.visible=b.visible=false;const m=new T.Mesh(r.geometry,r.material);m.position.set(x,y-.04,z);m.scale.setScalar(.88);m.rotation.y=k*2.4;m.castShadow=m.receiveShadow=true;scene.add(m)})).catch(e=>console.warn('stump',e))}
+ // Scanned rocks replace the procedural stones once they have loaded. The original instanced mesh keeps
+ // its place in the scene (bridges and landing pads toggle it), it takes a third of the stones itself and
+ // carries the other two rock shapes as children, so they show and hide with it.
+ function dressStones(meshes,names,shadow,tint){Promise.all(names.map(Models.load)).then(rocks=>{
+  const fix=new T.Matrix4().makeScale(1.1,1.1,1.1),M=new T.Matrix4(),white=new T.Color(1,1,1);
+  for(const m of meshes){const sets=rocks.map(()=>[]);for(let j=0;j<m.count;j++){m.getMatrixAt(j,M);const c=new T.Color();if(m.instanceColor)m.getColorAt(j,c);else c.set(0xd2d0c9);sets[j%rocks.length].push([M.clone().multiply(fix),tint?c.set(tint):c.lerp(white,.08)])}
+   rocks.forEach((r,k)=>{const list=sets[k];if(!list.length)return;let t=m;if(k){t=new T.InstancedMesh(r.geometry,r.material,list.length);t.castShadow=shadow;t.receiveShadow=true;m.add(t)}else{m.geometry=r.geometry;m.material=r.material;m.count=list.length}
+    list.forEach(([q,c],j)=>{t.setMatrixAt(j,q);t.setColorAt(j,c)});t.instanceMatrix.needsUpdate=true;t.instanceColor.needsUpdate=true;t.computeBoundingSphere()})}
+ }).catch(e=>console.warn('stones',e))}
+ function dressCrags(){Promise.all(['crag_a','crag_b'].map(Models.load)).then(([a,b])=>{a.material.color.setRGB(1.4,1.36,1.3);b.material.color.setRGB(1.4,1.36,1.3);return [a,b]}).then(([a,b])=>cragMeshes.forEach((m,k)=>{const r=k%2?b:a;m.geometry=r.geometry;m.material=r.material;m.scale.multiplyScalar(1.08)})).catch(e=>console.warn('crags',e))}
  function flush(){
   for(const [geo,rows] of batches){
    const groups=[rows.filter(r=>!woodenColors.has(r[1])),rows.filter(r=>woodenColors.has(r[1]))];
-   groups.forEach((items,i)=>{if(!items.length)return;const surface=geo===roofGeo?1:geo===wallGeo?2:geo===stoneGeo?3:i?0:-1;const m=new T.InstancedMesh(geo,geo.userData.surface||(surface>=0?detailsMat[surface]:mat),items.length);
-    items.forEach(([matrix,color],j)=>{m.setMatrixAt(j,matrix);m.setColorAt(j,new T.Color(surface===0?0xe9d6bd:surface===1?0xe4d1be:surface===2?0xf1e0c7:surface===3?0xd2d0c9:color))});m.castShadow=m.receiveShadow=true;scene.add(m)})
+   groups.forEach((items,i)=>{if(!items.length)return;const surface=geo===roofGeo?1:geo===wallGeo?2:geo===stoneGeo||geo===hangGeo?3:i?0:-1;const m=new T.InstancedMesh(geo,geo.userData.surface||(surface>=0?detailsMat[surface]:mat),items.length);
+    items.forEach(([matrix,color],j)=>{m.setMatrixAt(j,matrix);m.setColorAt(j,new T.Color(surface===0?0xe9d6bd:surface===1?0xe4d1be:surface===2?0xf1e0c7:surface===3?0xd2d0c9:color))});m.castShadow=m.receiveShadow=true;scene.add(m);if(geo===stoneGeo)stoneMeshes.push(m);if(geo===hangGeo){m.castShadow=false;hangMeshes.push(m)}})
   }
   batches.clear()
  }
+ // Scanned layered cliff (Poly Haven cliff_side) for every island underside: one shared material.
+ let cliffMat=null;function cliffPhoto(){if(!context||typeof Models==='undefined')return null;if(!cliffMat){const map=Models.texture('cliff_diff.jpg',true),nor=Models.texture('cliff_nor.jpg');map.repeat.set(.75,.75);nor.repeat.set(.75,.75);
+  cliffMat=new T.MeshStandardMaterial({vertexColors:true,map,normalMap:nor,roughness:.95,side:T.DoubleSide});cliffMat.color.setRGB(2.2,2.08,1.95)}return cliffMat}
  // Rounded grass lip, smooth cliff with soil band and rock, tapering to a point. The walkable top stays flat.
  function island(x,z,r,land,depth=15,h=0){
   for(let i=0;i<684;i++)rnd(); // keeps every later random placement exactly where it was
@@ -93,13 +125,12 @@ function createWorld(canvas) {
   for(let k=0;k<rows-1;k++)for(let i=0;i<N;i++){const a=k*(N+1)+i,b=a+N+1;cliffIdx.push(a,b,a+1,a+1,b,b+1)}
   for(const [points,tints,uv,index,map] of [[top,topC,topUv,topIdx,turf],[cliff,cliffC,cliffUv,cliffIdx,rockMap]]){
    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(points,3));g.setAttribute('color',new T.Float32BufferAttribute(tints,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(index);g.computeVertexNormals();
-   const m=new T.Mesh(g,new T.MeshStandardMaterial({vertexColors:true,map,roughness:1,flatShading:map===rockMap,side:T.DoubleSide}));m.receiveShadow=map===turf;m.castShadow=map===rockMap;scene.add(m)
+   const rock=map===rockMap,m=new T.Mesh(g,rock&&cliffPhoto()||new T.MeshStandardMaterial({vertexColors:true,map,roughness:1,flatShading:rock,side:T.DoubleSide}));m.receiveShadow=map===turf;m.castShadow=rock;scene.add(m)
   }
   // hanging rocks under the island and roots dangling from the soil band (own random stream, absolute heights)
   let q=Math.floor(s*1000)+7;const R=()=>(q=(q*16807)%2147483647)/2147483647;liftOff=true;
   for(let i=0,n2=Math.round(r*1.1);i<n2;i++){const a=R()*6.283,t=.12+R()*.7,rr=Math.max(.05,(1-Math.pow(t,1.35))*.9),yy=-1-t*(depth*1.22-1),sz=.45+R()*Math.min(1.5,r*.075);
-   shape(stoneGeo,0xffffff,x+Math.cos(a)*r*rr*.88,h+yy-sz*.4,z+Math.sin(a)*r*rr*.88,sz,sz*(1.3+R()*.8),sz,a,R()*.3,R()*.3)}
-  for(let i=0,n3=Math.round(r*1.4);i<n3;i++){const a=R()*6.283,len=.5+R()*1.6,px=x+Math.cos(a)*r*1.01,pz=z+Math.sin(a)*r*1.01;cord(px,h-.35,pz,px+Math.cos(a)*.25,h-.35-len,pz+Math.sin(a)*.25,.025+R()*.02,0x4a3a28)}
+   shape(hangGeo,0xffffff,x+Math.cos(a)*r*rr*.88,h+yy-sz*.4,z+Math.sin(a)*r*rr*.88,sz,sz*(1.3+R()*.8),sz,a,R()*.3,R()*.3)}
   liftOff=false;
  }
  const plantCards=new Map();
@@ -512,21 +543,28 @@ void main(){float y=vUv.y;
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(col,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));g.setAttribute('rocky',new T.Float32BufferAttribute(rocky,1));g.setAttribute('snow',new T.Float32BufferAttribute(snowy,1));g.setIndex(idx);g.computeVertexNormals();
   // grass on the gentle slopes, bare rock where it gets steep: two textures blended per vertex
   const hillMat=new T.MeshStandardMaterial({map:turf,vertexColors:true,roughness:.95});
-  hillMat.onBeforeCompile=sh=>{sh.uniforms.rockTex={value:loadSurface('rock-grey.jpg')};
+  hillMat.onBeforeCompile=sh=>{sh.uniforms.rockTex={value:context&&typeof Models!=='undefined'?Models.texture('alp_diff.jpg',true):loadSurface('rock-grey.jpg')};
    sh.vertexShader='attribute float rocky;\nattribute float snow;\nvarying float vRocky;\nvarying float vSnow;\n'+sh.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\nvRocky=rocky;vSnow=snow;');
-   sh.fragmentShader='uniform sampler2D rockTex;\nvarying float vRocky;\nvarying float vSnow;\n'+sh.fragmentShader.replace('#include <map_fragment>','vec4 grassT=texture2D(map,vMapUv);vec4 rockT=texture2D(rockTex,vMapUv*.7);diffuseColor*=mix(grassT*vec4(.92,1.02,.78,1.),rockT*vec4(1.05,1.02,.98,1.),clamp(vRocky,0.,1.));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.94,.97,1.)*(.92+.08*rockT.r),clamp(vSnow,0.,1.));')};
+   sh.fragmentShader='uniform sampler2D rockTex;\nvarying float vRocky;\nvarying float vSnow;\n'+sh.fragmentShader.replace('#include <map_fragment>','vec4 grassT=texture2D(map,vMapUv);vec4 rockT=texture2D(rockTex,vMapUv*.7);diffuseColor*=mix(grassT*vec4(.92,1.02,.78,1.),rockT*vec4(1.05,1.02,.98,1.),clamp(vRocky,0.,1.));float sn=clamp(vSnow*1.7-(.55-rockT.g)*2.2-vRocky*.45,0.,1.);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.94,.97,1.)*(.9+.1*rockT.r),sn);')};
   const hill=new T.Mesh(g,hillMat);hill.receiveShadow=hill.castShadow=true;scene.add(hill);
   // crags: faceted rock outcrops on the steep flanks and around the summit
   const cragGeo=new T.IcosahedronGeometry(1,2);{const q=cragGeo.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),k=1+.28*Math.sin(x*4.1+y*2.3)*Math.cos(z*3.7)+.14*Math.sin(y*7+x*5);q.setXYZ(i,x*k*1.1,y*k*.8,z*k)}cragGeo.computeVertexNormals()}
-  const cragMat=new T.MeshStandardMaterial({map:loadSurface('rock-grey.jpg'),color:0xd6d3cc,roughness:.95,flatShading:true});let cs=733;const cr=()=>(cs=(cs*16807)%2147483647)/2147483647;
+  const cragMat=new T.MeshStandardMaterial({map:loadSurface('rock-grey.jpg'),color:0xd6d3cc,roughness:.95,flatShading:true});
+  // An outcrop is sunk into the slope: its underside sits below the lowest ground under its footprint,
+  // so the downhill side never hangs in the air; the uphill side disappears into the mountain.
+  function placeCrag(x,z,sc,sy,L,r1,r2,r3){let lo=mountainH(x,z);for(let i=0;i<10;i++){const a=i/10*Math.PI*2;for(const f of [.55,1.05])lo=Math.min(lo,mountainH(x+Math.cos(a)*sc*f,z+Math.sin(a)*sc*.9*f))}
+   const gx=mountainH(x+.4,z)-mountainH(x-.4,z),gz=mountainH(x,z+.4)-mountainH(x,z-.4),m=new T.Mesh(cragGeo,cragMat);
+   cragMeshes.push(m);m.position.set(x,L+lo+sy*.1,z);m.scale.set(sc,sy,sc*.9);m.rotation.set(Math.atan(gz/.8)*.45+r1*.3-.15,r2*6,-Math.atan(gx/.8)*.45+r3*.3-.15,'YXZ');m.castShadow=m.receiveShadow=true;scene.add(m);
+   solids.add({x,z,r:sc*.8,base:L+lo-1,top:L+lo+sy*.95})}
+  let cs=733;const cr=()=>(cs=(cs*16807)%2147483647)/2147483647;
   for(let k=0,made=0;k<220&&made<16;k++){const a=cr()*6.28,rr=1.5+cr()*(peak.R-2),x=peak.x+Math.cos(a)*rr,z=peak.z+Math.sin(a)*rr,h=mountainH(x,z),sl=Math.hypot(mountainH(x+.3,z)-h,mountainH(x,z+.3)-h)/.3;
    if(sl<.85||brookDist(x,z)<1.6||Math.hypot(x-peak.x-.2,z-peak.z+1.6)<3.6)continue;made++;const sc=.9+cr()*1.6;
-   const m=new T.Mesh(cragGeo,cragMat);m.position.set(x,h+sc*.15,z);m.scale.set(sc,sc*(.8+cr()*.6),sc*.9);m.rotation.set(cr()*.5,cr()*6,cr()*.5);m.castShadow=m.receiveShadow=true;scene.add(m);solids.add({x,z,r:sc*.85,base:h-1,top:h+sc*.9})}
+   placeCrag(x,z,sc,sc*(.8+cr()*.6),0,cr(),cr(),cr())}
   // firs on the slopes, boulders on the shoulders
   let hs=5150;const hr=()=>(hs=(hs*16807)%2147483647)/2147483647;
   for(let k=0;k<26;k++){const a=hr()*6.28,rr=2.5+hr()*(lobe.r-3.5),x=lobe.x+Math.cos(a)*rr,z=lobe.z+Math.sin(a)*rr,h=mountainH(x,z);
    if(brookDist(x,z)<1.4||Math.hypot(x-peak.x,z-peak.z)<2.2||Math.hypot(x-25,z+1)<3||x<26&&Math.hypot(x,z)<24)continue;
-   if(k%3){const t=3.5+hr()*3;pine(x,z,t,h-.15);solids.add({x,z,r:.43,base:h-.2,top:h+t});solids.add({x,z,r:t*.23,base:h+t*.4,top:h+t})}
+   if(k%3){const t=3.5+hr()*3,lo=Math.min(h,...[0,1.57,3.14,4.71].map(a=>mountainH(x+Math.cos(a)*.32,z+Math.sin(a)*.32)));pine(x,z,t,lo-.12);solids.add({x,z,r:.43,base:h-.2,top:h+t});solids.add({x,z,r:t*.23,base:h+t*.4,top:h+t})}
    else{shape(stoneGeo,0x9d9b84,x,h+.2,z,.9,.6,.8,a);solids.add({x,z,r:.7,base:h-.3,top:h+.75})}}
   // the brook: a ribbon that follows the ground and runs off the edge as a waterfall
   const flow=new T.MeshStandardMaterial({map:loadSurface('cascade.png'),color:0x8cc4d6,transparent:true,opacity:.85,roughness:.1,metalness:.1,depthWrite:false});flow.map.wrapS=flow.map.wrapT=T.RepeatWrapping;flow.map.repeat.set(1,6);
@@ -542,7 +580,7 @@ void main(){float y=vUv.y;
   mist(ex+1.2,-24,ez,9);mist(ex+.8,.4,ez+.2,2.2);
   torrents.push(stream);
   // a small pool where the brook starts, fed by a spring among the rocks
-  Object.assign(HL,{hillMat,cragGeo,cragMat,flow});
+  Object.assign(HL,{hillMat,cragGeo,cragMat,flow,placeCrag});
  // Snowy mountains on the far islands, built like the highlands: grass and rock with a snow cap, crags,
  // firs, and a brook from a spring below the snowfield that runs to the rim and drops as a waterfall.
  highland=P=>{const I=P.I,L=I.lift,clampR=(x,z)=>{const dx=x-I.x,dz=z-I.z,e=Math.hypot(dx,dz),m=I.r-.45;return e>m?[I.x+dx/e*m,I.z+dz/e*m]:[x,z]};
@@ -555,9 +593,9 @@ void main(){float y=vUv.y;
   const hill=new T.Mesh(g,HL.hillMat);hill.receiveShadow=hill.castShadow=true;scene.add(hill);
   let cs=Math.round(P.x*31-P.z*17)&0xffff|1;const cr=()=>(cs=(cs*16807)%2147483647)/2147483647;
   for(let k=0,made=0;k<200&&made<9;k++){const a=cr()*6.28,rr=1.5+cr()*(P.R-2),[x,z]=clampR(P.x+Math.cos(a)*rr,P.z+Math.sin(a)*rr),h=mountainH(x,z),sl=Math.hypot(mountainH(x+.3,z)-h,mountainH(x,z+.3)-h)/.3;
-   if(sl<.85||brookDist(x,z,P)<1.6||Math.hypot(x-I.x,z-I.z)>I.r-1.5)continue;made++;const sc=.9+cr()*1.4,m=new T.Mesh(HL.cragGeo,HL.cragMat);m.position.set(x,L+h+sc*.15,z);m.scale.set(sc,sc*(.8+cr()*.6),sc*.9);m.rotation.set(cr()*.5,cr()*6,cr()*.5);m.castShadow=m.receiveShadow=true;scene.add(m);solids.add({x,z,r:sc*.85,base:h-1,top:h+sc*.9})}
+   if(sl<.85||brookDist(x,z,P)<1.6||Math.hypot(x-I.x,z-I.z)>I.r-1.5)continue;made++;const sc=.8+cr()*1.1;HL.placeCrag(x,z,sc,sc*(.8+cr()*.6),L,cr(),cr(),cr())}
   for(let k=0,made=0;k<120&&made<8;k++){const a=cr()*6.28,rr=P.R*(.45+cr()*.5),[x,z]=clampR(P.x+Math.cos(a)*rr,P.z+Math.sin(a)*rr),h=mountainH(x,z);
-   if(brookDist(x,z,P)<1.4||h>P.H*.55||Math.hypot(x-I.x,z-I.z)>I.r-2)continue;made++;const t=3.5+cr()*3;pine(x,z,t,h-.15);solids.add({x,z,r:.43,base:h-.2,top:h+t});solids.add({x,z,r:t*.23,base:h+t*.4,top:h+t})}
+   if(brookDist(x,z,P)<1.4||h>P.H*.55||Math.hypot(x-I.x,z-I.z)>I.r-2)continue;made++;const t=3.5+cr()*3,lo=Math.min(h,...[0,1.57,3.14,4.71].map(a=>mountainH(x+Math.cos(a)*.32,z+Math.sin(a)*.32)));pine(x,z,t,lo-.12);solids.add({x,z,r:.43,base:h-.2,top:h+t});solids.add({x,z,r:t*.23,base:h+t*.4,top:h+t})}
   const B=P.brook,bp=[],bu=[],bi=[];let run=0;const steps=48;
   for(let i=0;i<=steps;i++){const f=i/steps*(B.length-1),k=Math.min(B.length-2,Math.floor(f)),u=f-k,x=B[k][0]+(B[k+1][0]-B[k][0])*u,z=B[k][1]+(B[k+1][1]-B[k][1])*u;
    const dx=B[k+1][0]-B[k][0],dz=B[k+1][1]-B[k][1],l=Math.hypot(dx,dz),nx=-dz/l,nz=dx/l,wd=.3+.38*i/steps;if(i)run+=Math.hypot(x-bp[bp.length-6],z-bp[bp.length-4]);
@@ -833,7 +871,7 @@ void main(){float y=vUv.y;
    const box=(geo,color,t,v,dy,sx,sy,sz,tilt=true)=>{const [x,y,z]=at(t,v,dy);shape(geo,color,x,y,z,sx,sy,sz,yaw,0,tilt?pitch:0)};
    const bar=(t1,v1,y1,t2,v2,y2,r,color)=>{const p=at(t1,v1,y1),q=at(t2,v2,y2);cord(p[0],p[1],p[2],q[0],q[1],q[2],r,color)};
    if(b.rope){const sgd=t=>-b.sag*Math.PI/L*Math.cos(Math.PI*Math.max(0,Math.min(1,t/L)));
-    const n=Math.ceil((L+2.4)/.33);for(let i=0;i<n;i++){const t=-1.2+(i+.5)*(L+2.4)/n,j=Math.sin(i*12.9);if(j>.93&&t>.5&&t<L-.5)continue;const [x,y,z]=at(t,.03*j,.1);shape(plank,0xe0cfb0,x,y,z,2.15+.12*j,.09,.25,yaw+.035*j,0,(t>0&&t<L)?-Math.atan(m+sgd(t)):0)}
+    const n=Math.ceil((L+2.4)/.33);for(let i=0;i<n;i++){const t=-1.2+(i+.5)*(L+2.4)/n,j=Math.sin(i*12.9);const [x,y,z]=at(t,.03*j,.1);shape(plank,0xe0cfb0,x,y,z,2.15+.12*j,.09,.25,yaw+.035*j,0,(t>0&&t<L)?-Math.atan(m+sgd(t)):0)}
     for(const v of [-1.03,1.03]){for(const dy of [.02,.6,1.12]){const K=Math.ceil(L/1.1);for(let i=0;i<K;i++)bar(i*L/K,v,dy,(i+1)*L/K,v,dy,dy>1?.05:.035,0x9b7b52)}for(let t=0;t<=L+.01;t+=1.1)bar(t,v,.02,t,v,1.12,.022,0x8a6c47)}
     for(const [t,dir] of [[-.55,-1],[L+.55,1]])for(const v of [-1.25,1.25]){const [x,y,z]=at(t,v,0);shape(cyl,0x5a4230,x,y+.8,z,.16,1.8,.16);for(const yy of [.62,1.14])shape(new T.TorusGeometry(.17,.045,5,12),0x9b7b52,x,y+yy,z,1,1,1,0,0,Math.PI/2);
      const [ax2,ay2,az2]=at(t+dir*1.7,v*1.35,-.12);cord(x,y+1.55,z,ax2,ay2,az2,.032,0x9b7b52);lantern(x,y+1.95,z);solids.add({x,z,r:.26,base:-.2,top:2.1,stage:b.stage})}
@@ -1166,7 +1204,7 @@ void main(){float y=vUv.y;
      const rim=new T.TorusGeometry(rad*.99,.03,5,24);rim.translate(0,0,side*len/2);barkParts.push({geo:place(rim),color:0x8a7a6a})}});
    const bk=new T.Mesh(Nature.merge(barkParts),barkPile),ec=new T.Mesh(Nature.merge(endParts),cutEnd);for(const m of [bk,ec]){m.castShadow=m.receiveShadow=true;g.add(m)}
    // A stump with an axe stays behind after the pile is gone.
-   const sx=x+1.35,sz=z+.5,sl=liftAt(sx,sz);shape(cyl,0x8a6a50,sx,.25+sl,sz,.32,.5,.32,0,0,0,scene).material=bark;shape(cyl,0xffffff,sx,.505+sl,sz,.3,.01,.3,0,0,0,scene).material=cutEnd;
+   const sx=x+1.35,sz=z+.5,sl=liftAt(sx,sz),s1=shape(cyl,0x8a6a50,sx,.25+sl,sz,.32,.5,.32,0,0,0,scene),s2=shape(cyl,0xffffff,sx,.505+sl,sz,.3,.01,.3,0,0,0,scene);s1.material=bark;s2.material=cutEnd;stumpSpots.push([sx,sl,sz,s1,s2]);
    shape(cyl,0x7a5a3a,sx+.05,.75,sz,.025,.62,.025,0,.55,0);shape(cube,0x5a5e62,sx-.1,.52,sz,.24,.12,.04,0,.55,0);solids.add({x:sx,z:sz,r:.36,base:0,top:.5})
   }else{const rocks=[];
    [[0,.45,0,.62],[.62,.32,.35,.45],[-.55,.3,.28,.42],[.2,.28,-.6,.4],[-.35,.86,-.1,.36],[.45,.26,-.25,.3]].forEach(([rx,ry,rz,size],j)=>{
@@ -1250,5 +1288,6 @@ void main(){float y=vUv.y;
   renderer.setPixelRatio(Math.min(devicePixelRatio,q>=2?1.65:q===1?1.2:1));resize();
   if(context&&!fx){renderer.toneMapping=T.ACESFilmicToneMapping}else if(q===0){renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15}}
  function resize(){let w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();if(fx){const r=renderer.getPixelRatio();fx.setSize(Math.round(w*r),Math.round(h*r))}}resize();
+ if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb39c86);dressCrags();dressStumps()}
  return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),rooms,enterRoom,outfit:hero.outfit,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
 }
