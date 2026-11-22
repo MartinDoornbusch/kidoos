@@ -77,3 +77,7 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
 - "Old Wooden Ladder" door CurlyFryWhy (https://sketchfab.com/CurlyFryWhy), CC BY 4.0,
   https://sketchfab.com/3d-models/old-wooden-ladder-5e818740606642c0885b32bda78cd479
   Gebruikt als trapladder bij de wachttoren, de schuur van de Molenhoeve en de houtvesterij.
+
+1.17.1
+- "Canvas Backpack with Bedroll" van tevy.dev (https://tevy.dev/models/canvas-backpack-bedroll), CC0 1.0
+  (zo vermeld in het GLB-bestand zelf). Gebruikt als rugzak van Floor en Niek (LOD1, 2.362 driehoeken).
