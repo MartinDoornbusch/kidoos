@@ -52,7 +52,7 @@ function createWorld(canvas) {
  const timberMat=new T.MeshStandardMaterial({map:timber,roughness:.91});
  const detailsMat=[timberMat,...['roof','wall','rock-grey'].map(name=>new T.MeshStandardMaterial({map:loadSurface(name+'.jpg'),roughness:.93}))];
  const dirtMap=loadSurface('paving.jpg');
- const roofGeo=cube.clone(),wallGeo=cube.clone(),stoneGeo=iso.clone();
+ const roofGeo=cube.clone(),wallGeo=cube.clone(),stoneGeo=iso.clone(),gableGeo=new T.CylinderGeometry(1,1,1,3).rotateZ(-Math.PI/2).rotateX(-Math.PI/2);
  // boulders: a lumpy, faceted stone instead of a smooth ball
  {const q=stoneGeo.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),k=1+.24*Math.sin(x*3.1+y*1.7)*Math.cos(z*2.9)+.13*Math.sin(y*5.3+x*4.1);q.setXYZ(i,x*k,y*k*.8,z*k)}stoneGeo.computeVertexNormals()}
  const bark=new T.MeshStandardMaterial({map:loadSurface("ridged-bark.jpg"),color:0xffffff,roughness:1});
@@ -731,7 +731,16 @@ void main(){float y=vUv.y;
   for(let i=0;i<10;i++)tree(peakI,4.5,7);for(let i=0;i<6;i++)boulder(peakI,0xa7a397,.6,1.3);tufts(peakI,30);
 
   // Distant hamlets floating higher up, each with a cottage and a falling stream.
-  function cottage(x,z,y,w){const d=w*.8;shape(plasterBox,0xf3e4cc,x,y+w*.35,z,w,w*.7,d);for(const s of [-1,1])shape(tiles,0xffffff,x,y+w*.86,z+s*d*.27,w+.5,.14,d*.62,0,0,s*.62);shape(masonry,0xcfc1a8,x+w*.3,y+w*1.0,z,.45,.9,.45);shape(glass,0xffffff,x,y+w*.4,z+d/2+.01,w*.22,w*.24,.04)}
+  function cottage(x,z,y,w){const d=w*.8,hg=w*.7,top=y+.4+hg,rise=w*.42,dk=0xffffff,fz=z+d/2;gableGeo.userData.surface??=plasterBox.userData.surface;
+   // half-timbered cottage: stone plinth, framed plaster walls, plastered gables under a tiled roof, a door, framed windows with flower boxes and a chimney
+   shape(masonry,0xcfc1a8,x,y+.2,z,w+.25,.4,d+.25);shape(plasterBox,0xf3e4cc,x,y+.4+hg/2,z,w,hg,d);shape(gableGeo,0xf3e4cc,x,top+rise/3,z,w,rise/1.5,d/1.732);
+   for(const sz of [-1,1]){for(const sx of [-1,-.33,.33,1])shape(beam,dk,x+sx*w/2,y+.4+hg/2,z+sz*(d/2+.03),.13,hg,.07);for(const yy of [.46,top-y-.05])shape(beam,dk,x,y+yy,z+sz*(d/2+.03),w+.1,.11,.07)}
+   for(const s of [-1,1])for(const oz of [-d/2,0,d/2])shape(beam,dk,x+s*(w/2+.03),y+.4+hg/2,z+oz,.07,hg,.12);
+   for(const s of [-1,1])shape(tiles,0xffffff,x,top+rise/2,z+s*d*.29,w+.6,.14,d*.68,0,0,s*.7);shape(beam,dk,x,top+rise+.05,z,w+.65,.12,.14);
+   shape(cube,0x5d3f2a,x+w*.18,y+.4+.78,fz+.05,.62,1.56,.06);for(const s of [-1,1])shape(beam,dk,x+w*.18+s*.36,y+.4+.8,fz+.07,.09,1.62,.08);
+   for(const wx of [x-w*.24,x+w*.42]){if(wx>x+w*.38&&w<3)continue;shape(glass,0xffffff,wx,y+.4+hg*.58,fz+.02,.5,.55,.04);shape(beam,dk,wx,y+.4+hg*.58,fz+.05,.6,.06,.06);shape(beam,dk,wx,y+.4+hg*.58,fz+.05,.06,.65,.06);
+    shape(planks,0x7a5536,wx,y+.4+hg*.58-.36,fz+.13,.62,.14,.2);shape(leafGeo,0x4f7d32,wx,y+.4+hg*.58-.3,fz+.13,.8,.8,.8);shape(flowerGeo,[0xe2475b,0xf6c443,0xd45a9b][Math.abs(Math.round(wx))%3],wx,y+.4+hg*.58-.3,fz+.13,.8,.8,.8)}
+   shape(masonry,0xcfc1a8,x-w*.3,top+rise*.75,z-d*.15,.45,rise*1.1,.45);shape(masonry,0xb9ae99,x-w*.3,top+rise*1.33,z-d*.15,.55,.12,.55)}
   for(const [x,z,y,r] of [[-112,-30,14,9],[118,-40,18,10],[-96,-150,22,8],[104,-170,12,9],[-130,40,10,8],[96,48,20,8],[0,-205,24,11],[-40,-200,8,7]]){const s=seed;island(x,z,r,land[(x>0)+1],r*1.2,y);seed=s;cottage(x+r*.2,z,y,3.2);for(let j=0;j<3;j++)pine(x-r*.45+j*1.6,z+r*.3-j*.9,4+j,y);
    }
   seed=keep}
@@ -743,7 +752,7 @@ void main(){float y=vUv.y;
   for(let i=0;i<90;i++){const s=55+sea()*95;o.position.set((sea()-.5)*380,-15-sea()*13,70-sea()*340);o.rotation.set(0,sea()*6.28,0);o.scale.set(s,1,s*(.5+sea()*.4));o.updateMatrix();cloudFloor.setMatrixAt(i,o.matrix);
    cloudFloor.setColorAt(i,tone.set(0xf6dcc0).lerp(new T.Color(0xb9c8d2),sea()*.8))}
   cloudFloor.renderOrder=-1;scene.add(cloudFloor)}
- for(let j=0;j<2;j++){let z=j===0?-21:-81;shape(cube,wood,0,.04,z,5,.32,5);pennants(0,z+1.5,5.5);ports.push(z)}
+ const portPads=[];for(let j=0;j<2;j++){let z=j===0?-21:-81;flush();const n0=scene.children.length;shape(cube,wood,0,.04,z,5,.32,5);flush();portPads.push(scene.children.slice(n0));pennants(0,z+1.5,5.5);ports.push(z)}
  // ---- Observatory: a dressed-stone drum with arched windows and a door, a ribbed verdigris dome with an open
  // shutter slit and a brass telescope pointing out of it, a walkway ring, and an armillary sphere in the garden.
  {const ox=-9,oz=-125,R=4.2,drum=new T.CylinderGeometry(1,1,1,40);drum.userData.surface=masonry.userData.surface;
@@ -1164,7 +1173,7 @@ void main(){float y=vUv.y;
  else if(type==='bankje'){shape(planks,0xb08d67,0,.48,0,1.3,.08,.42,0,0,0,g);shape(planks,0xb08d67,0,.85,-.2,1.3,.3,.06,0,0,0,g);for(const s of [-1,1]){shape(beam,oak,s*.55,.24,0,.08,.48,.38,0,0,0,g);shape(beam,oak,s*.55,.66,-.2,.08,.4,.06,0,0,0,g)}}
  else if(type==='vlag'){shape(cyl,0x6b5a48,0,1.7,0,.05,3.4,.05,0,0,0,g);shape(ball,0xb69765,0,3.45,0,.08,.08,.08,0,0,0,g);const f=new T.Mesh(new T.PlaneGeometry(1.1,.7,8,1),new T.MeshStandardMaterial({map:canvasTex(128,80,c=>{c.fillStyle='#2f5d63';c.fillRect(0,0,128,80);c.fillStyle='#e7c46a';c.beginPath();c.moveTo(40,40);c.lineTo(64,16);c.lineTo(88,40);c.lineTo(64,64);c.fill()}),side:T.DoubleSide,roughness:.9}));f.position.set(.58,3.0,0);f.castShadow=true;g.add(f);flags.push(f)}
  else {lamp(0,0,0,g)}return g}
- function sync(s){flags.length=0;bridgeGroups.forEach(b=>b.list.forEach(g=>g.visible=s.stage>=b.stage));beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
+ function sync(s){flags.length=0;portPads.forEach((list,i)=>list.forEach(m=>m.visible=s.stage<=i));bridgeGroups.forEach(b=>b.list.forEach(g=>g.visible=s.stage>=b.stage));beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
  function ground(x,z,s,y=100){if(inside)return inside.floorAt(x-inside.x,z,y);const L=liftAt(x,z);let h=islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.35)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r-.35?L+mountainH(x,z):-100;
  for(const b of bridges){if(b.stage>s.stage)continue;const o=onBridge(b,x,z,2.3);if(o&&o.v<b.hw-.02)h=Math.max(h,o.y+.19)}
  return Math.max(h,solids.floor(x,z,s,y))}
