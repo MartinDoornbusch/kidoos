@@ -1138,7 +1138,7 @@ void main(){float y=vUv.y;
    const near=canopies.filter(o=>Math.abs(o.x-target.x)<16&&Math.abs(o.z-target.z)<16);
    for(let d=.25;d<=distance;d+=.17){
     const sample=target.clone().addScaledVector(offset,d);
-    if(sample.y<mountainH(sample.x,sample.z)+.35||blocked(sample.x,sample.z,s,sample.y-.10,.17,.22)||rotorDiscs.some(o=>Math.abs(sample.z-o.z)<.7&&Math.hypot(sample.x-o.x,sample.y-o.y)<o.r)||near.some(o=>{const k=(sample.y-o.y)/o.h;return k>.12&&k<1&&Math.hypot(sample.x-o.x,sample.z-o.z)<o.r*(1-k)+.25})){
+    if(sample.y<ground(sample.x,sample.z,s,sample.y+.5)+.35||blocked(sample.x,sample.z,s,sample.y-.10,.17,.22)||rotorDiscs.some(o=>Math.abs(sample.z-o.z)<.7&&Math.hypot(sample.x-o.x,sample.y-o.y)<o.r)||near.some(o=>{const k=(sample.y-o.y)/o.h;return k>.12&&k<1&&Math.hypot(sample.x-o.x,sample.z-o.z)<o.r*(1-k)+.25})){
      cam.position.copy(target).addScaledVector(offset,Math.max(.22,d-.24));break;
     }
    }
