@@ -50,7 +50,7 @@ function createWorld(canvas) {
    const obj=new T.Object3D();obj.position.set(x,y+(liftOff?0:liftAt(x,z)),z);obj.rotation.set(rx,ry,rz,rotOrder);obj.scale.set(sx,sy,sz);obj.updateMatrix();if(!batches.has(geo))batches.set(geo,[]);batches.get(geo).push([obj.matrix,color]);
  }
  const timberMat=new T.MeshStandardMaterial({map:timber,roughness:.91});
- const detailsMat=[timberMat,...['roof','wall','rock'].map(name=>new T.MeshStandardMaterial({map:loadSurface(name+'.jpg'),roughness:.93}))];
+ const detailsMat=[timberMat,...['roof','wall','rock-grey'].map(name=>new T.MeshStandardMaterial({map:loadSurface(name+'.jpg'),roughness:.93}))];
  const dirtMap=loadSurface('paving.jpg');
  const roofGeo=cube.clone(),wallGeo=cube.clone(),stoneGeo=iso.clone();
  // boulders: a lumpy, faceted stone instead of a smooth ball
@@ -65,7 +65,7 @@ function createWorld(canvas) {
   for(const [geo,rows] of batches){
    const groups=[rows.filter(r=>!woodenColors.has(r[1])),rows.filter(r=>woodenColors.has(r[1]))];
    groups.forEach((items,i)=>{if(!items.length)return;const surface=geo===roofGeo?1:geo===wallGeo?2:geo===stoneGeo?3:i?0:-1;const m=new T.InstancedMesh(geo,geo.userData.surface||(surface>=0?detailsMat[surface]:mat),items.length);
-    items.forEach(([matrix,color],j)=>{m.setMatrixAt(j,matrix);m.setColorAt(j,new T.Color(surface===0?0xe9d6bd:surface===1?0xe4d1be:surface===2?0xf1e0c7:surface===3?0xb3b1a9:color))});m.castShadow=m.receiveShadow=true;scene.add(m)})
+    items.forEach(([matrix,color],j)=>{m.setMatrixAt(j,matrix);m.setColorAt(j,new T.Color(surface===0?0xe9d6bd:surface===1?0xe4d1be:surface===2?0xf1e0c7:surface===3?0xd2d0c9:color))});m.castShadow=m.receiveShadow=true;scene.add(m)})
   }
   batches.clear()
  }
@@ -116,7 +116,7 @@ function createWorld(canvas) {
  function grove(name,x,z,h,y,width){shape(pick(tufts,x,z),0xffffff,x,y,z,width*.75,h*.95,width*.75,(x+z)*2.4)}
  function patch(){}
  const canopies=[];
- function pine(x,z,h,y=0){canopies.push({x,z,y:y+liftAt(x,z),h,r:h*.37});shape(pick(firs,x,z),shade(x,z,0xf2eee2,0xc9d6c0),x,y,z,h*.74,h,h*.74,(x+z)*2.4)}
+ function pine(x,z,h,y=0){canopies.push({x,z,y:y+liftAt(x,z),h,r:h*.37});const v=Math.abs(Math.round(x*3+z*7))%3;shape(cyl,0x4a382b,x,y+h*.14,z,h*.032,h*.3,h*.032);shape(conifers[v],[0x35603a,0x2f5835,0x3d6b3c][v],x,y,z,h*.74,h,h*.74,(x+z)*2.4)}
  // Blossom tree: a dark trunk with two limbs and a crown of petal clusters around a soft core.
  function cherry(x,z,h){canopies.push({x,z,y:h*.45+liftAt(x,z),h:h*.6,r:h*.5});const L=liftAt(x,z),tone=[0xf4bccb,0xf8d3de,0xeaa7bc,0xfbe4ea];
   shape(cyl,0x4e3a2e,x,h*.22,z,.13,h*.44,.13,0,.05);liftOff=true;cord(x,L+h*.38,z,x+h*.16,L+h*.58,z+h*.06,.06,0x4e3a2e);cord(x,L+h*.36,z,x-h*.12,L+h*.55,z-h*.1,.06,0x4e3a2e);liftOff=false;
@@ -167,6 +167,9 @@ function createWorld(canvas) {
   new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.75}));
  const flowerGeo=plantGeo((pos,idx)=>{for(const [hx,hy,hz] of plantHeads)for(let f=0;f<3;f++){const fx=hx+(f-1)*.022,fz=hz+(f%2)*.02,fy=hy+(f===1?.012:0);for(let k=0;k<5;k++){const a=k*1.2566+f;leafSet(pos,idx,fx,fy,fz,a,.35,.05,.042)}}},
   new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.6}));
+ const conifers=[0,1,2].map(v=>plantGeo((pos,idx)=>{const tiers=10+v;for(let i=0;i<tiers;i++){const f=i/tiers,y=.14+f*.8,rad=.5*(1-f)**.9+.04,n=9+((i+v)%3);
+    for(let k=0;k<n;k++){const a=k/n*6.283+i*.71+v,tw=Math.sin(a*3+i)*.08;leafSet(pos,idx,Math.cos(a)*.02,y+tw*.1,Math.sin(a)*.02,a,-.22-.22*(1-f)+tw,rad*(.9+.2*Math.sin(a*5+i)),rad*.46)}}
+   for(const a of [0,1.57,3.14,4.71])leafSet(pos,idx,0,.93,0,a,1.4,.1,.05)},new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.92})));
  const bushGeo=plantGeo((pos,idx)=>{for(let i=0;i<110;i++){const a=plantRand()*6.283,el=Math.asin(plantRand()*1.1-.15),r=.92,x=Math.cos(a)*Math.cos(el)*r,y=.15+Math.sin(el)*r*.85,z=Math.sin(a)*Math.cos(el)*r;leafSet(pos,idx,x*.82,y,z*.82,a,el+.35,.34,.24)}},
   new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.8}));
  const ridge=withSurface(new T.CylinderGeometry(1,1,1,10),new T.MeshStandardMaterial({map:tileMap,roughness:.9}));
@@ -500,18 +503,18 @@ void main(){float y=vUv.y;
   const rings=40,segs=96,pos=[],col=[],uvs=[],idx=[],rocky=[],snowy=[],c=new T.Color();
   for(let i=0;i<=rings;i++)for(let j=0;j<segs;j++){const rr=peak.R*i/rings,a=j/segs*Math.PI*2,x=peak.x+Math.cos(a)*rr,z=peak.z+Math.sin(a)*rr,h=mountainH(x,z);
    const sl=Math.hypot(mountainH(x+.3,z)-h,mountainH(x,z+.3)-h)/.3,rock=Math.min(1,Math.max(0,(sl-.55)*1.6+(h-6)*.18));
-   c.setRGB(1,1,1).multiplyScalar(.92+.16*Math.sin(x*2.1+z*1.7));if(brookDist(x,z)<.7)c.multiplyScalar(.8);col.push(c.r,c.g,c.b);rocky.push(rock);snowy.push(Math.min(1,Math.max(0,(h-peak.H*.66)/(peak.H*.14)))*(sl>1.6?.55:1));pos.push(x,h+(i===rings?-.06:.02),z);uvs.push(x/4,z/4)}
+   c.setRGB(1,1,1).multiplyScalar(.92+.16*Math.sin(x*2.1+z*1.7));if(brookDist(x,z)<.7)c.multiplyScalar(.8);col.push(c.r,c.g,c.b);rocky.push(rock);snowy.push(Math.min(1,Math.max(0,(h-peak.H*.56)/(peak.H*.14)))*(sl>1.6?.55:1));pos.push(x,h+(i===rings?-.06:.02),z);uvs.push(x/4,z/4)}
   for(let i=0;i<rings;i++)for(let j=0;j<segs;j++){const a=i*segs+j,b=i*segs+(j+1)%segs,c2=(i+1)*segs+j,d=(i+1)*segs+(j+1)%segs;idx.push(a,c2,b,b,c2,d)}
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(col,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));g.setAttribute('rocky',new T.Float32BufferAttribute(rocky,1));g.setAttribute('snow',new T.Float32BufferAttribute(snowy,1));g.setIndex(idx);g.computeVertexNormals();
   // grass on the gentle slopes, bare rock where it gets steep: two textures blended per vertex
   const hillMat=new T.MeshStandardMaterial({map:turf,vertexColors:true,roughness:.95});
-  hillMat.onBeforeCompile=sh=>{sh.uniforms.rockTex={value:rockMap};
+  hillMat.onBeforeCompile=sh=>{sh.uniforms.rockTex={value:loadSurface('rock-grey.jpg')};
    sh.vertexShader='attribute float rocky;\nattribute float snow;\nvarying float vRocky;\nvarying float vSnow;\n'+sh.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\nvRocky=rocky;vSnow=snow;');
    sh.fragmentShader='uniform sampler2D rockTex;\nvarying float vRocky;\nvarying float vSnow;\n'+sh.fragmentShader.replace('#include <map_fragment>','vec4 grassT=texture2D(map,vMapUv);vec4 rockT=texture2D(rockTex,vMapUv*.7);diffuseColor*=mix(grassT*vec4(.92,1.02,.78,1.),rockT*vec4(1.05,1.02,.98,1.),clamp(vRocky,0.,1.));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.94,.97,1.)*(.92+.08*rockT.r),clamp(vSnow,0.,1.));')};
   const hill=new T.Mesh(g,hillMat);hill.receiveShadow=hill.castShadow=true;scene.add(hill);
   // crags: faceted rock outcrops on the steep flanks and around the summit
   const cragGeo=new T.IcosahedronGeometry(1,2);{const q=cragGeo.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),k=1+.28*Math.sin(x*4.1+y*2.3)*Math.cos(z*3.7)+.14*Math.sin(y*7+x*5);q.setXYZ(i,x*k*1.1,y*k*.8,z*k)}cragGeo.computeVertexNormals()}
-  const cragMat=new T.MeshStandardMaterial({map:rockMap,color:0xc2bcb0,roughness:.95,flatShading:true});let cs=733;const cr=()=>(cs=(cs*16807)%2147483647)/2147483647;
+  const cragMat=new T.MeshStandardMaterial({map:loadSurface('rock-grey.jpg'),color:0xd6d3cc,roughness:.95,flatShading:true});let cs=733;const cr=()=>(cs=(cs*16807)%2147483647)/2147483647;
   for(let k=0,made=0;k<220&&made<16;k++){const a=cr()*6.28,rr=1.5+cr()*(peak.R-2),x=peak.x+Math.cos(a)*rr,z=peak.z+Math.sin(a)*rr,h=mountainH(x,z),sl=Math.hypot(mountainH(x+.3,z)-h,mountainH(x,z+.3)-h)/.3;
    if(sl<.85||brookDist(x,z)<1.6||Math.hypot(x-peak.x-.2,z-peak.z+1.6)<3.6)continue;made++;const sc=.9+cr()*1.6;
    const m=new T.Mesh(cragGeo,cragMat);m.position.set(x,h+sc*.15,z);m.scale.set(sc,sc*(.8+cr()*.6),sc*.9);m.rotation.set(cr()*.5,cr()*6,cr()*.5);m.castShadow=m.receiveShadow=true;scene.add(m);solids.add({x,z,r:sc*.85,base:h-1,top:h+sc*.9})}
@@ -541,7 +544,7 @@ void main(){float y=vUv.y;
  highland=P=>{const I=P.I,L=I.lift,clampR=(x,z)=>{const dx=x-I.x,dz=z-I.z,e=Math.hypot(dx,dz),m=I.r-.45;return e>m?[I.x+dx/e*m,I.z+dz/e*m]:[x,z]};
   const rings=36,segs=96,pos=[],col=[],uvs=[],idx=[],rk=[],sn=[],c=new T.Color();
   for(let i=0;i<=rings;i++)for(let j=0;j<segs;j++){const rr=P.R*i/rings,a=j/segs*Math.PI*2,[x,z]=clampR(P.x+Math.cos(a)*rr,P.z+Math.sin(a)*rr),h=mountainH(x,z);
-   const sl=Math.hypot(mountainH(x+.3,z)-h,mountainH(x,z+.3)-h)/.3;rk.push(Math.min(1,Math.max(0,(sl-.55)*1.6+(h-P.H*.55)*.18)));sn.push(Math.min(1,Math.max(0,(h-P.H*.7)/(P.H*.12)))*(sl>1.6?.55:1));
+   const sl=Math.hypot(mountainH(x+.3,z)-h,mountainH(x,z+.3)-h)/.3;rk.push(Math.min(1,Math.max(0,(sl-.45)*1.8+(h-P.H*.35)*.22)));sn.push(Math.min(1,Math.max(0,(h-P.H*.5)/(P.H*.14)))*(sl>1.6?.55:1));
    c.setRGB(1,1,1).multiplyScalar(.92+.16*Math.sin(x*2.1+z*1.7));if(brookDist(x,z,P)<.7)c.multiplyScalar(.8);col.push(c.r,c.g,c.b);pos.push(x,L+h+(i===rings?-.06:.02),z);uvs.push(x/4,z/4)}
   for(let i=0;i<rings;i++)for(let j=0;j<segs;j++){const a=i*segs+j,b=i*segs+(j+1)%segs,c2=(i+1)*segs+j,d=(i+1)*segs+(j+1)%segs;idx.push(a,c2,b,b,c2,d)}
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(col,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));g.setAttribute('rocky',new T.Float32BufferAttribute(rk,1));g.setAttribute('snow',new T.Float32BufferAttribute(sn,1));g.setIndex(idx);g.computeVertexNormals();
@@ -697,7 +700,7 @@ void main(){float y=vUv.y;
   // the quarry face: three cut terraces of pale limestone stepping up towards the rim, rubble at the foot
   {const cliff=withSurface(cube.clone(),new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xf4eedf,roughness:.95}));
    for(let tier=0;tier<3;tier++){const d=10.3+tier*2.1,h=1.25+tier*1.3;let k=0;for(let a=-1.2;a<=1.2;a+=.16){k++;const x=quarry.x+Math.cos(a)*d,z=quarry.z+Math.sin(a)*d;if((k+tier*3)%9===0||clear.some(([a2,b2,r2])=>Math.hypot(x-a2,z-b2)<r2+1.1))continue;
-     const j=Math.sin(a*23+tier*5);shape(cliff,(k+tier)%3?0xffffff:0xe2dac8,x,(h+.3*j)/2-.1,z,d*.16+.3,h+.3*j,2.0,-a-Math.PI/2,.02*j,.03*j);solids.add({x,z,r:1.2,base:0,top:h+.3*j})}}
+     const j=Math.sin(a*23+tier*5),hh=h+.3*j;shape(stoneGeo,0xffffff,x,hh*.42,z,d*.1+.55,hh*.62,1.25,-a-Math.PI/2+j*.3,.05*j,.04*j);solids.add({x,z,r:1.2,base:0,top:hh})}}
    for(let i=0;i<18;i++){const a=-1.2+i*.14,d=9.6+.5*Math.sin(i*3.1),x=quarry.x+Math.cos(a)*d,z=quarry.z+Math.sin(a)*d,s=.35+.3*Math.abs(Math.sin(i*1.7));if(clear.some(([a2,b2,r2])=>Math.hypot(x-a2,z-b2)<r2+.4))continue;shape(stoneGeo,0xffffff,x,s*.3,z,s,s*.7,s,i)}
    keepOut(quarry.x+11,quarry.z,6)}
   workshop(47,-84,4.4,true);keepOut(47,-84,3.8);
@@ -1190,7 +1193,7 @@ void main(){float y=vUv.y;
   let a=view.yaw,dist=view.dist,height=view.height;
   let target=start?new T.Vector3(cam.aspect<.85?-.48:-1.65,1.58,12.5):new T.Vector3(p.x,p.y+1.35,p.z);
   let eye=start?new T.Vector3(-1+.14*Math.sin(t*.22),1.95,17.5):new T.Vector3(p.x+Math.sin(a)*dist,p.y+height,p.z+Math.cos(a)*dist);
-  if(inside){target.set(p.x,p.y+1.45,p.z);const dd=Math.min(dist,4.2);{const ex=Math.max(inside.x-4.45,Math.min(inside.x+4.45,p.x+Math.sin(a)*dd)),ez=Math.max(-4.45,Math.min(4.45,p.z+Math.cos(a)*dd));eye.set(ex,Math.min(inside.ceil(ex-inside.x,ez,p.y)-.4,p.y+3.1),ez)}if(inside.actor.mixer||inside.actor.update)resident(inside,t,Math.min(dt,.1),p);else{inside.actor.root.rotation.y=Math.atan2(inside.npc.x-p.x,inside.npc.z-p.z);inside.actor.blend([])}if(inside.accent.intensity)inside.accent.intensity=6+1.6*Math.sin(t*9)*Math.sin(t*3.7)}
+  if(inside){target.set(p.x,p.y+1.65,p.z);const dd=Math.min(dist,4.2);{const ex=Math.max(inside.x-4.45,Math.min(inside.x+4.45,p.x+Math.sin(a)*dd)),ez=Math.max(-4.45,Math.min(4.45,p.z+Math.cos(a)*dd));eye.set(ex,Math.min(inside.ceil(ex-inside.x,ez,p.y)-.4,p.y+2.35),ez)}if(inside.actor.mixer||inside.actor.update)resident(inside,t,Math.min(dt,.1),p);else{inside.actor.root.rotation.y=Math.atan2(inside.npc.x-p.x,inside.npc.z-p.z);inside.actor.blend([])}if(inside.accent.intensity)inside.accent.intensity=6+1.6*Math.sin(t*9)*Math.sin(t*3.7)}
   cam.position.lerp(eye,dt>=1?1:1-Math.exp(-dt*10));
   if(!start&&!inside){
    const offset=cam.position.clone().sub(target),distance=offset.length();offset.normalize();
