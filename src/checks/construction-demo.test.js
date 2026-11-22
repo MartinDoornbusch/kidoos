@@ -59,6 +59,11 @@ for (const kind of ["ruin","house"]) {
     $("roofMaterial").value = "slate";
     $("roofMaterial").events.change();
     assert.equal(persisted().constructionDesigns["house-demo"].roofMaterial, "slate");
+    $("moveEast").onclick();
+    $("moveEast").onclick();
+    assert.equal(persisted().constructionDesigns["house-demo"].x, 2);
+    $("moveEast").onclick(); // 3m would exceed the allowed plot footprint
+    assert.equal(persisted().constructionDesigns["house-demo"].x, 2, "out-of-plot move must be rejected");
     $("rotateLeft").onclick();
     assert.equal(persisted().constructionDesigns["house-demo"].rotation, 270);
   }
@@ -75,6 +80,7 @@ for (const kind of ["ruin","house"]) {
     assert.equal($("buildStep").disabled, false, kind + " " + step.id + " should be buildable");
     $("buildStep").onclick();
     assert.equal(ConstructionCampaign.state(persisted(), id).progress.current, n + 1);
+    if(kind==="house" && n===0)assert.equal($("moveEast").disabled,true,"finished foundation locks plot position");
   }
 }
 assert.equal(persisted().munten, 12);
