@@ -110,3 +110,5 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
   grass_path_3 (Bloesemvallei), gravel_road (boerderij en zijpaden), rocky_gravel (steengroeve en bergpaden). Verkleind naar 1K.
 - Vloertexturen (eiken planken en stenen tegels) samengesteld uit de bestaande board.jpg en rock-grey.jpg.
 
+1.20.0
+- Geen nieuwe externe assets. De werkbank gebruikt de hamer uit "Asset Pack - Blacksmith Equipment" (Mike Farrant, CC BY 4.0, zie 1.18.0).

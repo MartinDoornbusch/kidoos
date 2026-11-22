@@ -1,7 +1,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 let world;
-const newSave=()=>({version:1,stage:0,hout:0,steen:0,planken:0,seals:0,rings:[],harvest:{},yield:{},tools:{},toolProgress:{},munten:0,items:{},scarf:null,dogFriend:false,builds:[],log:{chapter:7,turn:0,items:{}},position:null});
+const newSave=()=>({version:1,stage:0,hout:0,steen:0,planken:0,seals:0,rings:[],harvest:{},yield:{},tools:{},toolProgress:{},munten:0,items:{},scarf:null,dogFriend:false,builds:[],log:{chapter:7,turn:0,items:{}},position:null,honger:100,appels:0,orchard:{}});
 let profile='Niek',s=newSave(),playing=false,context=null,guide=null,placement=null,preview=null,race=null,last=0,toastTimer,joyX=0,joyZ=0,drag=null;
 const p={x:0,y:0,z:13,vy:0,heading:0,speed:0,walk:0,on:true},view={yaw:0,height:3.9,dist:6.9,look:0},keys=new Set();
 let currentRoom=null, outdoorPose=null, ride=null, windNote=-1e9;
@@ -17,6 +17,19 @@ const missions=[['Herstel de havenbrug',6,3,3,0],['Bouw de bergbrug',0,6,4,6],['
 const missionTools=[[],['touw'],['kaart'],['hamer'],['lier'],['vuursteen']],PILE=4;
 // Level 1 is the windroute; level 2 (the far islands) starts when the player chooses it.
 function mission(){return s.stage<3||(s.level||1)>=2?missions[s.stage]:null}
+// Since 1.20 bridges and the mill are built in parts (Niek's idea): you lay each part as soon as you have its materials,
+// and the structure grows in the world. The last part is the repair itself: it also needs the instructions and the
+// tools, and only then can you walk the bridge or does the mill turn.
+const missionParts={0:[['Stenen landhoofden en pijlers',{steen:3}],['Stalen liggers en vakwerk',{hout:3}],['Brugdek en leuningen',{hout:3}]],
+ 1:[['Landhoofden en ankerpalen',{steen:6}],['Draagtouwen en leuningen',{planken:3}],['Planken van het brugdek',{planken:3}]],
+ 3:[['De molenvoet metselen',{steen:2}],['As en roeden',{hout:8}],['Hekwerk en zeilen',{planken:6}]]};
+function partsBuilt(){return s.parts&&s.parts.m===s.stage?s.parts.n:0}
+function nextPart(){const P=missionParts[s.stage];return P?P[partsBuilt()]||null:null}
+// what the next step still asks for: the next part of a parted mission, otherwise the whole mission
+function stepCost(){const np=nextPart();if(np)return {hout:np[1].hout||0,steen:np[1].steen||0,planken:np[1].planken||0};const m=mission();return m?{hout:m[1],steen:m[2],planken:m[4]||0}:null}
+function partCost(c){return ['hout','steen','planken'].filter(k=>c[k]).map(k=>c[k]+' '+k).join(' + ')}
+function canPay(c){return ['hout','steen','planken'].every(k=>(s[k]||0)>=(c[k]||0))}
+function pay(c){for(const k of ['hout','steen','planken'])s[k]-=c[k]||0}
 // Gereedschap verdien je met opdrachten bij de bewoners.
 const TOOLS={
  bijl:{name:'Bijl',owner:'bram',need:5,stage:0,use:'Met de bijl hak je hout bij de houtstapels. Elke goede slag levert één hout op.',intro:'Ik leen je mijn bijl, maar eerst wil ik zien dat je instructies goed begrijpt. Haal vijf opdrachten goed.'},
@@ -106,8 +119,8 @@ function back(){$('back').onclick=closePanel}
 function start(){if(!world){try{world=createWorld($('world'));window.addEventListener('resize',world.resize)}catch(error){$('start').textContent='Spelwereld laden mislukt';console.error(error);return false}}playing=true;if(world.walkers)world.walkers.onGreet=(name,line)=>{if(!$('panel').open)notify(name+': “'+line+'”')};restore();houseView();$('entry').hidden=true;$('hud').hidden=false;world.animate(0,s,p,view,false,1);updateHUD();notify(s.log.turn||s.hout?'Welkom terug, '+profile+'!':'Loop naar de gemarkeerde houtstapel.')}
 document.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>{profile=b.dataset.profile;updateProfileMenu();world?.outfit(profile==="Floor"?"Nova":"Flint");document.querySelectorAll('[data-profile]').forEach(c=>c.classList.toggle('selected',c===b))});$('start').onclick=start;$('school').onclick=()=>{start();if(playing)school()};$('history').onclick=()=>{start();if(playing)historyMenu()};
 function needs(){const cp=cur(),t3=cp?.r;if(t3){const c=t3.progress.next.cost,planks=Math.max(0,(c.planken||0)-s.planken);return {hout:Math.max(0,(c.hout||0)+planks-s.hout),steen:Math.max(0,(c.steen||0)-s.steen),planks}}
- const m=mission();if(!m)return null;const planks=Math.max(0,(m[4]||0)-s.planken);
- return {hout:Math.max(0,m[1]+planks-s.hout),steen:Math.max(0,m[2]-s.steen),planks}}
+ const c=stepCost();if(!c)return null;const planks=Math.max(0,c.planken-s.planken);
+ return {hout:Math.max(0,c.hout+planks-s.hout),steen:Math.max(0,c.steen-s.steen),planks}}
 function pileLeft(n){return s.harvest[n.i]>Date.now()?0:(s.yield[n.i]??PILE)}
 function reachable(n){const I=world.islands.find(i=>Math.hypot(i.x-n.x,i.z-n.z)<i.r);return !!I&&I.open<=Math.min(s.stage,2)}
 function objective(){
@@ -134,7 +147,7 @@ function replenish(){const m=mission();if(!(m||cur())||currentRoom)return;const 
   notify(type==='hout'?'Er groeit nieuw hout aan bij een houtstapel. Nog even geduld.':'Er komt nieuwe steen vrij bij een steengroeve. Nog even geduld.')}}
 function coin(n=1){s.munten=(s.munten||0)+n;persist()}
 function toolList(){return Object.keys(TOOLS).filter(k=>s.tools[k]).map(k=>TOOLS[k].name.toLowerCase()).join(', ')}
-function inventoryText(){return 'Munten '+(s.munten||0)+' · Hout '+s.hout+' · Steen '+s.steen+(s.planken||s.stage===1?' · Planken '+s.planken:'')+(toolList()?' · '+toolList():'')}
+function inventoryText(){return 'Munten '+(s.munten||0)+' · Hout '+s.hout+' · Steen '+s.steen+(s.planken||s.stage===1?' · Planken '+s.planken:'')+(s.appels?' · Appels '+s.appels:'')+(toolList()?' · '+toolList():'')}
 function updateHUD(){if(!playing)return;replenish();
  $('build').hidden=!!currentRoom;
  if(currentRoom){
@@ -148,7 +161,7 @@ function updateHUD(){if(!playing)return;replenish();
   $('waypoint').textContent=nearExit?'Uitgang':house.name+' · '+Math.round(dist(npc))+' m';return
  }
 let m=mission();$('region').textContent=area().name;$('chapter').textContent=m?'LEVEL '+(s.stage<3?1:2)+'  /  MISSIE '+(s.stage%3+1)+' VAN 3':s.stage>=6?((s.level||1)<3?'LEVEL 2 VOLTOOID':'ALLE LEVELS VOLTOOID'):'LEVEL 1 VOLTOOID';
- $('objective').textContent=m?m[0]:s.stage===3&&(s.level||1)<2?'Klaar voor level 2':s.stage>=6&&(s.level||1)<3?'Klaar voor level 3 · open je logboek':'Vrije bouwvlucht';$('progress').textContent=m?(m[4]?'Planken '+Math.min(s.planken,m[4])+'/'+m[4]:'Hout '+Math.min(s.hout,m[1])+'/'+m[1])+' · Steen '+Math.min(s.steen,m[2])+'/'+m[2]+(s.stage===2?' · Ringen '+s.rings.length+'/3':''):(race?'Tijdrit · '+((performance.now()-race.start)/1000).toFixed(1)+' s · '+race.hit+'/3':s.stage===3&&(s.level||1)<2?'Start level 2 in je logboek, of vlieg een tijdrit bij het baken.':'Bouw verder of start een tijdrit bij het baken.');
+ $('objective').textContent=m?m[0]:s.stage===3&&(s.level||1)<2?'Klaar voor level 2':s.stage>=6&&(s.level||1)<3?'Klaar voor level 3 · open je logboek':'Vrije bouwvlucht';$('progress').textContent=m?(missionParts[s.stage]?'Deel '+(partsBuilt()+1)+'/'+missionParts[s.stage].length+' · '+(()=>{const c=stepCost();return ['hout','steen','planken'].filter(k=>c[k]).map(k=>k[0].toUpperCase()+k.slice(1)+' '+Math.min(s[k],c[k])+'/'+c[k]).join(' · ')})():(m[4]?'Planken '+Math.min(s.planken,m[4])+'/'+m[4]:'Hout '+Math.min(s.hout,m[1])+'/'+m[1])+' · Steen '+Math.min(s.steen,m[2])+'/'+m[2])+(s.stage===2?' · Ringen '+s.rings.length+'/3':''):(race?'Tijdrit · '+((performance.now()-race.start)/1000).toFixed(1)+' s · '+race.hit+'/3':s.stage===3&&(s.level||1)<2?'Start level 2 in je logboek, of vlieg een tijdrit bij het baken.':'Bouw verder of start een tijdrit bij het baken.');
  {const cp=cur(),t3=cp?.r,lv=s.level||1;if(t3){const st=t3.progress.next,c=st.cost;$('chapter').textContent='LEVEL '+cp.P.level+'  /  FASE '+(t3.progress.current+1)+' VAN 5';$('objective').textContent=st.title;
   $('progress').textContent=['Antwoorden '+t3.correctAnswers+'/'+st.questions,...['hout','steen','planken'].filter(k=>c[k]).map(k=>k[0].toUpperCase()+k.slice(1)+' '+Math.min(s[k],c[k])+'/'+c[k])].join(' · ')}
   else if(lv>=4&&houseReady()){const hi=houseInfo();if(!hi){$('chapter').textContent='LEVEL 4  /  ONTWERP';$('objective').textContent='Ontwerp je huis';$('progress').textContent='Kavel: '+plotById(houseDraft().plotId).name}
@@ -169,18 +182,38 @@ let m=mission();$('region').textContent=area().name;$('chapter').textContent=m?'
  if(station>=0&&!context&&!placement&&!ride){context={kind:'cable',from:station};$('act').textContent=(station?'Kabelbaan naar de berg':'Kabelbaan naar de Bloesemvallei')+' · E'}
  const door=world.rooms.find(room=>dist(room.house)<1.8);
  if(door&&!context&&!race&&!placement){context={kind:'enter',door};$('act').textContent=door.house.place+' binnengaan · E'}
+ // a workbench you placed: craft things on it
+ if(!context&&!race&&!placement&&!ride){const wb=s.builds.find(b=>b.type==='werkbank'&&Math.hypot(b.x-p.x,b.z-p.z)<2.4&&Math.abs(b.y-p.y)<1.4);if(wb){context={kind:'bench',b:wb};$('act').textContent='Werkbank gebruiken · E'}}
+ // apples: pick them from the orchard trees of the Molenhoeve, three per tree, then the tree needs a few minutes
+ if(!context&&!race&&!placement&&!ride&&!currentRoom&&world.appleTrees){const i=world.appleTrees.findIndex(t=>Math.hypot(t.x-p.x,t.z-p.z)<2.6);if(i>=0){const o=s.orchard?.[i];const empty=o&&o.n>=3&&o.t>Date.now();context={kind:'apple',i,empty};$('act').textContent=empty?'Deze boom is leeg · kom later terug':'Appel plukken · E'}}
  // something you built yourself can be picked up again: the top piece of the stack right in front of you
  if(!context&&!race&&!placement&&!ride&&s.builds.length){const fx=p.x-Math.sin(p.heading)*1.9,fz=p.z-Math.cos(p.heading)*1.9;let best=null,bd=1.8;
-  for(const b of s.builds){const d=Math.hypot(b.x-fx,b.z-fz);if(d<bd&&b.y<=p.y+1.3&&b.y>=p.y-1.3&&!s.builds.some(o=>o!==b&&Math.abs(o.x-b.x)<.5&&Math.abs(o.z-b.z)<.5&&o.y>b.y)){best=b;bd=d}}
+  for(const b of s.builds){const d=Math.hypot(b.x-fx,b.z-fz);if(b.type!=='werkbank'&&d<bd&&b.y<=p.y+1.3&&b.y>=p.y-1.3&&!s.builds.some(o=>o!==b&&Math.abs(o.x-b.x)<.5&&Math.abs(o.z-b.z)<.5&&o.y>b.y)){best=b;bd=d}}
   if(best){context={kind:'pickup',b:best};$('act').textContent=BUILD_NAME[best.type]+' oppakken · E'}}
  guide=objective();if(guide){let dx=guide.obj.x-p.x,dz=guide.obj.z-p.z;let angle=Math.atan2(dx,-dz)+view.yaw;$('waypoint').style.setProperty('--bearing',angle+'rad');$('waypoint').textContent=guide.name+' · '+Math.round(dist(guide.obj))+' m'}else $('waypoint').textContent='';
 }
+// ---- Hunger (1.20): a mild bar that empties in about 25 minutes of play once the Molenhoeve orchard is reachable.
+// Empty means you walk a little slower; nothing worse happens. Eat with F or the Eten button: an apple gives a quarter.
+const APPLE_MAX=12;
+function pickApple(i){s.orchard=s.orchard||{};const o=s.orchard[i]&&s.orchard[i].t>Date.now()?s.orchard[i]:{n:0,t:0};
+ if(o.n>=3){notify('Deze boom is leeg. Over een paar minuten hangen er weer rijpe appels.');return}
+ if((s.appels||0)>=APPLE_MAX){notify('Je rugzak zit vol appels. Eet er eerst een (F).');return}
+ o.n++;if(o.n>=3)o.t=Date.now()+4*60*1000;else o.t=Math.max(o.t,Date.now()+4*60*1000);s.orchard[i]=o;s.appels=(s.appels||0)+1;world.reach();persist();updateHUD();notify('Appel geplukt · '+s.appels+' in je rugzak'+(s.honger<60?' · eet met F':''))}
+function eat(){if(!playing||$('panel').open)return;if(!(s.appels>0)){notify(s.stage>=1?'Je hebt geen appels. Pluk ze in de boomgaard van de Molenhoeve.':'Je hebt nog geen eten.');return}
+ if(s.honger>=98){notify('Je zit nog vol.');return}s.appels--;s.honger=Math.min(100,(s.honger??100)+25);persist();updateHUD();notify('Mmm, een sappige appel · '+Math.round(s.honger)+'% verzadigd')}
+let hungerNote=0;
+function hungerTick(dt){if(s.stage<1||admin.fly)return;const was=s.honger??100;s.honger=Math.max(0,was-dt*(100/1500)*(keys.has('shift')&&p.speed>.03?1.6:1));
+ if(was>25&&s.honger<=25)notify('Je krijgt honger. Pluk appels in de boomgaard van de Molenhoeve en eet met F.');
+ if(was>0&&s.honger<=0)notify('Je rammelt van de honger en loopt wat langzamer. Eet een appel!');
+ const bar=$('hunger');if(bar){bar.firstChild.style.width=s.honger+'%';bar.classList.toggle('low',s.honger<=25);bar.hidden=s.stage<1;$('eat').hidden=s.stage<1||!(s.appels>0)}}
 function act(){if(!playing||$('panel').open)return;updateHUD();if(!context)return;
  if(context.kind==='enter'){visitHouse(context.door);return}
  if(context.kind==='leave'){leaveHouse();return}
  if(context.kind==='talk'){interview();return}
  if(context.kind==='race'){race={start:performance.now(),hit:0};world.gates[0].g.visible=true;notify('Tijdrit gestart! Volg de drie windringen.');updateHUD();return}
  if(context.kind==='place'){place();return}
+ if(context.kind==='bench'){benchPanel(context.b);return}
+ if(context.kind==='apple'){pickApple(context.i);return}
  if(context.kind==='pickup'){const b=context.b,i=s.builds.indexOf(b);if(i<0)return;s.builds.splice(i,1);if(b.type==='blok')s.hout++;else if(b.type==='lamp')s.steen++;else s.items[b.type]=(s.items[b.type]||0)+1;world.sync(s);persist();updateHUD();notify(BUILD_NAME[b.type]+' terug in je rugzak');return}
  if(context.kind==='cable'){if(s.stage<1){notify('De kabelbaan draait pas als de havenbrug weer heel is.');return}ride={from:context.from,t:0,dur:15};p.ride=true;notify('Instappen! Geniet van het uitzicht.');return}
  if(context.kind==='resource'){harvest(context.n);return}
@@ -280,6 +313,7 @@ function sawPlanks(target,again){const m=mission();target=target??m?.[4]??0;agai
   return {head:ok?'Strak gezaagd! +1 plank':'Scheef gezaagd. Probeer opnieuw',buttons:more?[['Volgende plank',()=>sawPlanks(target,again),true],['Terug',again]]:[['Terug',again,true]]}
  })}
 function workshop(){let m=mission();if(!m)return;
+ if(missionParts[s.stage])return partsWorkshop(m);
  const tools=missionTools[s.stage].filter(id=>!s.tools[id]),enough=s.hout>=m[1]&&s.steen>=m[2]&&s.planken>=(m[4]||0)&&!tools.length&&(s.stage!==2||s.rings.length===3);
  const meters=(m[1]?'<div class="meter">Hout <b>'+s.hout+' / '+m[1]+'</b></div>':'')+(m[4]?'<div class="meter">Planken <b>'+s.planken+' / '+m[4]+'</b></div>':'')+'<div class="meter">Steen <b>'+s.steen+' / '+m[2]+'</b></div>'+missionTools[s.stage].map(id=>'<div class="meter">'+TOOLS[id].name+' <b>'+(s.tools[id]?'in je rugzak':'nog halen bij '+houseOf(TOOLS[id].owner).name)+'</b></div>').join('')+(s.stage===2?'<div class="meter">Windringen <b>'+s.rings.length+' / 3</b></div>':'')+'<div class="meter">Instructies opgelost <b>'+s.seals+' / '+m[3]+'</b></div>';
  const saw=m[4]&&s.planken<m[4]?(s.tools.zaag?'<button class="primary" id="saw">Planken zagen · '+s.hout+' hout</button>':'<p>Voor planken heb je de zaag van '+houseOf('bram').name+' nodig.</p>'):'';
@@ -288,7 +322,25 @@ function workshop(){let m=mission();if(!m)return;
  if($('dutchMission'))$('dutchMission').onclick=()=>dutchRound(true);
  if($('historyMission'))$('historyMission').onclick=()=>historyQuestion(null,true);
  if(enough)$('work').onclick=()=>s.seals>=m[3]?finishMission():profile==="Floor"?dutchRound(true):exercise(true)}
-function finishMission(){let m=mission();if(!m||s.seals<m[3]||s.hout<m[1]||s.steen<m[2]||s.planken<(m[4]||0)||missionTools[s.stage].some(id=>!s.tools[id])||s.stage===2&&s.rings.length!==3)return;s.hout-=m[1];s.steen-=m[2];s.planken-=m[4]||0;s.stage++;s.seals=0;world.sync(s);persist();closePanel();notify({1:'Brug gereed! Steek over naar de Bloesemvallei.',2:'Zwever vrijgespeeld! Spring en druk in de lucht opnieuw op Spring.',3:'Het baken brandt! De windroute is weer open.',4:'De molen draait weer!',5:'De kraan hijst weer stenen!',6:'Het signaalvuur brandt op de Valkenrots!'}[s.stage]);
+function partsWorkshop(m){const P=missionParts[s.stage],n=partsBuilt(),lastStep=n>=P.length-1,c=P[Math.min(n,P.length-1)][1];
+ const tools=missionTools[s.stage].filter(id=>!s.tools[id]),planksLeft=P.slice(n).reduce((a,p)=>a+(p[1].planken||0),0);
+ const list='<div class="mlevels" style="grid-template-columns:1fr"><div class="mlevel"><b>Onderdelen</b>'+P.map((p,i)=>'<div class="mrow '+(i<n?'done':i===n?'now':'later')+'"><i>'+(i<n?'✓':i===n?'▶':'')+'</i><span>'+p[0]+' · '+partCost(p[1])+(i===P.length-1?' · plus de reparatie':'')+'</span></div>').join('')+'</div></div>';
+ const meters=['hout','steen','planken'].filter(k=>c[k]).map(k=>'<div class="meter">'+k[0].toUpperCase()+k.slice(1)+' <b>'+s[k]+' / '+c[k]+'</b></div>').join('')+
+  (lastStep?missionTools[s.stage].map(id=>'<div class="meter">'+TOOLS[id].name+' <b>'+(s.tools[id]?'in je rugzak':'nog halen bij '+houseOf(TOOLS[id].owner).name)+'</b></div>').join('')+'<div class="meter">Instructies opgelost <b>'+s.seals+' / '+m[3]+'</b></div>':'');
+ const saw=planksLeft&&s.planken<(c.planken||0)?(s.tools.zaag?'<button class="primary" id="saw">Planken zagen · '+s.hout+' hout</button>':'<p>Voor planken heb je de zaag van '+houseOf('bram').name+' nodig.</p>'):'';
+ let act='';
+ if(!lastStep)act=canPay(c)?'<button class="primary" id="part">Bouw: '+P[n][0].toLowerCase()+'</button>':'<p>Nog nodig voor dit onderdeel: '+['hout','steen','planken'].filter(k=>(s[k]||0)<c[k]).map(k=>(c[k]-s[k])+' '+k).join(' en ')+'.</p>';
+ else if(canPay(c)&&!tools.length)act=s.seals>=m[3]?'<button class="primary" id="work">Reparatie uitvoeren · '+P[n][0].toLowerCase()+'</button>':'<button class="primary" id="work">'+(profile==='Floor'?'Oefen Nederlands':'Oefen Duits')+'</button>'+(profile==='Niek'?'<button id="historyMission">Oefen geschiedenis</button><button id="dutchMission">Oefen Nederlands</button>':'');
+ else act='<p>'+(tools.length?'Haal eerst je gereedschap op. ':'')+(canPay(c)?'':'Nog nodig: '+['hout','steen','planken'].filter(k=>(s[k]||0)<c[k]).map(k=>(c[k]-s[k])+' '+k).join(' en ')+'.')+'</p>';
+ show('<small>WERKPLAATS · '+area().name.toUpperCase()+'</small><h2>'+m[0]+'</h2><p>Bouw stap voor stap: leg elk onderdeel zodra je het materiaal hebt. Het laatste onderdeel is de reparatie zelf: daarvoor los je ook de instructies op.</p>'+list+meters+(saw||act?'<div class="row">'+saw+act+'</div>':'')+buttons());back();
+ if($('saw'))$('saw').onclick=()=>sawPlanks(c.planken,workshop);
+ if($('part'))$('part').onclick=()=>{if(!canPay(c))return;pay(c);s.parts={m:s.stage,n:n+1};world.sync(s);persist();updateHUD();notify(P[n][0]+' gebouwd!');world.burst?.(p.x,p.y+1.5,p.z,0xffd27a);workshop()};
+ if($('dutchMission'))$('dutchMission').onclick=()=>dutchRound(true);
+ if($('historyMission'))$('historyMission').onclick=()=>historyQuestion(null,true);
+ if($('work'))$('work').onclick=()=>s.seals>=m[3]?finishMission():profile==="Floor"?dutchRound(true):exercise(true)}
+function finishMission(){let m=mission();if(!m)return;const P=missionParts[s.stage],last=P&&P[P.length-1],c=P?last[1]:{hout:m[1],steen:m[2],planken:m[4]||0};
+ if(P&&partsBuilt()<P.length-1)return;
+ if(s.seals<m[3]||!canPay(c)||missionTools[s.stage].some(id=>!s.tools[id])||s.stage===2&&s.rings.length!==3)return;pay(c);s.parts=null;s.stage++;s.seals=0;world.sync(s);persist();closePanel();notify({1:'Brug gereed! Steek over naar de Bloesemvallei.',2:'Zwever vrijgespeeld! Spring en druk in de lucht opnieuw op Spring.',3:'Het baken brandt! De windroute is weer open.',4:'De molen draait weer!',5:'De kraan hijst weer stenen!',6:'Het signaalvuur brandt op de Valkenrots!'}[s.stage]);
  if(s.stage===3){show('<small>LEVEL 1 VOLTOOID</small><h2>De windroute is open!</h2><p>'+profile+', het sterrenbaken schijnt weer boven de archipel.</p><p>In level 2 herstel je de verre eilanden: de molen op de Molenhoeve, de kraan in de Steengroeve en het signaalvuur op de Valkenrots. Gerrit, Anke en Joost helpen je aan het gereedschap.</p><div class="row"><button id="lvl2" class="primary">Start level 2</button><button id="back">Eerst vrij bouwen</button></div>');back();$('lvl2').onclick=startLevel2}
  if(s.stage===6){show('<small>ALLE LEVELS VOLTOOID</small><h2>De archipel bloeit!</h2><p>'+profile+', de molen draait, de kraan hijst en het signaalvuur brandt. Je hebt alle zes de missies volbracht.</p><p>Maar in Dennenhoek wacht nog een geheim: een vervallen wachttoren achter het bos.</p><div class="row"><button id="lvl3" class="primary">Start level 3</button><button id="back">Eerst vrij bouwen</button></div>');back();$('lvl3').onclick=startLevel3}}
 function startLevel2(){s.level=2;persist();closePanel();notify('Level 2 begonnen: herstel de molen op de Molenhoeve.');updateHUD()}
@@ -439,11 +491,18 @@ function exercise(mission,skill=null){
 }
 function clearPlacement(){placement=null;if(preview){preview.traverse(o=>{if(o.isMesh)o.material.dispose()});world.scene.remove(preview);preview=null}}
 function chooseBuild(){if(currentRoom||!playing||$('panel').open)return;if(placement){clearPlacement();updateHUD();return}
- show('<small>BOUWBOEK</small><h2>Eigen bouwwerken</h2><p>Kies een ontwerp. Loop naar een vrije plek en plaats het met E of de plaatsknop. Bouwblokken kun je naast elkaar zetten, stapelen en beklimmen. Sta je ervoor, dan pak je een bouwwerk met E weer op.</p><div class="row"><button id="crate">Bouwblok · 1 hout</button><button id="lamp">Lantaarn · 1 steen</button>'+['bloembak','bankje','vlag'].filter(k=>s.items[k]).map(k=>'<button data-item="'+k+'">'+k[0].toUpperCase()+k.slice(1)+' · '+s.items[k]+' over</button>').join('')+'</div><p>In je rugzak: '+s.hout+' hout en '+s.steen+' steen. Bloembakken, bankjes en vlaggen koop je in de handelspost.</p>'+buttons());back();
+ show('<small>BOUWBOEK</small><h2>Eigen bouwwerken</h2><p>Kies een ontwerp. Loop naar een vrije plek en plaats het met E of de plaatsknop. Bouwblokken kun je naast elkaar zetten, stapelen en beklimmen. Sta je ervoor, dan pak je een bouwwerk met E weer op.</p><div class="row"><button id="crate">Bouwblok · 1 hout</button><button id="lamp">Lantaarn · 1 steen</button>'+(s.items.werkbank?'':'<button id="bench">Werkbank · 4 planken of 4 hout</button>')+['werkbank','bloembak','bankje','vlag'].filter(k=>s.items[k]).map(k=>'<button data-item="'+k+'">'+k[0].toUpperCase()+k.slice(1)+' · '+s.items[k]+' over</button>').join('')+'</div><p>In je rugzak: '+s.hout+' hout, '+s.steen+' steen en '+(s.planken||0)+' planken. Op een werkbank maak je zelf bankjes, bloembakken en vlaggen; je kunt ze ook kopen in de handelspost.</p>'+buttons());back();
+ if($('bench'))$('bench').onclick=()=>{const k=s.planken>=4?'planken':s.hout>=4?'hout':null;if(!k){notify('Voor een werkbank heb je 4 planken of 4 hout nodig.');closePanel();return}s[k]-=4;s.items.werkbank=(s.items.werkbank||0)+1;persist();updateHUD();notify('Werkbank gemaakt van 4 '+k+'. Zet hem neer op een vrije plek.');choose('werkbank')};
  document.querySelectorAll('[data-item]').forEach(b=>b.onclick=()=>choose(b.dataset.item));
  function choose(type){if(['blok','lamp'].includes(type)?s[type==='blok'?'hout':'steen']<1:!s.items[type]){notify('Verzamel eerst materiaal.');closePanel();return}placement=type;preview=world.construction(0,0,0,type,world.scene);preview.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.48}});closePanel()}
  $('crate').onclick=()=>choose('blok');$('lamp').onclick=()=>choose('lamp')}
-const BUILD_NAME={blok:'Bouwblok',lamp:'Lantaarn',bloembak:'Bloembak',bankje:'Bankje',vlag:'Vlag'};
+const BUILD_NAME={blok:'Bouwblok',lamp:'Lantaarn',bloembak:'Bloembak',bankje:'Bankje',vlag:'Vlag',werkbank:'Werkbank'};
+// What you can make on a workbench (1.20). The result goes into your backpack and is placed from the build book.
+const RECIPES=[['bankje','Bankje',{planken:3}],['bloembak','Bloembak',{planken:2,steen:1}],['vlag','Vlag',{planken:1,hout:1}]];
+function benchPanel(b){show('<small>WERKBANK</small><h2>Zelf maken</h2><p>Kies wat je wilt maken. Je vindt het daarna in je bouwboek (B). Planken zaag je op de brugwerf.</p><div class="meter">In je rugzak <b>'+s.hout+' hout · '+s.steen+' steen · '+(s.planken||0)+' planken</b></div><div class="row">'+
+  RECIPES.map(([k,n,c])=>'<button data-make="'+k+'"'+(canPay(c)?' class="primary"':' disabled')+'>'+n+' · '+partCost(c)+'</button>').join('')+'</div><div class="row"><button id="benchUp">Werkbank oppakken</button></div>'+buttons());back();
+ document.querySelectorAll('[data-make]').forEach(el=>el.onclick=()=>{const r=RECIPES.find(x=>x[0]===el.dataset.make);if(!canPay(r[2]))return;pay(r[2]);s.items[r[0]]=(s.items[r[0]]||0)+1;persist();updateHUD();notify(r[1]+' gemaakt · in je bouwboek');world.reach();benchPanel(b)});
+ $('benchUp').onclick=()=>{const i=s.builds.indexOf(b);if(i<0)return;s.builds.splice(i,1);s.items.werkbank=(s.items.werkbank||0)+1;world.sync(s);persist();closePanel();updateHUD();notify('Werkbank terug in je rugzak')}}
 function site(){let x=Math.round((p.x-Math.sin(p.heading)*2.9)/2)*2,z=Math.round((p.z-Math.cos(p.heading)*2.9)/2)*2,y=world.ground(x,z,s);
  let near=[...world.nodes,...repair,...world.gates].some(o=>Math.hypot(o.x-x,o.z-z)<3);let valid=area()&&world.islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-2)&&y>=world.liftAt(x,z)-.01&&y<=p.y+1.23&&!near&&!world.blocked(x,z,placement==='blok'?{...s,builds:s.builds.filter(b=>b.type!=='blok')}:s,y,placement==='blok'?1.40:.55)&&(placement!=='blok'||!s.builds.some(b=>b.type==='blok'&&b.x===x&&b.z===z&&Math.abs(b.y-y)<1.1))&&!s.builds.some(b=>b.x===x&&b.z===z&&b.type==='lamp');
  return {x,y,z,valid}}
@@ -451,13 +510,13 @@ function place(){let b=site();if(!b.valid){notify('Zoek een vrije plek op het ei
  s.builds.push({x:b.x,y:b.y,z:b.z,type:placement});if(item)s.items[placement]--;else s[material]--;clearPlacement();world.sync(s);persist();updateHUD();notify('Bouwwerk geplaatst')}
 function logbook(){show('<small>VLUCHTLOG · '+profile.toUpperCase()+'</small><h2>Jouw expeditie</h2><p>'+(s.stage<3?'Level 1: '+s.stage+' van 3 missies voltooid.':(s.level||1)<2?'Level 1 voltooid. Level 2 staat klaar.':l3On()?'Level 3: '+l3().progress.current+' van 5 fases van de wachttoren hersteld.':(s.level||1)>=4&&houseReady()?(houseInfo()?(houseInfo().progress.finished?'Alle vier de levels voltooid. Je huis staat; richt het in.':'Level 4: '+houseInfo().progress.current+' van 5 fases van je huis gebouwd.'):'Level 4: ontwerp je huis.'):l3Done()?'Level 3 voltooid. Level 4 staat klaar.':s.stage>=6?'Level 2 voltooid. Level 3 staat klaar.':'Level 2: '+(s.stage-3)+' van 3 missies voltooid.')+' Vandaag heb je '+Track.minutesToday()+' minuten geoefend. Per vaardigheid zie je hoeveel antwoorden goed waren van alle pogingen.</p>'+(profile==='Niek'?German.groups.map((g,i)=>{let entries=Object.values(s.log.items).filter(e=>German.bank[e.id].skill===i);return '<div class="meter">'+g+'<b>'+entries.reduce((a,e)=>a+e.good,0)+' / '+entries.reduce((a,e)=>a+e.attempts,0)+'</b></div>'}).join('')+'<p>'+Object.values(s.log.items).filter(e=>e.due!==null).length+' opdrachten staan klaar voor herhaling.</p>':'<p>Duits en geschiedenis worden toegevoegd zodra je havo 3-stof er is.</p>')+dutchStats()+(s.best?'<p>Persoonlijk record windrace: '+s.best.toFixed(1)+' seconden.</p>':'')+'<h3>Dorpsonderzoeken</h3>'+villageHomes.map(h=>'<div class="meter">'+h.place+' · '+h.name+'<b>'+(s.village?.[h.key]?'Afgerond':'Open')+'</b></div>').join('')+'<div class="row"><button id="practice">Oefen Duits</button><button id="historyLog">Oefen geschiedenis</button><button id="practiceNL">Oefen Nederlands</button><button id="pilot">Wissel personage</button>'+(s.stage===3&&(s.level||1)<2?'<button id="lvl2" class="primary">Start level 2</button>':'')+(s.stage>=6&&(s.level||1)<3?'<button id="lvl3" class="primary">Start level 3</button>':'')+(l3Done()&&(s.level||1)<4?'<button id="lvl4" class="primary">Start level 4</button>':'')+((s.level||1)>=4&&houseReady()?'<button id="myhouse">Mijn huis</button>':'')+'<button id="restart">Opnieuw beginnen</button></div><p><a href="art/credits.txt" target="_blank" rel="noopener">Makers van de 3D-beelden</a></p>'+buttons());back();$('practiceNL').onclick=()=>dutchRound(false);if($('lvl2'))$('lvl2').onclick=startLevel2;if($('lvl3'))$('lvl3').onclick=startLevel3;if($('lvl4'))$('lvl4').onclick=startLevel4;if($('myhouse'))$('myhouse').onclick=housePanel;$('restart').onclick=restartGame;$('practice').disabled=$('historyLog').disabled=profile==='Floor';$('practice').onclick=school;$('historyLog').onclick=historyMenu;$('pilot').onclick=()=>{persist();playing=false;clearPlacement();$('panel').close();$('hud').hidden=true;$('entry').hidden=false}}
 $('journal').onclick=logbook;$('adminbtn').hidden=!admin.asked;$('adminbtn').onclick=adminOpen;$('mapbtn').onclick=()=>{show('<small>ATLAS · NOORD ↑</small><h2>De windroute</h2><canvas id="atlas" width="600" height="420" aria-label="Kaart met eilanden, bruggen en je positie"></canvas>'+missionOverview()+buttons());drawAtlas();back()};
-$('act').onclick=act;$('build').onclick=chooseBuild;function jump(){if(currentRoom||admin.fly)return;if(p.on){p.vy=7.8;p.on=false}else if(s.stage>=2&&p.y>.35){p.glide=!p.glide;if(p.glide)notify('Zwever open · stuur met je gewone besturing')}}$('jump').onclick=jump;
+$('act').onclick=act;$('build').onclick=chooseBuild;$('eat').onclick=eat;function jump(){if(currentRoom||admin.fly)return;if(p.on){p.vy=7.8;p.on=false}else if(s.stage>=2&&p.y>.35){p.glide=!p.glide;if(p.glide)notify('Zwever open · stuur met je gewone besturing')}}$('jump').onclick=jump;
 // Physical keys (e.code) keep WASD working with Shift, Caps Lock or another layout. Synthetic test events without a code fall back to e.key.
-const codeNames={KeyW:'w',KeyA:'a',KeyS:'s',KeyD:'d',KeyE:'e',KeyB:'b',KeyM:'m',ArrowUp:'arrowup',ArrowDown:'arrowdown',ArrowLeft:'arrowleft',ArrowRight:'arrowright',Space:' ',ShiftLeft:'shift',ShiftRight:'shift',Escape:'escape'};
+const codeNames={KeyW:'w',KeyA:'a',KeyS:'s',KeyD:'d',KeyE:'e',KeyB:'b',KeyM:'m',KeyF:'f',ArrowUp:'arrowup',ArrowDown:'arrowdown',ArrowLeft:'arrowleft',ArrowRight:'arrowright',Space:' ',ShiftLeft:'shift',ShiftRight:'shift',Escape:'escape'};
 const keyName=e=>codeNames[e.code]||(e.key||'').toLowerCase();
 // A key release that never reaches the page (context menu, Alt menu, tab switch) used to leave the pilot walking. Drop all input then.
 function releaseControls(){keys.clear();joyX=joyZ=0;$('joy').firstElementChild.style.transform=''}
-window.addEventListener('keydown',e=>{if(!playing||$('panel').open)return;if(e.ctrlKey||e.metaKey||e.altKey){releaseControls();return}let k=keyName(e);if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();keys.add(k);if(e.repeat)return;if(k===' ')jump();if(k==='e')act();if(k==='b')chooseBuild();if(k==='m')$('mapbtn').click();if(k==='g'&&admin.asked)adminOpen();if(k==='escape')clearPlacement()});
+window.addEventListener('keydown',e=>{if(!playing||$('panel').open)return;if(e.ctrlKey||e.metaKey||e.altKey){releaseControls();return}let k=keyName(e);if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();keys.add(k);if(e.repeat)return;if(k===' ')jump();if(k==='e')act();if(k==='b')chooseBuild();if(k==='f')eat();if(k==='m')$('mapbtn').click();if(k==='g'&&admin.asked)adminOpen();if(k==='escape')clearPlacement()});
 window.addEventListener('keyup',e=>{const k=keyName(e);keys.delete(k);keys.delete((e.key||'').toLowerCase());if(k===' '&&playing&&!$('panel').open)e.preventDefault();if(['Alt','Meta','Control','OS'].includes(e.key))releaseControls()});
 window.addEventListener('blur',()=>{releaseControls();persist()});window.addEventListener('pagehide',persist);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseControls()});
@@ -492,11 +551,12 @@ function move(dt){
  p.speed=Math.max(Math.abs(drive),Math.abs(turn)*.3);
  if(p.speed>.03){
   if(!drag)followHeading=p.heading;p.walk+=dt*9*p.speed;
-  const speed=(keys.has('shift')?9.2:6.2)*(drive<0?.6:1)*drive*(admin.fly&&!currentRoom?2.2:1),vx=-Math.sin(p.heading)*speed,vz=-Math.cos(p.heading)*speed;
+  const speed=(keys.has('shift')?9.2:6.2)*(drive<0?.6:1)*drive*(admin.fly&&!currentRoom?2.2:1)*(s.stage>=1&&(s.honger??100)<=0&&!admin.fly?.72:1),vx=-Math.sin(p.heading)*speed,vz=-Math.cos(p.heading)*speed;
   const stuck=currentRoom&&world.blocked(p.x,p.z,s,p.y)||admin.fly&&!currentRoom;if(stuck||!world.blocked(p.x+vx*dt,p.z,s,p.y))p.x+=vx*dt;if(stuck||!world.blocked(p.x,p.z+vz*dt,s,p.y))p.z+=vz*dt}
  if(admin.fly&&!currentRoom){p.glide=false;p.vy=0;if(keys.has(' '))p.y+=(keys.has('shift')?18:9)*dt;if(keys.has('c'))p.y-=(keys.has('shift')?18:9)*dt;const fl=world.ground(p.x,p.z,s,p.y+.5);if(p.y<=fl){p.y=fl;p.on=true}else p.on=false}else{
  // The glider only drifts forward while you steer; let go and it sinks slowly in place.
  if(p.glide&&p.speed>.03){let gx=p.x-Math.sin(p.heading)*dt*2.6,gz=p.z-Math.cos(p.heading)*dt*2.6;if(!world.blocked(gx,gz,s,p.y)){p.x=gx;p.z=gz}else p.glide=false}let floor=world.ground(p.x,p.z,s,p.y);p.vy-=20*dt;if(p.glide)p.vy=Math.max(-1.15,p.vy);if(p.vy>0){let limit=world.ceiling(p.x,p.z,s,p.y,2.68)-2.68;if(p.y+p.vy*dt>limit){p.y=limit;p.vy=0}}p.y+=p.vy*dt;if(p.y<=floor&&p.vy<=0){p.y=floor;p.glide=false;p.vy=0;p.on=true}else if(p.on&&p.vy<=0&&!p.glide&&floor>p.y-.5&&floor>-50){p.y=floor;p.vy=0}else p.on=false;}if(p.y<world.liftAt(p.x,p.z)-12)respawn();
+ if(!$('panel').open)hungerTick(dt);
  // Wind barrier: an island whose bridge is not built yet cannot be reached by jumping, gliding or stacking blocks.
  // Near its edge a gust blows you back the way you came (and once over open air you drop back to safe ground).
  if(!admin.fly&&!currentRoom&&!p.ride){for(const I of world.islands){if((I.open??0)<=s.stage)continue;const dx=p.x-I.x,dz=p.z-I.z,d=Math.hypot(dx,dz)||1,edge=I.r+2.5;
