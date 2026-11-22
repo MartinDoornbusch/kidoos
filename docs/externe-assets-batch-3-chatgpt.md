@@ -1,7 +1,7 @@
 # StudyQuest — externe assetalternatieven, batch 3
 **Onderzoeksdatum:** 22 november 2026  
 **Eigenaar:** ChatGPT; review en integratie uitsluitend via Claude  
-**Status:** externe modelpagina's en geïndexeerde Sketchfab-metadata onderzocht; **geen bestanden gedownload of verwerkt**
+**Status:** gebruiker heeft **drie glTF-modellen gedownload**; conversie, QA en daadwerkelijke integratie nog niet geverifieerd. Andere modellen uit deze batch zijn **niet gedownload**.
 
 ## Scope en wat niet opnieuw moet
 - Reeds aan Claude gegeven: *Medieval Wall-Mounted Lantern* (Kigha) en *Medieval House* (DoniTodorov).
@@ -9,6 +9,16 @@
 - Afgewezen: *Modular Medieval Wall – Realistic*, *Ancient Ruins Pack*, eerdere niet-passende Sketchfab-lantaarns en starre Wooden Bridge.
 - De Poly Haven meubel-, tuin-, dak- en ruïne-assets blijven Claudes werkstroom; controleer `00_Inbox` voor dubbele bestanden.
 - Aanbevolen technische norm: herhaalde props 300–3.000 triangles; hero max. 15.000, 512–1K texturetenzij aantoonbaar nodig, CC0/CC BY + correcte herdistributie/attribution.
+
+## Downloadstatus — door gebruiker gemeld op 22 november 2026
+| Asset | Downloadstatus | Verdere actie bij Claude |
+|---|---|---|
+| [Medieval Fireplace (Free)](https://sketchfab.com/3d-models/medieval-fireplace-free-36b73510064943d2b7a08918339dfb99) | **Door gebruiker als glTF gedownload** | Controleer bestand, materialen, schaal, licentie, converteer, vergelijk met huidig interieur |
+| [Old Wooden Gate – Game Ready](https://sketchfab.com/3d-models/old-wooden-gate-game-ready-696af15927b74a51afec68e1948088f1) | **Door gebruiker als glTF gedownload** | Controleer los scharnier/pivot en collision; voor wachttoren of werkplaats |
+| [Square Wooden Window (FREE DL)](https://sketchfab.com/3d-models/square-wooden-window-free-dl-abd1539d94bd45c3af4e755d2537ed74) | **Door gebruiker als glTF gedownload** | Controleer raamdetail, transparantie, schaal en herhaald gebruik in vakwerkhuizen |
+| Alle overige kandidaten uit deze batch | **Niet gedownload** | Geen downloads vragen; alleen opnieuw onderzoeken indien aantoonbaar nodig |
+
+**Aandachtspunten:** Download is geen bewijs van conversie/integratie; locatie/bestandsinhoud zijn niet door ChatGPT geverifieerd. Maak alleen een ticket voor de drie aangeleverde glTF-bestanden, niet voor extra ramen, trappen, lantaarns of bouwpacks. Zorg voor CC BY-attributie wanneer daadwerkelijk gebruikt.
 
 ## A. Nieuwe shortlist voor visuele review — nog geen downloadgoedkeuring
 
