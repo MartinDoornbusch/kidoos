@@ -81,6 +81,7 @@
     }
     $("rotateLeft").onclick=()=>rotate(-90);
     $("rotateRight").onclick=()=>rotate(90);
+    for(const [id,dx,dz] of [["moveWest",-1,0],["moveEast",1,0],["moveNorth",0,-1],["moveSouth",0,1]])$(id).onclick=()=>movePlot(dx,dz);
     $("lookInside").onclick=()=>{inside=!inside;$("lookInside").textContent=inside?"Bekijk buitenkant":"Kijk binnen";updateModel()};
     const furniture=document.createElement("section");
     furniture.className="design-section";furniture.id="furnitureSection";furniture.hidden=true;
@@ -97,6 +98,7 @@
     const d=Planner.get(save,ids.house).design;
     editHouse({rotation:(d.rotation+deg+360)%360});
   }
+  function movePlot(dx,dz){const d=Planner.get(save,ids.house).design;editHouse({x:d.x+dx,z:d.z+dz});}
   function addFurniture(){
     const type=$("furnitureType").value;
     const candidates=[[-2,-1],[1.5,-1],[2.5,1],[-2.5,1.5],[0,0],[1.5,1.5],[-2.5,-1.5],[2.5,-1.5]];
@@ -163,6 +165,8 @@
       for(const k of ["roof","roofMaterial"])$(k).disabled=s.progress.current>=4;
       $("floor").disabled=s.progress.current>=5;
       $("rotateLeft").disabled=$("rotateRight").disabled=s.progress.current>=1;
+      for(const id of ["moveWest","moveEast","moveNorth","moveSouth"])$(id).disabled=s.progress.current>=1;
+      $("plotPosition").textContent="Kavelpositie: x = "+d.x+", z = "+d.z+" · rotatie "+d.rotation+"°";
       if(s.progress.finished)furnitureList();
     }
     renderQuiz(s);
@@ -284,7 +288,7 @@
     }
   }
   function houseScene(completed,d){
-    const g=new T.Group();g.rotation.y=d.rotation*Math.PI/180;
+    const g=new T.Group();g.rotation.y=d.rotation*Math.PI/180;g.position.set(d.x,0,d.z);
     const plan=Designer.visualPlan(d,completed);
     const foundation=cube(g,"stoneDark",8.25,.32,6.3,0,.19,0);
     if(completed===0){foundation.material=mats.ghost;return g}
