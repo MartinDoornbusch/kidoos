@@ -70,7 +70,9 @@ function createGoods(){
  const put=(parent,geo,mat,x,y,z,s=1,ry=0,rx=0,rz=0,sy=s,sz=s)=>{const m=new T.Mesh(geo,mat);m.position.set(x,y,z);m.scale.set(s,sy,sz);m.rotation.set(rx,ry,rz);m.castShadow=m.receiveShadow=true;parent.add(m);return m};
  // ---- items (all sizes in game units; y is the surface the item stands on)
  const make={
-  apple(p,x,y,z,k=0,s=.16){const a=put(p,G.apple(),M.apple(k),x,y,z,s,r()*6,(r()-.5)*.4,(r()-.5)*.4);put(p,G.stem(),M.stem(),x,y+s*.95,z,s,0,.3,0);return a},
+  // apples: the scanned Poly Haven apple (reduced to a few hundred triangles) replaces the turned one once it has loaded
+  apple(p,x,y,z,k=0,s=.16){const a=put(p,G.apple(),M.apple(k),x,y,z,s,r()*6,(r()-.5)*.4,(r()-.5)*.4),st=put(p,G.stem(),M.stem(),x,y+s*.95,z,s,0,.3,0);
+   if(typeof Models!=='undefined')Models.load('sf_apple').then(m=>{a.geometry=m.geometry;a.material=m.material;a.scale.setScalar(s*.52);a.position.y=y+s*.45;st.visible=false}).catch(()=>{});return a},
   pear(p,x,y,z,s=.2){put(p,G.pear(),M.pear(),x,y,z,s,r()*6,(r()-.5)*.3);put(p,G.stem(),M.stem(),x,y+s*1.02,z,s,0,.4,0)},
   // a heap of fruit in a crate of separate slats
   crate(p,x,y,z,kind='apple',k=0,w=.8,d=.6){const h=.34;for(const s of [-1,1]){put(p,G.box(),M.wood(),x,y+h/2,z+s*d/2,1,0,0,0,h,.03).scale.set(w,h,.03);put(p,G.box(),M.wood(),x+s*w/2,y+h/2,z,1,0,0,0,h,d).scale.set(.03,h,d)}
