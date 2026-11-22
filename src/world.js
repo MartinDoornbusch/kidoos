@@ -518,15 +518,22 @@ void main(){float y=vUv.y;
   const hill=new T.Mesh(g,hillMat);hill.receiveShadow=hill.castShadow=true;scene.add(hill);
   // crags: faceted rock outcrops on the steep flanks and around the summit
   const cragGeo=new T.IcosahedronGeometry(1,2);{const q=cragGeo.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),k=1+.28*Math.sin(x*4.1+y*2.3)*Math.cos(z*3.7)+.14*Math.sin(y*7+x*5);q.setXYZ(i,x*k*1.1,y*k*.8,z*k)}cragGeo.computeVertexNormals()}
-  const cragMat=new T.MeshStandardMaterial({map:loadSurface('rock-grey.jpg'),color:0xd6d3cc,roughness:.95,flatShading:true});let cs=733;const cr=()=>(cs=(cs*16807)%2147483647)/2147483647;
+  const cragMat=new T.MeshStandardMaterial({map:loadSurface('rock-grey.jpg'),color:0xd6d3cc,roughness:.95,flatShading:true});
+  // An outcrop is sunk into the slope: its underside sits below the lowest ground under its footprint,
+  // so the downhill side never hangs in the air; the uphill side disappears into the mountain.
+  function placeCrag(x,z,sc,sy,L,r1,r2,r3){let lo=mountainH(x,z);for(let i=0;i<10;i++){const a=i/10*Math.PI*2;for(const f of [.55,1.05])lo=Math.min(lo,mountainH(x+Math.cos(a)*sc*f,z+Math.sin(a)*sc*.9*f))}
+   const gx=mountainH(x+.4,z)-mountainH(x-.4,z),gz=mountainH(x,z+.4)-mountainH(x,z-.4),m=new T.Mesh(cragGeo,cragMat);
+   m.position.set(x,L+lo+sy*.18,z);m.scale.set(sc,sy,sc*.9);m.rotation.set(Math.atan(gz/.8)*.45+r1*.3-.15,r2*6,-Math.atan(gx/.8)*.45+r3*.3-.15,'YXZ');m.castShadow=m.receiveShadow=true;scene.add(m);
+   solids.add({x,z,r:sc*.8,base:L+lo-1,top:L+lo+sy*.95})}
+  let cs=733;const cr=()=>(cs=(cs*16807)%2147483647)/2147483647;
   for(let k=0,made=0;k<220&&made<16;k++){const a=cr()*6.28,rr=1.5+cr()*(peak.R-2),x=peak.x+Math.cos(a)*rr,z=peak.z+Math.sin(a)*rr,h=mountainH(x,z),sl=Math.hypot(mountainH(x+.3,z)-h,mountainH(x,z+.3)-h)/.3;
    if(sl<.85||brookDist(x,z)<1.6||Math.hypot(x-peak.x-.2,z-peak.z+1.6)<3.6)continue;made++;const sc=.9+cr()*1.6;
-   const m=new T.Mesh(cragGeo,cragMat);m.position.set(x,h+sc*.15,z);m.scale.set(sc,sc*(.8+cr()*.6),sc*.9);m.rotation.set(cr()*.5,cr()*6,cr()*.5);m.castShadow=m.receiveShadow=true;scene.add(m);solids.add({x,z,r:sc*.85,base:h-1,top:h+sc*.9})}
+   placeCrag(x,z,sc,sc*(.8+cr()*.6),0,cr(),cr(),cr())}
   // firs on the slopes, boulders on the shoulders
   let hs=5150;const hr=()=>(hs=(hs*16807)%2147483647)/2147483647;
   for(let k=0;k<26;k++){const a=hr()*6.28,rr=2.5+hr()*(lobe.r-3.5),x=lobe.x+Math.cos(a)*rr,z=lobe.z+Math.sin(a)*rr,h=mountainH(x,z);
    if(brookDist(x,z)<1.4||Math.hypot(x-peak.x,z-peak.z)<2.2||Math.hypot(x-25,z+1)<3||x<26&&Math.hypot(x,z)<24)continue;
-   if(k%3){const t=3.5+hr()*3;pine(x,z,t,h-.15);solids.add({x,z,r:.43,base:h-.2,top:h+t});solids.add({x,z,r:t*.23,base:h+t*.4,top:h+t})}
+   if(k%3){const t=3.5+hr()*3,lo=Math.min(h,...[0,1.57,3.14,4.71].map(a=>mountainH(x+Math.cos(a)*.32,z+Math.sin(a)*.32)));pine(x,z,t,lo-.12);solids.add({x,z,r:.43,base:h-.2,top:h+t});solids.add({x,z,r:t*.23,base:h+t*.4,top:h+t})}
    else{shape(stoneGeo,0x9d9b84,x,h+.2,z,.9,.6,.8,a);solids.add({x,z,r:.7,base:h-.3,top:h+.75})}}
   // the brook: a ribbon that follows the ground and runs off the edge as a waterfall
   const flow=new T.MeshStandardMaterial({map:loadSurface('cascade.png'),color:0x8cc4d6,transparent:true,opacity:.85,roughness:.1,metalness:.1,depthWrite:false});flow.map.wrapS=flow.map.wrapT=T.RepeatWrapping;flow.map.repeat.set(1,6);
@@ -542,7 +549,7 @@ void main(){float y=vUv.y;
   mist(ex+1.2,-24,ez,9);mist(ex+.8,.4,ez+.2,2.2);
   torrents.push(stream);
   // a small pool where the brook starts, fed by a spring among the rocks
-  Object.assign(HL,{hillMat,cragGeo,cragMat,flow});
+  Object.assign(HL,{hillMat,cragGeo,cragMat,flow,placeCrag});
  // Snowy mountains on the far islands, built like the highlands: grass and rock with a snow cap, crags,
  // firs, and a brook from a spring below the snowfield that runs to the rim and drops as a waterfall.
  highland=P=>{const I=P.I,L=I.lift,clampR=(x,z)=>{const dx=x-I.x,dz=z-I.z,e=Math.hypot(dx,dz),m=I.r-.45;return e>m?[I.x+dx/e*m,I.z+dz/e*m]:[x,z]};
@@ -555,9 +562,9 @@ void main(){float y=vUv.y;
   const hill=new T.Mesh(g,HL.hillMat);hill.receiveShadow=hill.castShadow=true;scene.add(hill);
   let cs=Math.round(P.x*31-P.z*17)&0xffff|1;const cr=()=>(cs=(cs*16807)%2147483647)/2147483647;
   for(let k=0,made=0;k<200&&made<9;k++){const a=cr()*6.28,rr=1.5+cr()*(P.R-2),[x,z]=clampR(P.x+Math.cos(a)*rr,P.z+Math.sin(a)*rr),h=mountainH(x,z),sl=Math.hypot(mountainH(x+.3,z)-h,mountainH(x,z+.3)-h)/.3;
-   if(sl<.85||brookDist(x,z,P)<1.6||Math.hypot(x-I.x,z-I.z)>I.r-1.5)continue;made++;const sc=.9+cr()*1.4,m=new T.Mesh(HL.cragGeo,HL.cragMat);m.position.set(x,L+h+sc*.15,z);m.scale.set(sc,sc*(.8+cr()*.6),sc*.9);m.rotation.set(cr()*.5,cr()*6,cr()*.5);m.castShadow=m.receiveShadow=true;scene.add(m);solids.add({x,z,r:sc*.85,base:h-1,top:h+sc*.9})}
+   if(sl<.85||brookDist(x,z,P)<1.6||Math.hypot(x-I.x,z-I.z)>I.r-1.5)continue;made++;const sc=.8+cr()*1.1;HL.placeCrag(x,z,sc,sc*(.8+cr()*.6),L,cr(),cr(),cr())}
   for(let k=0,made=0;k<120&&made<8;k++){const a=cr()*6.28,rr=P.R*(.45+cr()*.5),[x,z]=clampR(P.x+Math.cos(a)*rr,P.z+Math.sin(a)*rr),h=mountainH(x,z);
-   if(brookDist(x,z,P)<1.4||h>P.H*.55||Math.hypot(x-I.x,z-I.z)>I.r-2)continue;made++;const t=3.5+cr()*3;pine(x,z,t,h-.15);solids.add({x,z,r:.43,base:h-.2,top:h+t});solids.add({x,z,r:t*.23,base:h+t*.4,top:h+t})}
+   if(brookDist(x,z,P)<1.4||h>P.H*.55||Math.hypot(x-I.x,z-I.z)>I.r-2)continue;made++;const t=3.5+cr()*3,lo=Math.min(h,...[0,1.57,3.14,4.71].map(a=>mountainH(x+Math.cos(a)*.32,z+Math.sin(a)*.32)));pine(x,z,t,lo-.12);solids.add({x,z,r:.43,base:h-.2,top:h+t});solids.add({x,z,r:t*.23,base:h+t*.4,top:h+t})}
   const B=P.brook,bp=[],bu=[],bi=[];let run=0;const steps=48;
   for(let i=0;i<=steps;i++){const f=i/steps*(B.length-1),k=Math.min(B.length-2,Math.floor(f)),u=f-k,x=B[k][0]+(B[k+1][0]-B[k][0])*u,z=B[k][1]+(B[k+1][1]-B[k][1])*u;
    const dx=B[k+1][0]-B[k][0],dz=B[k+1][1]-B[k][1],l=Math.hypot(dx,dz),nx=-dz/l,nz=dx/l,wd=.3+.38*i/steps;if(i)run+=Math.hypot(x-bp[bp.length-6],z-bp[bp.length-4]);
