@@ -79,7 +79,7 @@ function explorerGear(person,girl){
  const py=97,pz=fit.back-6.2,tilt=Math.asin(Math.max(-.35,Math.min(.35,(fit.top-fit.low)/17)));
  // the pack leans with the back: build it in a frame tilted to the measured slope of the back
  const packFrame=new T.Group();packFrame.position.set(0,py,pz);packFrame.rotation.x=tilt;body.add(packFrame);packFrame.updateMatrixWorld(true);
- const P0=(fn)=>{frame=packFrame;fn();frame=body};
+ const packParts=[],P0=(fn)=>{frame=packFrame;const n=made.length;fn();frame=body;packParts.push(...made.slice(n))};
  const bag=box(25,29,11);{const p=bag.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i);p.setXYZ(i,x*(1-.12*Math.abs(y)/14.5),y,z*(1-.1*Math.abs(x)/12.5)+(z>0?0:-1.2*Math.cos(x/12.5*1.5)))}bag.computeVertexNormals()}
  P0(()=>{
  part(bag,canvas,0,0,0,'Spine2');part(box(25.6,9,11.8),canvas,0,0+10.5,0-.4,'Spine2',.18);
@@ -88,6 +88,9 @@ function explorerGear(person,girl){
  const bed=new T.CylinderGeometry(6.3,6.3,30,14,1);part(bed,roll,0,girl?0-19:0+19,0+1,'Spine2',0,0,Math.PI/2);
  for(const x of [-9,9])part(new T.TorusGeometry(6.5,.55,6,16),leather,x,girl?0-19:0+19,0+1,'Spine2',0,Math.PI/2);
  });
+ // the scanned canvas pack with bedroll (tevy.dev, CC0) replaces the modelled bag once it has loaded; straps and belt stay
+ if(typeof Models!=='undefined')Models.load('sf_backpack').then(r=>{const m=new T.Mesh(r.geometry,r.material);m.scale.setScalar(68);m.position.set(0,-15,-4.6);m.rotation.y=Math.PI;m.castShadow=true;
+  frame=packFrame;packFrame.add(m);m.updateMatrixWorld(true);frame=body;(B.Spine2||B.Spine1).attach(m);made.push(m);for(const o of packParts)o.visible=false}).catch(()=>{});
  // shoulder straps
  const pad=girl?2.2:.9,f1=fit.front(py+7)+pad,f2=fit.front(py-3)+pad,f3=fit.front(py-12)+pad;
  for(const s of [-1,1]){const c=new T.CatmullRomCurve3([[7,py+11,pz+4],[8.2,py+16,pz+9],[8.6,py+15.5,(pz+9+f1)/2],[8.4,py+7,f1],[8.4,py-3,f2],[8,py-12,f3]].map(([x,y,z])=>new T.Vector3(s*x,y,z)));
