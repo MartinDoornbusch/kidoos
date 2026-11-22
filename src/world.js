@@ -741,7 +741,7 @@ void main(){float y=vUv.y;
   trail(den,[g0(den),[-47,4.6],[-53,5.6],[-59,6.6],[-60,1]]);
   keepOut(-59,7,4.6);hut(-60,-2.4,5,2);keepOut(-60,-2.4,4.4);
   {const lx=-56,lz=10.5;for(let i=0;i<4;i++)shape(cyl,0x92583f,lx,.22,lz-.6+i*.4,.2,2.6,.2,0,Math.PI/2);for(let i=0;i<3;i++)shape(cyl,0x92583f,lx,.56,lz-.4+i*.4,.2,2.6,.2,0,Math.PI/2);for(let i=0;i<2;i++)shape(cyl,0x92583f,lx,.9,lz-.2+i*.4,.2,2.6,.2,0,Math.PI/2);
-   solids.add({x:lx,z:lz,w:1.4,d:.9,base:0,top:1.1});keepOut(lx,lz,1.8)}
+   solids.add({x:lx,z:lz,w:1.4,d:.9,base:0,top:1.1});keepOut(lx,lz,1.8);if(scanReady){scanProp('sf_ladder',lx+1.9,0,lz+1.5,-.5,1);solids.add({x:lx+1.9,z:lz+1.5,r:.55,base:0,top:1.85});keepOut(lx+1.9,lz+1.5,1)}}
   {const sx=-63.4,sz=9.4;for(const o of [-.7,.7])for(const k of [-1,1])shape(beam,0xffffff,sx+o,.45,sz,.08,1.05,.08,0,0,k*.5);shape(cyl,0x92583f,sx,.8,sz,.22,2.2,.22,0,Math.PI/2);solids.add({x:sx,z:sz,w:1.2,d:.4,base:0,top:1});keepOut(sx,sz,1.6);
    shape(cyl,0x92583f,-61.6,.3,12,.42,.6,.42);shape(beam,0x4a3426,-61.5,.85,12,.05,.6,.05,0,.4);shape(cube,0x8a9397,-61.3,1.08,12,.06,.22,.3,0,.4);solids.add({x:-61.6,z:12,r:.45,base:0,top:.6});keepOut(-61.6,12,1)}
   lamp(-55.8,4.1,0,null,1);solids.add({x:-55.8,z:4.1,r:.22,base:0,top:3.2});keepOut(-55.8,4.1,.8);
@@ -805,6 +805,7 @@ void main(){float y=vUv.y;
    for(let k=0;k<3;k++)for(let j=0;j<2;j++)for(let i=0;i<3;i++)if(!(k===2&&i===2))box('cleared','stone',.62,.38,.44,5.6+i*.66,.19+k*.39,1.2+j*.48,(i+k)*.04);
    for(let k=0;k<3;k++)for(let i=0;i<3-k;i++)box('cleared','wood',.24,.24,3.2,5.8+i*.27+k*.135,.12+k*.22,-2.2);
    solid('cleared',{x:RX+6.26,z:RZ+1.44,w:1.1,d:.55,base:0,top:1.17});solid('cleared',{x:RX+6.1,z:RZ-2.2,w:.45,d:1.65,base:0,top:.62});
+   scanProp('sf_ladder',RX+5.2,0,RZ+3.3,.5,1)?.then?.(m=>{if(m){m.removeFromParent();towerGroups.cleared.add(m)}});solid('cleared',{x:RX+5.2,z:RZ+3.3,r:.55,base:0,top:1.85});
 
    // RESTORED (stage 3+): the round tower rebuilt to full height with a crenellated top, the walls closed
    // and capped with battlements, the gate piers raised into a small gatehouse
@@ -820,8 +821,19 @@ void main(){float y=vUv.y;
    box('restored','brick',2.2,1.05,1.0,.6,4.1,2.8);box('restored','stone',3.3,.1,1.12,.6,4.66,2.8);
 
    // SCAFFOLD (stages 3-4): poles and boards on the outside of the tower while the stair goes in
-   for(const a of [2.3,3.0,3.7,4.4]){const x=Math.cos(a)*2.75-3.2,z=Math.sin(a)*2.75-2.6;box('scaffold','wood',.1,7.2,.1,x,3.6,z);solid('scaffold',{x:RX+x,z:RZ+z,r:.1,base:0,top:7.2})}
-   for(const y of [2.2,4.4,6.4])for(const a of [2.65,3.35,4.05]){const x=Math.cos(a)*2.85-3.2,z=Math.sin(a)*2.85-2.6;box('scaffold','wood',1.95,.05,.42,x,y,z,-a+Math.PI/2)}
+   // scanned timber (Sketchfab "Free Wooden Scaffolding Set", CC-BY): posts, cross braces and decks of three planks
+   {const posts=[],planks=[],up=new T.Vector3(0,1,0),M=(px,py,pz,quat,sx,sy,sz)=>new T.Matrix4().compose(new T.Vector3(RX+px,L+py,RZ+pz),quat,new T.Vector3(sx,sy,sz));
+    const P=[2.3,3.0,3.7,4.4].map(a=>[Math.cos(a)*2.75-3.2,Math.sin(a)*2.75-2.6]);
+    P.forEach(([x,z],i)=>{posts.push(M(x,3.6,z,new T.Quaternion().setFromEuler(new T.Euler(0,i*1.3,0)),.17,7.2,.17));solid('scaffold',{x:RX+x,z:RZ+z,r:.1,base:0,top:7.2})});
+    for(let i=0;i<3;i++)[[.3,2.2],[2.2,4.4],[4.4,6.4]].forEach(([y0,y1],k)=>{const [ax,az]=P[i],[bx,bz]=P[i+1],f=(i+k)%2,p0=new T.Vector3(ax,f?y1:y0,az),d=new T.Vector3(bx,f?y0:y1,bz).sub(p0),len=d.length();
+     posts.push(M((ax+bx)/2,(y0+y1)/2,(az+bz)/2,new T.Quaternion().setFromUnitVectors(up,d.normalize()),.09,len,.09))});
+    for(const y of [2.2,4.4,6.4])for(const a of [2.65,3.35,4.05]){const ry=-a+Math.PI/2,x=Math.cos(a)*2.85-3.2,z=Math.sin(a)*2.85-2.6;
+     [-.145,0,.145].forEach((o,k)=>{const j=Math.sin(a*7+y*3+k*2.1);planks.push(M(x+Math.sin(ry)*o,y+.02*j,z+Math.cos(ry)*o,new T.Quaternion().setFromEuler(new T.Euler(0,ry+.03*j,0)),1.95+.12*j,.05,.135))})}
+    const inst=(geo,mat,list)=>{const m=new T.InstancedMesh(geo,mat,list.length);list.forEach((q,i)=>m.setMatrixAt(i,q));m.castShadow=m.receiveShadow=true;m.computeBoundingSphere();towerGroups.scaffold.add(m)};
+    Promise.all(['sf_scaf_log','sf_scaf_plank'].map(n=>Models.load(n))).then(([lg,pl])=>{inst(lg.geometry,lg.material,posts);inst(pl.geometry,pl.material,planks)})
+     .catch(()=>{const b=new T.BoxGeometry();inst(b,woodMat,posts);inst(b,woodMat,planks)});
+    // a scanned step ladder (Sketchfab "Old Wooden Ladder", CC-BY) at the foot of the scaffolding
+    const into=g=>m=>{if(m){m.removeFromParent();g.add(m)}};scanProp('sf_ladder',RX-5.7,0,RZ+.9,2.1,1)?.then?.(into(towerGroups.scaffold));solid('scaffold',{x:RX-5.7,z:RZ+.9,r:.55,base:0,top:1.85})}
 
    // STAIRS (stage 4+): a straight timber stair along the inside of the south wall, then a stair that winds
    // up round the tower to a landing through the parapet. Walkable: see tower.stairs below.
@@ -860,7 +872,7 @@ void main(){float y=vUv.y;
   // Molenhoeve: a windmill, a barn, a well and two fenced fields.
   trail(farm,[g0(farm),[-45,-59.2],[-52,-58.6],[-58,-57.2],[-63,-58.8],[-64.6,-61.9]]);
   mill(-68,-62);farmRotor=rotors[rotors.length-1];solids.add({x:-68,z:-62,r:2.6,base:0,top:9});keepOut(-68,-62,4.2);
-  hut(-50,-67,6,1);keepOut(-50,-67,4.8);
+  hut(-50,-67,6,1);keepOut(-50,-67,4.8);if(scanReady){scanProp('sf_ladder',-45.9,0,-64.4,.9,1);solids.add({x:-45.9,z:-64.4,r:.55,base:0,top:1.85});keepOut(-45.9,-64.4,1)}
   {const wx=-62,wz=-54,ring=new T.CylinderGeometry(1,1,1,24,1,true);ring.userData.surface=new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xd8cfbf,roughness:.95,side:T.DoubleSide});
    // fieldstone well: an open stone ring with a capstone rim, dark water, a timber frame with a shingle roof, a crank, rope and bucket
    shape(ring,0xffffff,wx,.45,wz,.85,.9,.85);shape(ring,0xffffff,wx,.45,wz,.66,.9,.66);shape(new T.TorusGeometry(.76,.11,6,24),0xcfc4b0,wx,.92,wz,1,1,1,0,0,Math.PI/2);shape(cyl,0x1c2a30,wx,.55,wz,.66,.02,.66);

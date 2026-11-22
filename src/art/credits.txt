@@ -69,3 +69,11 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
 - "Medieval Wall-Mounted Lantern" door Kigha (https://sketchfab.com/Kigha), CC BY 4.0,
   https://sketchfab.com/3d-models/medieval-wall-mounted-lantern-dc8fa19703224286b0bb95cdd028cc06
   Gebruikt als wandlantaarn bij de voordeuren.
+
+1.17.0
+- "Free Wooden Scaffolding Set" door Just8 (https://sketchfab.com/Just8), CC BY 4.0,
+  https://sketchfab.com/3d-models/free-wooden-scaffolding-set-de6d3cb59d0e4ef99103523ae22fbd88
+  Gebruikt voor de palen, schoren en planken van de steiger rond de wachttoren.
+- "Old Wooden Ladder" door CurlyFryWhy (https://sketchfab.com/CurlyFryWhy), CC BY 4.0,
+  https://sketchfab.com/3d-models/old-wooden-ladder-5e818740606642c0885b32bda78cd479
+  Gebruikt als trapladder bij de wachttoren, de schuur van de Molenhoeve en de houtvesterij.
