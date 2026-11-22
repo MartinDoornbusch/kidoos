@@ -40,12 +40,15 @@ const Rig=(()=>{
      for(let f=0;f<c.frames;f++){let x=q[(f*c.bones.length+b)*4]/32767,y=q[(f*c.bones.length+b)*4+1]/32767,z=q[(f*c.bones.length+b)*4+2]/32767,w=q[(f*c.bones.length+b)*4+3]/32767;const l=Math.hypot(x,y,z,w)||1;v.set([x/l,y/l,z/l,w/l],f*4)}
      tracks.push(new T.QuaternionKeyframeTrack(name+'.quaternion',times,v))
     });
-    const clip=new T.AnimationClip(c.name,c.dur,tracks);clip.userData={speed:c.speed*k,trimmed:c.trimmed};out[c.name]=clip
+    const clip=new T.AnimationClip(c.name,c.dur,tracks);clip.userData={speed:c.speed*k,trimmed:c.trimmed,phase:swingPhase(tracks)};out[c.name]=clip
    }
    return out
   }));
   return clipSets.get(key)
  }
+ // Where in its cycle a gait clip swings the left thigh furthest forward (0..1), so two gaits can be blended in step.
+ function swingPhase(tracks){const t=tracks.find(t=>/L_Thigh\.quaternion$/.test(t.name));if(!t)return 0;const n=t.values.length/4;let best=0,bi=0;
+  for(let f=0;f<n;f++){const x=t.values[f*4];if(f===0||x>best){best=x;bi=f}}return n>1?bi/(n-1):0}
  // A still pose between a clip's first frame and the bind pose (arms out), for gliding and jumps.
  function between(clip,bones,amount,name){
   const tracks=[],q=new T.Quaternion(),r=new T.Quaternion();
@@ -100,6 +103,7 @@ const Rig=(()=>{
    if(api.current===a&&!restart)return;
    a.enabled=true;a.setLoop(loop?T.LoopRepeat:T.LoopOnce,Infinity);a.clampWhenFinished=!loop;
    if(restart||!a.isRunning()){a.reset();a.setEffectiveTimeScale(rate);a.play()}
+   if(api.state==='stride')for(const g of ['run','sprint']){const o=api.actions[g];if(o&&o!==a){if(fade)o.fadeOut(fade);else o.stop()}}
    a.setEffectiveWeight(1);if(fade){a.fadeIn(fade);api.current?.fadeOut(fade)}else api.current?.stop();
    api.current=a;api.state=name
   }
@@ -108,13 +112,29 @@ const Rig=(()=>{
    if(!api.clips?.[name])return 0;play(name,{fade,rate,loop:false,restart:true});api.after={name,after,fade};return api.clips[name].duration/rate
   }
   // Locomotion: choose walk, run or sprint by ground speed and match the stride to it.
+  // Above 2.7 the run and the sprint clip play together, weighted by speed and locked to the same phase, so every
+  // speed in between gets a stride of the right length. Before 1.19 a normal walk (6.2) played the sprint at 0.75x:
+  // long, slow-motion strides that looked odd, most of all on Floor whose two clips were also out of step.
   function locomote(speed,{turning=0,backwards=false}={}){
    if(!api.clips)return;const v=Math.abs(speed),natural=n=>api.clips[n].userData.speed*api.scale;
-   if(v<.12&&Math.abs(turning)<.6){if(['walk','run','sprint','slow'].includes(api.state))play('idle',{fade:.32});return}
-   let name='walk';if(v>5.1)name='sprint';else if(v>2.7)name='run';
-   const rate=Math.max(name==='walk'?.55:.72,Math.max(v,turning?.8:0)/natural(name))*(backwards?-1:1);
-   play(name,{fade:name===api.state?0:.22,rate:Math.min(1.7,Math.abs(rate))*Math.sign(rate)})
+   if(v<.12&&Math.abs(turning)<.6){if(['walk','run','sprint','slow','stride'].includes(api.state))play('idle',{fade:.32});return}
+   if(v<=2.7||!api.clips.sprint){const name=v>2.7?'run':'walk',rate=Math.max(name==='walk'?.55:.72,Math.max(v,turning?.8:0)/natural(name))*(backwards?-1:1);
+    play(name,{fade:name===api.state?0:.22,rate:Math.min(1.7,Math.abs(rate))*Math.sign(rate)});return}
+   stride(v,backwards)
   }
+  function stride(v,back){
+   const A=action('run'),B=action('sprint'),cr=api.clips.run,cs=api.clips.sprint,r=natural('run'),q=natural('sprint'),w=Math.min(1,Math.max(0,(v-r)/(q-r)));
+   const D=cr.duration+(cs.duration-cr.duration)*w,m=Math.min(1.45,Math.max(.8,v/(r+(q-r)*w)))*(back?-1:1);
+   if(api.state!=='stride'){api.current?.fadeOut(.22);api.current=null;api.after=null;
+    for(const a of [A,B]){a.stopFading();a.enabled=true;a.setLoop(T.LoopRepeat,Infinity);a.reset();a.play()}
+    // start both on the same step: the sprint is shifted by the difference in swing phase
+    B.time=(((cs.userData.phase-cr.userData.phase)%1+1)%1)*cs.duration;api.strideAt=api.mixer.time;api.state='stride'}
+   // ramp in over a quarter second of animation time while the previous clip fades out, so the weights add up to one
+   const ramp=Math.min(1,(api.mixer.time-api.strideAt)/.22+.02);
+   A.setEffectiveTimeScale(cr.duration/D*m);B.setEffectiveTimeScale(cs.duration/D*m);
+   A.setEffectiveWeight((1-w)*ramp);B.setEffectiveWeight(w*ramp)
+  }
+  function natural(n){return api.clips[n].userData.speed*api.scale}
   const up=new T.Vector3(0,1,0),pq=new T.Quaternion(),off=new T.Quaternion(),tmp=new T.Quaternion();
   let lookYaw=0,lookPitch=0,lookTarget=null;
   // Turn the head (and a little of the neck) toward a world position, within natural limits.

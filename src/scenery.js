@@ -166,7 +166,7 @@ function expeditionPilot(scene,rigged=true){
   }
   m.update(dt);m.gear?.wave(t,dt,speed+.6)
  }
- return {root,outfit,pose,scarf(c){scarfColor=c;for(const m of Object.values(models))m.gear?.tint(c)},equip(tools){kit=tools||{};for(const m of Object.values(models))m.gear?.equip(kit)},reach(){if(!selected?.mixer)return;swing=selected.once('take','idle',{rate:1.6,fade:.2})*.6}}
+ return {root,outfit,pose,scarf(c){scarfColor=c;for(const m of Object.values(models))m.gear?.tint(c)},equip(tools){kit=tools||{};for(const m of Object.values(models))m.gear?.equip(kit)},reach(){if(!selected?.mixer)return;swing=selected.once('take','idle',{rate:1.6,fade:.2})*.6},rig:()=>selected}
 }
 // Fallback for the software renderer: baked pose frames without a skeleton.
 function legacyPilot(scene,root){

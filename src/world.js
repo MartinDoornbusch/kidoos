@@ -6,19 +6,22 @@ function createWorld(canvas) {
  const renderer=context?new T.WebGLRenderer({canvas,context,...options}):softwareRenderer(canvas);
  renderer.setPixelRatio(Math.min(devicePixelRatio,1.65));renderer.outputColorSpace=T.SRGBColorSpace;
  scene.fog=new T.FogExp2(0x7f979e,.0037);
- // Aerial perspective: lit surfaces fade towards the sky panorama that lies behind them (sampled from the
- // environment map in the view direction), so distant islands sink into the mountains instead of turning
- // into flat blue-grey cut-outs. Materials without the environment map keep the plain fog colour.
+ // Aerial perspective: lit surfaces fade towards the colour of the sky behind them (a heavily blurred sample of the
+ // environment map in the view direction), so distant islands sink into the haze instead of turning into flat
+ // blue-grey cut-outs. The blur matters: a sharp sample painted the panorama's peaks and clouds onto distant rock,
+ // which made mountains look see-through. Materials without the environment map keep the plain fog colour.
  T.ShaderChunk.fog_fragment=`#ifdef USE_FOG
  #ifdef FOG_EXP2
   float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
  #else
   float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
  #endif
+ // cap the haze: an island 300 m away stays a solid silhouette instead of dissolving into the panorama behind it
+ fogFactor = min( fogFactor, 0.52 );
  vec3 fogTint = fogColor;
  #if defined( STANDARD ) && defined( USE_ENVMAP ) && defined( ENVMAP_TYPE_CUBE_UV )
   vec3 fogDir = inverseTransformDirection( normalize( - vViewPosition ), viewMatrix );
-  fogTint = mix( fogColor, textureCubeUV( envMap, fogDir, 0.06 ).rgb * envMapIntensity, 0.8 );
+  fogTint = mix( fogColor, textureCubeUV( envMap, fogDir, 0.92 ).rgb * envMapIntensity, 0.45 );
  #endif
  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogTint, fogFactor );
 #endif`;
@@ -61,7 +64,7 @@ function createWorld(canvas) {
   {id:'sterrenwacht-sterrenveld',name:'Sterrenwacht, op het sterrenveld',x:-10.5,z:-109.5,width:11,depth:11,rotation:0}];
  const trails=[],nearTrail=(x,z,m)=>trails.some(([a,b,r])=>Math.hypot(x-a,z-b)<r+m),connectors=[];
  for(const b of bridges.slice(2)){const I=b.from,pts=[];let x=b.ax,z=b.az;const ux=(I.x-x),uz=(I.z-z),l=Math.hypot(ux,uz);
-  while(Math.abs(x)>2.4&&pts.length<40){pts.push([x,z]);trails.push([x,z,1.35]);x+=ux/l;z+=uz/l}pts.push([x,z]);connectors.push({pts,y:I.lift})}
+  while(Math.abs(x)>2.4&&pts.length<40){pts.push([x,z]);trails.push([x,z,1.35]);x+=ux/l;z+=uz/l}pts.push([x,z]);connectors.push({pts,y:I.lift,k:I.z>-30?0:I.z>-90?1:2})}
  {const raw=solids.add;solids.add=o=>{const L=liftAt(o.x,o.z);raw(L?{...o,base:o.base+L,top:o.top+L}:o)}}
  let liftOff=false,rotOrder='XYZ';
  function group(x,y,z,p=scene){let g=new T.Group();g.position.set(x,y+(p===scene?liftAt(x,z):0),z);p.add(g);return g}
@@ -72,6 +75,26 @@ function createWorld(canvas) {
  const timberMat=new T.MeshStandardMaterial({map:timber,roughness:.91});
  const detailsMat=[timberMat,...['roof','wall','rock-grey'].map(name=>new T.MeshStandardMaterial({map:loadSurface(name+'.jpg'),roughness:.93}))];
  const dirtMap=loadSurface('paving.jpg');
+ // Path surfaces per region (Poly Haven CC0 photo textures at 1K): cobbles in the village, a sandy grass track in the
+ // valley, wood chips in the forest, a gravel road on the farm, rock grit at the quarry and on the peaks. Every strip
+ // has two soft outer rows; a noise mask cuts them off, so the path frays into the grass instead of ending in a hard edge.
+ const pathKinds={stone:['p_greystone',3.0,0xe8e4dc],chips:['p_woodchip',2.8,0xe2dacf],grass:['p_grass',3.6,0xf2ecdc],gravel:['p_gravelroad',2.4,0xdedad2],rocky:['p_rockygravel',2.2,0xd2ccc4],pale:['p_rockygravel',2.2,0xf4eee6]};
+ const pathMats=new Map();let pathMask=null;
+ function pathMat(kind){if(pathMats.has(kind))return pathMats.get(kind);let m;
+  if(!scanReady)m=new T.MeshStandardMaterial({map:dirtMap,roughness:1,color:0xdfd5b9,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2});
+  else{const [file,size,tint]=pathKinds[kind],rep=3.7/size,map=loadSurface(file+'.jpg'),nor=loadSurface(file+'_nor.jpg');nor.colorSpace=T.NoColorSpace;map.repeat.set(rep,rep);nor.repeat.set(rep,rep);
+   if(!pathMask){pathMask=loadSurface('pathmask.png');pathMask.colorSpace=T.NoColorSpace;pathMask.repeat.set(1.7,1.7)}
+   m=new T.MeshStandardMaterial({map,normalMap:nor,normalScale:new T.Vector2(.9,.9),alphaMap:pathMask,alphaTest:.5,vertexColors:true,roughness:.96,color:tint,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2});}
+  pathMats.set(kind,m);return m}
+ // A strip along line [[x,z,halfWidth],...] at height y: core rows at full strength, outer rows fade out (vertex alpha).
+ function pathStrip(line,y,kind){const v=[],uv=[],col=[],f=[],n=line.length;
+  for(let i=0;i<n;i++){const p0=line[Math.max(0,i-1)],p1=line[Math.min(n-1,i+1)];let tx=p1[0]-p0[0],tz=p1[1]-p0[1];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;const w=line[i][2],fade=Math.min(.55,w*.45);
+   for(const [o,a] of [[-(w+.32),0],[-(w-fade),1],[w-fade,1],[w+.32,0]]){const j=a?0:.2*Math.sin(i*2.3+o*3.1)+.1*Math.sin(i*.71+o),oo=o<0?o-j:o+j,xx=line[i][0]-tz*oo,zz=line[i][1]+tx*oo;
+    v.push(xx,y,zz);uv.push(xx/3.7,zz/3.7);const e=a?1:.82;col.push(e,e,e*.9,a)}
+   if(i){const b=(i-1)*4;for(let c=0;c<3;c++){const q=b+c;f.push(q,q+1,q+4,q+4,q+1,q+5)}}}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('color',new T.Float32BufferAttribute(col,4));g.setIndex(f);g.computeVertexNormals();
+  const m=new T.Mesh(g,pathMat(kind));m.receiveShadow=true;scene.add(m);return m}
+ const mainPathKind=['stone','grass','gravel'],lanePathKind=['gravel','grass','gravel'],islandPathKind={forest:'chips',farm:'gravel',quarry:'pale',peak:'rocky'};
  const roofGeo=cube.clone(),wallGeo=cube.clone(),stoneGeo=iso.clone(),hangGeo=new T.BufferGeometry(),gableGeo=new T.CylinderGeometry(1,1,1,3).rotateZ(-Math.PI/2).rotateX(-Math.PI/2);
  // boulders: a lumpy, faceted stone instead of a smooth ball
  {const q=stoneGeo.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),k=1+.24*Math.sin(x*3.1+y*1.7)*Math.cos(z*2.9)+.13*Math.sin(y*5.3+x*4.1);q.setXYZ(i,x*k,y*k*.8,z*k)}stoneGeo.computeVertexNormals();hangGeo.copy(stoneGeo)}
@@ -159,7 +182,9 @@ function createWorld(canvas) {
  function grove(name,x,z,h,y,width){shape(pick(tufts,x,z),0xffffff,x,y,z,width*.75,h*.95,width*.75,(x+z)*2.4)}
  function patch(){}
  const canopies=[];
- function pine(x,z,h,y=0){canopies.push({x,z,y:y+liftAt(x,z),h,r:h*.37});const v=Math.abs(Math.round(x*3+z*7))%3;shape(cyl,0x4a382b,x,y+h*.14,z,h*.032,h*.3,h*.032);shape(conifers[v],[0x5a9152,0x4f8549,0x66995a][v],x,y,z,h*.74,h,h*.74,(x+z)*2.4)}
+ // Pines: the leaf-card trees are built as before and hidden once the scanned firs have loaded (see plantFirs).
+ const pines=[],pineTrunk=cyl.clone(),FIR=1.3;
+ function pine(x,z,h,y=0){const L=y+liftAt(x,z);canopies.push({x,z,y:L,h:h*FIR,r:h*FIR*.3});const v=Math.abs(Math.round(x*3+z*7))%3;pines.push({x,y:L,z,h,v,ry:(x+z)*2.4});shape(pineTrunk,0x4a382b,x,y+h*.14,z,h*.032,h*.3,h*.032);shape(conifers[v],[0x5a9152,0x4f8549,0x66995a][v],x,y,z,h*.74,h,h*.74,(x+z)*2.4)}
  // Blossom tree: a dark trunk with two limbs and a crown of petal clusters around a soft core.
  function cherry(x,z,h){canopies.push({x,z,y:h*.45+liftAt(x,z),h:h*.6,r:h*.5});const L=liftAt(x,z),tone=[0xf4bccb,0xf8d3de,0xeaa7bc,0xfbe4ea];
   shape(cyl,0x4e3a2e,x,h*.22,z,.13,h*.44,.13,0,.05);liftOff=true;cord(x,L+h*.38,z,x+h*.16,L+h*.58,z+h*.06,.06,0x4e3a2e);cord(x,L+h*.36,z,x-h*.12,L+h*.55,z-h*.1,.06,0x4e3a2e);liftOff=false;
@@ -418,8 +443,11 @@ function createWorld(canvas) {
   const piece=(geo,color,dy,w,h,d)=>shape(geo,color,x,y+dy,z,w,h,d,side>0?0:Math.PI,0,0,parent);
   piece(masonry,0xdeceaf,.055,.55,.11,.55);piece(column,patina,.09,1,1,1);
   for(const dy of [.29,.47,2.55])piece(cyl,brass,dy,dy<1?.154:.108,.032,dy<1?.154:.108);
-  piece(crook,patina,.09,1,1,1);piece(scroll,bronze,.09,1,1,1);
-  lantern(x+.56*side,y+2.32,z,parent);if(!parent)solids.add({x:x+.56*side,z,r:.26,base:y+1.9,top:y+2.9})
+  // Since 1.19 (audit PR #5) a street lamp carries the scanned Kigha lantern on its own short bracket against the post,
+  // instead of the drawn crook arm with a drawn lantern: one bracket, no double mounting. The drawn arm stays as fallback.
+  const drawn=()=>{piece(crook,patina,.09,1,1,1);piece(scroll,bronze,.09,1,1,1);lantern(x+.56*side,y+2.32,z,parent)};
+  if(scanReady&&!parent){scanProp('sf_lantern',x+side*.31,y+1.98,z,side>0?-Math.PI/2:Math.PI/2,1.7,null,drawn);solids.add({x:x+side*.31,z,r:.24,base:y+1.95,top:y+3.05})}
+  else{drawn();if(!parent)solids.add({x:x+.56*side,z,r:.26,base:y+1.9,top:y+2.9})}
  }
  const millRoof=surfaced(new T.ConeGeometry(1,1,16),"slate");
  const sailcloth=new T.PlaneGeometry(.65,2.77,4,10);
@@ -509,7 +537,12 @@ function createWorld(canvas) {
   const rope=new T.MeshStandardMaterial({color:0x3a2e24,roughness:1});
   for(let i=0;i<5;i++)for(const s of [-1,1]){const z0=-2.4+i*1.6,a=new T.Vector3(s*.9,-R-.6,z0+1.2),b=new T.Vector3(s*R*.72,-R*.68,z0+.6),len=a.distanceTo(b);const m=new T.Mesh(new T.CylinderGeometry(.018,.018,len,4),rope);m.position.copy(a).add(b).multiplyScalar(.5);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),b.clone().sub(a).normalize());body.add(m)}
   body.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false}});
-  airships.push({g,props,center:{x:2,z:-55},rx:88,rz:112,y,phase:Math.atan2(z+55,x-2)});return g}
+  const ship={g,props,center:{x:2,z:-55},rx:88,rz:112,y,phase:Math.atan2(z+55,x-2)};airships.push(ship);
+  // the scanned vintage airship (Evan16, CC BY 4.0) replaces the drawn one once loaded: bow forward, envelope in the
+  // warm cream of the title art, about 24 m long
+  if(scanReady)Models.load('sf_airship').then(r=>{const m=new T.Mesh(r.geometry,r.material);const S=.56;m.scale.setScalar(S);m.rotation.y=Math.PI;m.position.y=-9.9*S;
+   if(Array.isArray(m.material))m.material[1].color.setRGB(1.08,.98,.84);g.add(m);body.visible=false;ship.props=[]}).catch(e=>console.warn('airship',e));
+  return g}
  // Falling water: streaks of foam race down, the sheet frays at the edges and dissolves into mist.
  const cascadeUniforms={time:{value:0}};
  function cascadeMaterial(tint=0xcfe7ef,opacity=.92){return new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,fog:true,
@@ -535,6 +568,13 @@ void main(){float y=vUv.y;
 #include <fog_fragment>
 }`},cascadeUniforms)}
  const water=cascadeMaterial();water.uniforms.time=cascadeUniforms.time;
+ // A waterfall sheet that behaves like water leaving a lip: it shoots out a little, then falls in a parabola, widens as
+ // it drops and ripples sideways. Centred like the old flat planes (top at +H/2), local +z points away from the cliff.
+ function fallGeo(wd,H,seed=0){const N=26,M=6,v=[],uv=[],f=[];
+  for(let j=0;j<=N;j++){const t=j/N,drop=t*H,out=1.25*Math.sqrt(2*drop/9.8),sway=.22*Math.sin(t*5.5+seed)*t;
+   for(let i=0;i<=M;i++){const u=i/M,x=(u-.5)*wd*(1+.42*t)+sway;v.push(x,H/2-drop,out+.18*Math.sin(u*Math.PI)*t+.06*Math.sin(u*9+seed+t*7)*t);uv.push(u,1-t)}
+   if(j)for(let i=0;i<M;i++){const a=(j-1)*(M+1)+i,b=a+M+1;f.push(a,b,a+1,a+1,b,b+1)}}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(f);g.computeVertexNormals();return g}
  // drifting mist where the water disappears into the clouds
  const mistTex=loadSurface('mist.png'),mists=[];
  function mist(x,y,z,s){for(let k=0;k<3;k++){const m=new T.Sprite(new T.SpriteMaterial({map:mistTex,transparent:true,opacity:.5,depthWrite:false,color:0xf2f6f8}));m.position.set(x+(k-1)*s*.25,y+k*s*.12,z);m.scale.set(s,s*.6,1);scene.add(m);mists.push([m,s,k*2.1])}}
@@ -549,13 +589,10 @@ void main(){float y=vUv.y;
   }
   for(let j=-r+2;j<r-1;j+=1.55){let px=1.2*Math.sin(j*.18+k);
    for(let f=0;f<2;f++){let fx=px+(f?1:-1)*(2.65+rnd()*.8),fz=z+j;if(!nearPaving(fx,fz,k,.25)&&f===0 && Math.abs(Math.sin(j))>.65)grove("meadow",fx,fz,.31,0,.52)}}
-  const pts=[],uv=[],indices=[];
-  for(let n=0;n<=48;n++){let t=n/48,zz=(2*t-1)*(r-1),center=1.2*Math.sin(zz*.18+k);
-   for(const side of [-1,1]){let xx=center+side*(2.13+.18*Math.sin(n*1.42+side));pts.push(xx,.045+LIFT[k],z+zz);uv.push(xx/3.7,zz/3.7)}
-   if(n>0){let i=n*2;indices.push(i-2,i,i-1,i-1,i,i+1)}}
-  const road=new T.BufferGeometry();road.setAttribute('position',new T.Float32BufferAttribute(pts,3));road.setAttribute('uv',new T.Float32BufferAttribute(uv,2));road.setIndex(indices);road.computeVertexNormals();
-  let path=new T.Mesh(road,new T.MeshStandardMaterial({map:dirtMap,roughness:1,color:0xdfd5b9}));path.receiveShadow=true;scene.add(path);
-  for(const home of villageHomes.filter(h=>h.k===k)){
+  const roadLine=[];
+  for(let n=0;n<=48;n++){let t=n/48,zz=(2*t-1)*(r-1),center=1.2*Math.sin(zz*.18+k);roadLine.push([center,z+zz,2.13+.12*Math.sin(n*1.42)])}
+  pathStrip(roadLine,.045+LIFT[k],mainPathKind[k]);
+  for(const home of villageHomes.filter(h=>h.k===k)){if(scanReady){const c=new T.CatmullRomCurve3(branchPoints(home).map(([a,b])=>new T.Vector3(a,0,b)),false,'centripetal');pathStrip(c.getSpacedPoints(Math.max(8,Math.ceil(c.getLength()/.6))).map(q=>[q.x,q.z,.88]),.055+LIFT[k],lanePathKind[k]);continue}
    const line=branchPoints(home),vertices=[],texcoords=[],faces=[];
    for(let i=0;i<line.length;i++){
     const prev=line[Math.max(0,i-1)],next=line[Math.min(line.length-1,i+1)];
@@ -569,7 +606,7 @@ void main(){float y=vUv.y;
     if(i){const n=i*2;faces.push(n-2,n-1,n,n,n-1,n+1)}
    }
    const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(vertices,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(texcoords,2));geometry.setIndex(faces);geometry.computeVertexNormals();
-   const lane=new T.Mesh(geometry,path.material);lane.material.side=T.DoubleSide;lane.receiveShadow=true;scene.add(lane)
+   const lane=new T.Mesh(geometry,pathMat(lanePathKind[k]));lane.receiveShadow=true;scene.add(lane)
   }
   for(let j=0;j<9;j++)rnd();
  });
@@ -629,7 +666,7 @@ void main(){float y=vUv.y;
   const bg=new T.BufferGeometry();bg.setAttribute('position',new T.Float32BufferAttribute(bp,3));bg.setAttribute('uv',new T.Float32BufferAttribute(bu,2));bg.setIndex(bi);bg.computeVertexNormals();
   const stream=new T.Mesh(bg,flow);stream.renderOrder=2;scene.add(stream);
   const [ex,ez]=brook[brook.length-1],fallMat=new T.MeshBasicMaterial({map:loadSurface('cascade.png'),transparent:true,depthWrite:false,side:T.DoubleSide});fallMat.map.wrapT=T.RepeatWrapping;fallMat.map.repeat.set(1,3);
-  for(const [wd,off,op] of [[2.4,0,.95],[3.4,.3,.45]]){const fall=new T.Mesh(new T.PlaneGeometry(wd,26,1,1),cascadeMaterial(0xd5ecf3,op));fall.material.uniforms.time=cascadeUniforms.time;fall.position.set(ex+.35+off,-12.9,ez+.2);fall.rotation.y=Math.PI/2-.12;fall.renderOrder=3;scene.add(fall)}
+  for(const [wd,off,op,sd] of [[2.4,0,.95,0],[3.4,.3,.45,2],[1.3,.12,.75,4]]){const fall=new T.Mesh(fallGeo(wd,26,sd),cascadeMaterial(0xd5ecf3,op));fall.material.uniforms.time=cascadeUniforms.time;fall.position.set(ex+.35+off,-12.9,ez+.2);fall.rotation.y=Math.PI/2-.12;fall.renderOrder=3;scene.add(fall)}
   mist(ex+1.2,-24,ez,9);mist(ex+.8,.4,ez+.2,2.2);
   torrents.push(stream);
   // a small pool where the brook starts, fed by a spring among the rocks
@@ -657,11 +694,14 @@ void main(){float y=vUv.y;
   const bg=new T.BufferGeometry();bg.setAttribute('position',new T.Float32BufferAttribute(bp,3));bg.setAttribute('uv',new T.Float32BufferAttribute(bu,2));bg.setIndex(bi);bg.computeVertexNormals();
   const stream=new T.Mesh(bg,HL.flow);stream.renderOrder=2;scene.add(stream);torrents.push(stream);
   const [ex,ez]=B[B.length-1],ang=Math.atan2(ex-I.x,ez-I.z),ox=Math.sin(ang),oz=Math.cos(ang),fallH=I.r*.8+10;
-  for(const [wd,off,op] of [[2.2,.25,.95],[3.2,.5,.45]]){const fall=new T.Mesh(new T.PlaneGeometry(wd,fallH,1,1),cascadeMaterial(0xd5ecf3,op));fall.material.uniforms.time=cascadeUniforms.time;fall.position.set(ex+ox*off,L-fallH/2+.12,ez+oz*off);fall.rotation.y=ang;fall.renderOrder=3;scene.add(fall)}
+  for(const [wd,off,op,sd] of [[2.2,.25,.95,1],[3.2,.5,.45,3],[1.2,.35,.75,5]]){const fall=new T.Mesh(fallGeo(wd,fallH,sd),cascadeMaterial(0xd5ecf3,op));fall.material.uniforms.time=cascadeUniforms.time;fall.position.set(ex+ox*off,L-fallH/2+.12,ez+oz*off);fall.rotation.y=ang;fall.renderOrder=3;scene.add(fall)}
   mist(ex+ox*1.2,L-fallH+2,ez+oz*1.2,8);mist(ex+ox*.6,L+.4,ez+oz*.6,2);
-  const pool=new T.Mesh(new T.CircleGeometry(1,24),HL.flow);pool.rotation.x=-Math.PI/2;pool.position.set(B[0][0],L+mountainH(B[0][0],B[0][1])+.1,B[0][1]);scene.add(pool);
+  // Springs should not inherit the river's animated UV offset (PR #8). Share image pixels, not texture transforms.
+  const poolMaterial=HL.flow.clone();poolMaterial.map=HL.flow.map.clone();poolMaterial.map.repeat.set(1,1);
+  const pool=new T.Mesh(new T.CircleGeometry(1,24),poolMaterial);pool.rotation.x=-Math.PI/2;pool.position.set(B[0][0],L+mountainH(B[0][0],B[0][1])+.1,B[0][1]);scene.add(pool);
   liftOff=true;for(let k=0;k<6;k++){const a=k*1.05,x=B[0][0]+Math.cos(a)*1.2,z=B[0][1]+Math.sin(a)*1.2;shape(stoneGeo,0x8f8a7e,x,L+mountainH(x,z)+.15,z,.42,.33,.38,a)}liftOff=false}
-  const pool=new T.Mesh(new T.CircleGeometry(1.1,24),flow);pool.rotation.x=-Math.PI/2;pool.position.set(brook[0][0],mountainH(brook[0][0],brook[0][1])+.1,brook[0][1]);scene.add(pool);
+  const sourceMaterial=flow.clone();sourceMaterial.map=flow.map.clone();sourceMaterial.map.repeat.set(1,1);
+  const pool=new T.Mesh(new T.CircleGeometry(1.1,24),sourceMaterial);pool.rotation.x=-Math.PI/2;pool.position.set(brook[0][0],mountainH(brook[0][0],brook[0][1])+.1,brook[0][1]);scene.add(pool);
   for(let k=0;k<6;k++){const a=k*1.05,x=brook[0][0]+Math.cos(a)*1.3,z=brook[0][1]+Math.sin(a)*1.3;shape(stoneGeo,0x8f8a7e,x,mountainH(x,z)+.15,z,.45,.35,.4,a)}
  }
  // ---- Cable car from the summit down to the Bloesemvallei (runs once the harbour bridge is repaired).
@@ -687,15 +727,23 @@ void main(){float y=vUv.y;
   P(cube,0x5a4a3a,1.68,1.1,-1.3,.62,1.1,.8);P(wheel,iron,1.68,1.4,-.88,.26,.26,.4);
   for(const sx of [-1,1]){for(const px of [1.45,2.0])P(beam,oak,sx*px,1.05,2.0,.08,1,.08);P(beam,oak,sx*1.72,1.5,2.0,.62,.07,.07)}
   lantern(st.x+Math.cos(face)*1.7,st.y+3.7,st.z-Math.sin(face)*1.7);
-  solids.add({x:st.x,z:st.z,w:2.3,d:2.1,base:st.y-.6,top:st.y+.57});return g}
+  solids.add({x:st.x,z:st.z,w:2.3,d:2.1,base:st.y-.6,top:st.y+.57});
+  // the timber posts and the plaster back wall are solid; the front stays open as the boarding side
+  const W=(lx,lz)=>({x:st.x+Math.cos(face)*lx+Math.sin(face)*lz,z:st.z-Math.sin(face)*lx+Math.cos(face)*lz});
+  for(const sx of [-1,1])for(const sz of [-1.85,0,1.85])solids.add({...W(sx*2.05,sz),r:.2,base:st.y+.5,top:st.y+5.2});
+  for(let k=-2;k<=2;k++)solids.add({...W(k*.88,-1.95),r:.5,base:st.y+.5,top:st.y+5.2});return g}
  const stationA=cableStation(cableA,lineDir),stationB=cableStation(cableB,lineDir+Math.PI);
- // timber pylon with a cross arm and two sheaves
+ // timber pylon beside the line: the cabin hangs 1 to 4 m under the cable, so a tower right under the cable would stand
+ // in its way. The tower stands 2.6 m to the side and carries the two sheaves on a cross arm above the cable.
  {const g=group(pylon.x,pylon.y,pylon.z);g.rotation.y=lineDir;const P=(geo,color,x,y,z,sx,sy,sz,ry=0,rz=0,rx=0)=>shape(geo,color,x,y,z,sx,sy,sz,ry,rz,rx,g);
-  for(const sx of [-1,1])for(const sz of [-1,1])P(beam,oak,sx*.7,pylon.h/2,sz*.7,.24,pylon.h+.2,.24,0,-sx*.06,sz*.06);
-  for(let k=1;k<5;k++){const y=k*pylon.h/5,w=1.4-k*.16;for(const sz of [-1,1])P(beam,oak,0,y,sz*w/2,w+.2,.12,.12);for(const sx of [-1,1])P(beam,oak,sx*w/2,y,0,.12,.12,w+.2)}
-  for(const sz of [-1,1])for(let k=0;k<4;k++)P(beam,oak,0,(k+.5)*pylon.h/5,sz*(.7-k*.08),1.6-k*.2,.08,.08,0,(k%2?1:-1)*.9);
-  P(beam,oak,0,pylon.h+.1,0,2.0,.3,.3,Math.PI/2);for(const sx of [-.45,.45])P(wheel,iron,sx,pylon.h+.4,0,.3,.3,.4,Math.PI/2);P(beam,oak,0,pylon.h-.4,0,.2,.8,.2);
-  solids.add({x:pylon.x,z:pylon.z,r:1.1,base:pylon.y,top:pylon.y+pylon.h})}
+  const OX=2.6,TH=pylon.h+1.35;
+  for(const sx of [-1,1])for(const sz of [-1,1])P(beam,oak,OX+sx*.7,TH/2,sz*.7,.24,TH+.2,.24,0,-sx*.06,sz*.06);
+  for(let k=1;k<5;k++){const y=k*TH/5,w=1.4-k*.16;for(const sz of [-1,1])P(beam,oak,OX,y,sz*w/2,w+.2,.12,.12);for(const sx of [-1,1])P(beam,oak,OX+sx*w/2,y,0,.12,.12,w+.2)}
+  for(const sz of [-1,1])for(let k=0;k<4;k++)P(beam,oak,OX,(k+.5)*TH/5,sz*(.7-k*.08),1.6-k*.2,.08,.08,0,(k%2?1:-1)*.9);
+  // cross arm over the line, a diagonal brace under it, and the sheaves hanging from the arm on short iron straps
+  P(beam,oak,(OX-1.1)/2+.25,TH+.1,0,OX+1.5,.3,.3);P(beam,oak,OX*.55,TH-.75,0,1.9,.18,.18,0,0,.62);
+  for(const sx of [-.45,.45]){P(beam,iron,sx,pylon.h+.98,0,.06,.95,.06);P(wheel,iron,sx,pylon.h+.45,0,.3,.3,.4,Math.PI/2)}
+  solids.add({x:pylon.x+Math.cos(lineDir)*OX,z:pylon.z-Math.sin(lineDir)*OX,r:1.1,base:pylon.y,top:pylon.y+TH+.3})}
  const cableTop=st=>({x:st.x,y:st.y+liftAt(st.x,st.z)+4.62,z:st.z});
  const supports=[cableTop(cableA),{x:pylon.x,y:pylon.y+pylon.h+.45,z:pylon.z},cableTop(cableB)];
  const spanLen=[Math.hypot(supports[1].x-supports[0].x,supports[1].z-supports[0].z),Math.hypot(supports[2].x-supports[1].x,supports[2].z-supports[1].z)],total=spanLen[0]+spanLen[1];
@@ -724,12 +772,10 @@ void main(){float y=vUv.y;
  let farmRotor=null,craneHook=null,signalFire=null;
  // ---- The new islands. Own random stream and a saved seed, so every earlier placement stays where it was.
  {const keep=seed,R=Nature.rng(5150),pick2=(a,b)=>a+R()*(b-a);
-  function ribbon(pts,y,w=1.35){const v=[],uv=[],f=[];for(let i=0;i<pts.length;i++){const p0=pts[Math.max(0,i-1)],p1=pts[Math.min(pts.length-1,i+1)];let tx=p1[0]-p0[0],tz=p1[1]-p0[1];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;
-    for(const sd of [-1,1]){const ww=w*(1+.09*Math.sin(i*1.7+sd*2)),xx=pts[i][0]-sd*tz*ww,zz=pts[i][1]+sd*tx*ww;v.push(xx,y+.058,zz);uv.push(xx/3.7,zz/3.7)}if(i){const n=i*2;f.push(n-2,n-1,n,n,n-1,n+1)}}
-   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(f);g.computeVertexNormals();
-   const m=new T.Mesh(g,new T.MeshStandardMaterial({map:dirtMap,roughness:1,color:0xdfd5b9,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2}));m.receiveShadow=true;scene.add(m)}
-  function trail(I,ctrl){const c=new T.CatmullRomCurve3(ctrl.map(([x,z])=>new T.Vector3(x,0,z))),pts=c.getSpacedPoints(Math.ceil(c.getLength()/1.1)).map(q=>[q.x,q.z]);pts.forEach(([x,z])=>trails.push([x,z,1.35]));ribbon(pts,I.lift)}
-  for(const c of connectors)ribbon(c.pts,c.y);
+  // forest and island trails: the walkable corridor (trails, 1.35) is unchanged, the worn core is a little narrower
+  function ribbon(pts,y,kind,w=1.35){pathStrip(pts.map(([x,z],i)=>[x,z,w*(.92+.08*Math.sin(i*1.7))]),y+.058,kind)}
+  function trail(I,ctrl){const c=new T.CatmullRomCurve3(ctrl.map(([x,z])=>new T.Vector3(x,0,z))),pts=c.getSpacedPoints(Math.ceil(c.getLength()/1.1)).map(q=>[q.x,q.z]);pts.forEach(([x,z])=>trails.push([x,z,1.35]));ribbon(pts,I.lift,islandPathKind[I.kind]||'gravel',I.kind==='forest'?1.15:1.35)}
+  for(const c of connectors)ribbon(c.pts,c.y,lanePathKind[c.k]);
   const clear=[],free=(I,x,z,m)=>Math.hypot(x-I.x,z-I.z)<I.r-1.6-m&&!clear.some(([a,b,r])=>Math.hypot(x-a,z-b)<r+m)&&!nearTrail(x,z,m+.4);
   const keepOut=(x,z,r)=>clear.push([x,z,r]),g0=I=>[I.gate.x+(I.x-I.gate.x)/I.r*.4,I.gate.z+(I.z-I.gate.z)/I.r*.4];
   for(const pl of housePlots)keepOut(pl.x,pl.z,Math.hypot(pl.width,pl.depth)/2+.4);
@@ -749,20 +795,31 @@ void main(){float y=vUv.y;
    {x:71,z:-132,R:7.5,H:9,I:peakI,brook:[[70.2,-130.4],[70.4,-125.6],[71.4,-121.6],[72.4,-117.8],[72.9,-116.6]]}]){peaks.push(P);keepOut(P.x,P.z,P.R+.5);P.brook.forEach(([bx,bz])=>keepOut(bx,bz,1.6))}
   peaks.slice(1).forEach(P=>highland(P));
   extraIslands.forEach(I=>{const b=bridges.find(q=>q.to===I);I.gate={x:b.bx,z:b.bz}});
-  const nodeSpots=[[-52,14,'hout'],[-67,13,'hout'],[-67,-4,'hout'],[-52,-3,'steen'],[-58,-69,'hout'],[-63,-70,'steen'],[62,-86,'steen'],[52,-90,'steen'],[64,-74,'steen'],[60,-121,'steen'],[49,-134,'hout']];
+  const nodeSpots=[[-52,14,'hout'],[-67,13,'hout'],[-71.5,-7,'hout'],[-52,-3,'steen'],[-58,-69,'hout'],[-63,-70,'steen'],[62,-86,'steen'],[52,-90,'steen'],[64,-74,'steen'],[60,-121,'steen'],[49,-134,'hout']];
   nodeSpots.forEach(([x,z])=>keepOut(x,z,2.6));
 
   // Dennenhoek: a dense pine wood with a woodcutter's camp in a clearing.
-  trail(den,[g0(den),[-47,4.6],[-53,5.6],[-59,6.6],[-60,1]]);
-  keepOut(-59,7,4.6);hut(-60,-2.4,5,2);keepOut(-60,-2.4,4.4);
+  trail(den,[g0(den),[-47,4.6],[-53,5.6],[-59,6.6],[-63.2,2.6],[-64.6,.5]]);
+  keepOut(-59,7,4.6);
+  // Gerrit's forester's house: the scanned stone-and-timber house (DoniTodorov, CC BY 4.0). At 1.77x its arched door is
+  // as tall as the other doors (2.95), so the players (2.57) fit it as they would a real door. The gable with the door
+  // faces the camp, the front pillars stand where the old hut's door was. The baked door leaf hangs on its own hinge.
+  {const GX=-64.6,GS=1.77,GZ=-.25-3.48*GS;keepOut(GX,GZ,7.8);
+   if(scanReady){const hg=group(GX,0,GZ);hg.rotation.y=-Math.PI/2;
+    Models.load('sf_house').then(r=>{const m=new T.Mesh(r.geometry,r.material);m.scale.setScalar(GS);m.castShadow=m.receiveShadow=true;hg.add(m)}).catch(e=>console.warn('house',e));
+    const pivot=new T.Group();pivot.position.set(2.8*GS,0,-.69*GS);hg.add(pivot);
+    Models.load('sf_house_door').then(r=>{const m=new T.Mesh(r.geometry,r.material);m.scale.setScalar(GS);m.position.set(-2.8*GS,0,.69*GS);m.castShadow=m.receiveShadow=true;pivot.add(m)}).catch(e=>console.warn('door',e));
+    doors.push({pivot,ry:0,open:0,x:GX,z:GZ+2.8*GS,parent:hg,out:true});
+    // walls and roof; between the front pillars the doorway stays open up to the door leaf
+    solids.add({x:GX,z:GZ-.34*GS,w:2.55*GS,d:3.14*GS,base:0,top:6.9*GS});for(const k of [-1,1])solids.add({x:GX+k*1.65*GS,z:GZ+3.14*GS,w:.9*GS,d:.34*GS,base:0,top:6.9*GS});
+    scanProp('wine_barrel',GX-3.4,0,.5,1.2,1.02);solids.add({x:GX-3.4,z:.5,r:.36,base:0,top:.86});
+    scanProp('settle',GX+3.5,0,.55,0,1);solids.add({x:GX+3.5,z:.55,w:.62,d:.2,base:0,top:.5})}
+   else hut(GX,-2.4,5,2)}
   {const lx=-56,lz=10.5;for(let i=0;i<4;i++)shape(cyl,0x92583f,lx,.22,lz-.6+i*.4,.2,2.6,.2,0,Math.PI/2);for(let i=0;i<3;i++)shape(cyl,0x92583f,lx,.56,lz-.4+i*.4,.2,2.6,.2,0,Math.PI/2);for(let i=0;i<2;i++)shape(cyl,0x92583f,lx,.9,lz-.2+i*.4,.2,2.6,.2,0,Math.PI/2);
    solids.add({x:lx,z:lz,w:1.4,d:.9,base:0,top:1.1});keepOut(lx,lz,1.8);if(scanReady){scanProp('sf_ladder',lx+1.9,0,lz+1.5,-.5,1);solids.add({x:lx+1.9,z:lz+1.5,r:.55,base:0,top:1.85});keepOut(lx+1.9,lz+1.5,1)}}
   {const sx=-63.4,sz=9.4;for(const o of [-.7,.7])for(const k of [-1,1])shape(beam,0xffffff,sx+o,.45,sz,.08,1.05,.08,0,0,k*.5);shape(cyl,0x92583f,sx,.8,sz,.22,2.2,.22,0,Math.PI/2);solids.add({x:sx,z:sz,w:1.2,d:.4,base:0,top:1});keepOut(sx,sz,1.6);
    shape(cyl,0x92583f,-61.6,.3,12,.42,.6,.42);shape(beam,0x4a3426,-61.5,.85,12,.05,.6,.05,0,.4);shape(cube,0x8a9397,-61.3,1.08,12,.06,.22,.3,0,.4);solids.add({x:-61.6,z:12,r:.45,base:0,top:.6});keepOut(-61.6,12,1)}
   lamp(-55.8,4.1,0,null,1);solids.add({x:-55.8,z:4.1,r:.22,base:0,top:3.2});keepOut(-55.8,4.1,.8);
-  // the forester's stone house at the west edge of the clearing (scanned model, door facing the camp)
-  if(scanReady){const hx=-71,hz=9,hy=Math.min(...[[0,0],[3.4,2.5],[-3.4,2.5],[3.4,-2.5],[-3.4,-2.5]].map(([a,b])=>mountainH(hx+a,hz+b)));
-   scanProp('sf_house',hx,hy-.06,hz,0,1);solids.add({x:hx,z:hz,w:3.45,d:2.5,base:0,top:6.9});keepOut(hx,hz,5.4);trail(den,[[-59,6.6],[-63.5,8.1],[-67.3,8.6]])}
   // ---- Level 3 · De vergeten wachttoren. The castle ruin in the south of Dennenhoek is restored in five stages
   // (ConstructionCampaign): survey stakes and a plan table, cleared rubble, rebuilt walls with battlements, a wooden
   // stair up the tower and a roofed lookout. Every stage shows its own parts; collision follows what is built.
@@ -1013,8 +1070,13 @@ void main(){float y=vUv.y;
   hamlets.forEach((H,i)=>decorRope(H,far[i]));decorRope(far[2],far[8]);decorRope(far[6],far[10]);
   seed=keep}
  const cloudGeo=new T.PlaneGeometry();
- cloudGeo.userData.surface=new T.MeshBasicMaterial({map:loadSurface('mist.png'),transparent:true,depthWrite:false,side:T.DoubleSide,opacity:.77});
- for(let i=0;i<100;i++){let x=(rnd()-.5)*310,z=70-rnd()*315,y=-22-rnd()*10;shape(cloudGeo,0xffffff,x,y,z,35+rnd()*34,9+rnd()*12,1,(rnd()-.5)*1.4)}
+ cloudGeo.userData.surface=new T.MeshBasicMaterial({map:loadSurface('mist.png'),transparent:true,depthWrite:false,side:T.DoubleSide,opacity:.66});
+ // Upright mist banks hang well below the islands and never right under one: a bank in front of an island's rock
+ // underside looked like a hole in the rock (the "see-through mountains"). Same random sequence as before, so
+ // everything placed after this keeps its spot; a bank too close to an island is pushed outward instead.
+ for(let i=0;i<100;i++){let x=(rnd()-.5)*310,z=70-rnd()*315,y=-30-rnd()*10;const w=35+rnd()*34,h=9+rnd()*12,ry=(rnd()-.5)*1.4;
+  for(const I of islands){const dx=x-I.x,dz=z-I.z,d=Math.hypot(dx,dz)||1,need=I.r+16+w*.3;if(d<need){x=I.x+dx/d*need;z=I.z+dz/d*need}}
+  shape(cloudGeo,0xffffff,x,y,z,w,h,1,ry)}
  if(context){const sea=Nature.rng(808),sheet=new T.PlaneGeometry(1,1);sheet.rotateX(-Math.PI/2);
   const cloudFloor=new T.InstancedMesh(sheet,new T.MeshBasicMaterial({map:loadSurface('mist.png'),transparent:true,depthWrite:false,opacity:.9}),90),o=new T.Object3D(),tone=new T.Color();
   for(let i=0;i<90;i++){const s=55+sea()*95;o.position.set((sea()-.5)*380,-15-sea()*13,70-sea()*340);o.rotation.set(0,sea()*6.28,0);o.scale.set(s,1,s*(.5+sea()*.4));o.updateMatrix();cloudFloor.setMatrixAt(i,o.matrix);
@@ -1045,33 +1107,44 @@ void main(){float y=vUv.y;
    const proc=()=>{for(const [ry,rx] of [[0,Math.PI/2],[0,0],[Math.PI/2,0],[.4,.9]])shape(wheel,brass,ax,1.95,az,.7,.7,.4,ry,0,rx);shape(cyl,brass,ax,1.95,az,.03,1.9,.03,0,.65);shape(ball,0xd8b45a,ax,1.95,az,.12,.12,.12)};
    if(scanReady)scanProp('sf_armillary',ax,1.21,az,.6,2.9,null,proc);else proc();solids.add({x:ax,z:az,r:.6,base:0,top:2.7})}
  }
- // ---- The star beacon: a tapering lighthouse of pale dressed stone with copper bands, a gallery with a railing,
- // a glazed lantern room holding the star crystal and a verdigris cupola. Once lit it sweeps two beams.
- const BX=0,BZ=-130,lamp9=liftAt(BX,BZ);
- solids.add({x:BX,z:BZ,r:2.8,base:0,top:14});
+ // ---- The star beacon. Since 1.19 the scanned lighthouse "Lighthouse" by Fabio (CC BY 4.0) stands on the octagonal plinth,
+ // at 1.35x so its lantern room (14.8 m) towers over the plaza; the star crystal sits in that lantern room. Without scans
+ // (or if the model fails to load) the drawn tower of pale dressed stone with copper bands and a verdigris cupola is built.
+ // The model has no door: a small stone porch with a 2.95 m door, like the other doors in the world, leads into it.
+ const BX=0,BZ=-130,lamp9=liftAt(BX,BZ),LS=1.35,LR=scanReady?1.74:2.05;let beaconAt=null,lightTower=null;
+ solids.add({x:BX,z:BZ,r:2.8,base:0,top:scanReady?18:14});
  {const taper=new T.CylinderGeometry(1.45,2.05,1,36);taper.userData.surface=masonry.userData.surface;
   const oct=new T.CylinderGeometry(1,1,1,8);oct.userData.surface=masonry.userData.surface;
-  shape(oct,0xc2b7a2,BX,.4,BZ,2.8,.8,2.8,Math.PI/8);shape(taper,0xf3ebdc,BX,.8+4.3,BZ,1,8.6,1);
-  for(const y of [3.4,6.6])shape(cyl,0x5f8f80,BX,y,BZ,2.05-(y-.8)/8.6*.6+.05,.3,2.05-(y-.8)/8.6*.6+.05);
-  for(let k=0;k<16;k++){const a=k*Math.PI/8;shape(cube,0xd9ccb5,BX+Math.cos(a)*1.55,9.05,BZ+Math.sin(a)*1.55,.4,.5,.22,-a)}
-  shape(cyl,0xd9ccb5,BX,9.45,BZ,2.3,.3,2.3);shape(new T.TorusGeometry(2.15,.045,5,48),brass,BX,10.5,BZ,1,1,1,0,0,Math.PI/2);shape(new T.TorusGeometry(2.15,.03,5,48),brass,BX,10.05,BZ,1,1,1,0,0,Math.PI/2);
-  for(let k=0;k<18;k++){const a=k*Math.PI/9;shape(cyl,0x2f3a3d,BX+Math.cos(a)*2.15,10.05,BZ+Math.sin(a)*2.15,.04,.92,.04)}
-  shape(cyl,0x2f3a3d,BX,9.85,BZ,1.32,.5,1.32);for(let k=0;k<8;k++){const a=k*Math.PI/4+Math.PI/8;shape(cube,0x2f3a3d,BX+Math.cos(a)*1.24,11.15,BZ+Math.sin(a)*1.24,.09,2.1,.09)}
-  shape(cyl,0x2f3a3d,BX,12.25,BZ,1.38,.14,1.38);
-  const cup=new T.SphereGeometry(1,28,10,0,Math.PI*2,0,Math.PI/2);cup.userData.surface=new T.MeshStandardMaterial({color:0x76a594,metalness:.45,roughness:.4});shape(cup,0xffffff,BX,12.3,BZ,1.42,1.05,1.42);
-  shape(ball,brass,BX,13.42,BZ,.2,.2,.2);shape(cone,brass,BX,14.05,BZ,.07,1,.07);shape(cube,brass,BX+.25,14.0,BZ,.5,.18,.02);
-  // door, steps and small windows climbing the tower
-  shape(cube,0x1a1410,BX,2.0,BZ+2.03,1.15,2.3,.06);shape(cube,0x6e4a30,BX,1.9,BZ+2.07,1.0,2.1,.06);shape(new T.TorusGeometry(.62,.12,6,16,Math.PI),0xcfc4b0,BX,3.05,BZ+2.08,1,1,1);
-  shape(masonry,0xc9bea9,BX,.95,BZ+2.55,1.6,.3,.7);for(const [a,y] of [[.6,4.6],[2.4,6.2],[-1.2,7.8],[1.57,7.9]]){const r=2.05-(y-.8)/8.6*.6;shape(glass,0xffffff,BX+Math.sin(a)*(r+.02),y,BZ+Math.cos(a)*(r+.02),.36,.7,.05,a)}
-  lantern(BX+.95,3.1,BZ+2.35);lantern(BX-.95,3.1,BZ+2.35)}
+  shape(oct,0xc2b7a2,BX,.4,BZ,2.8,.8,2.8,Math.PI/8);
+  const drawn=()=>{shape(taper,0xf3ebdc,BX,.8+4.3,BZ,1,8.6,1);
+   for(const y of [3.4,6.6])shape(cyl,0x5f8f80,BX,y,BZ,2.05-(y-.8)/8.6*.6+.05,.3,2.05-(y-.8)/8.6*.6+.05);
+   for(let k=0;k<16;k++){const a=k*Math.PI/8;shape(cube,0xd9ccb5,BX+Math.cos(a)*1.55,9.05,BZ+Math.sin(a)*1.55,.4,.5,.22,-a)}
+   shape(cyl,0xd9ccb5,BX,9.45,BZ,2.3,.3,2.3);shape(new T.TorusGeometry(2.15,.045,5,48),brass,BX,10.5,BZ,1,1,1,0,0,Math.PI/2);shape(new T.TorusGeometry(2.15,.03,5,48),brass,BX,10.05,BZ,1,1,1,0,0,Math.PI/2);
+   for(let k=0;k<18;k++){const a=k*Math.PI/9;shape(cyl,0x2f3a3d,BX+Math.cos(a)*2.15,10.05,BZ+Math.sin(a)*2.15,.04,.92,.04)}
+   shape(cyl,0x2f3a3d,BX,9.85,BZ,1.32,.5,1.32);for(let k=0;k<8;k++){const a=k*Math.PI/4+Math.PI/8;shape(cube,0x2f3a3d,BX+Math.cos(a)*1.24,11.15,BZ+Math.sin(a)*1.24,.09,2.1,.09)}
+   shape(cyl,0x2f3a3d,BX,12.25,BZ,1.38,.14,1.38);
+   const cup=new T.SphereGeometry(1,28,10,0,Math.PI*2,0,Math.PI/2);cup.userData.surface=new T.MeshStandardMaterial({color:0x76a594,metalness:.45,roughness:.4});shape(cup,0xffffff,BX,12.3,BZ,1.42,1.05,1.42);
+   shape(ball,brass,BX,13.42,BZ,.2,.2,.2);shape(cone,brass,BX,14.05,BZ,.07,1,.07);shape(cube,brass,BX+.25,14.0,BZ,.5,.18,.02);
+   for(const [a,y] of [[.6,4.6],[2.4,6.2],[-1.2,7.8],[1.57,7.9]]){const r=2.05-(y-.8)/8.6*.6;shape(glass,0xffffff,BX+Math.sin(a)*(r+.02),y,BZ+Math.cos(a)*(r+.02),.36,.7,.05,a)}
+   if(beaconAt)beaconAt(11.15,false)};
+  if(scanReady)scanProp('sf_lighthouse',BX,.8,BZ,0,LS,null,drawn)?.then(m=>{if(m)lightTower=m});else drawn();
+  // the entrance: a stone porch built against the tower with an arched oak door and a lantern on either side
+  const PZ=BZ+LR+.32;
+  shape(masonry,0xd8d0c0,BX,.8+1.75,PZ,2.0,3.5,.95);shape(masonry,0xc9bea9,BX,.8+3.6,PZ+.05,2.3,.22,1.15);
+  shape(cube,0x1a1410,BX,.8+1.5,PZ+.48,1.3,3.0,.04);shape(cube,0x6e4a30,BX,.8+1.45,PZ+.5,1.15,2.9,.05);
+  shape(new T.TorusGeometry(.66,.11,6,16,Math.PI),0xcfc4b0,BX,.8+2.9,PZ+.5,1,1,1);
+  shape(masonry,0xc9bea9,BX,.95,PZ+.85,1.7,.3,.7);
+  lantern(BX+1.3,3.1,PZ+.62);lantern(BX-1.3,3.1,PZ+.62)}
  const beacon=group(BX,0,BZ);
- const core=shape(iso,0xffcb61,0,11.15,0,.5,.85,.5,0,0,0,beacon);core.material=new T.MeshStandardMaterial({color:0xffdc8a,emissive:0xffb03a,emissiveIntensity:1.1,roughness:.2,metalness:.1});
- {const g=new T.Mesh(new T.CylinderGeometry(1.2,1.2,2.05,24,1,true),new T.MeshStandardMaterial({color:0xe2f1f3,transparent:true,opacity:.22,roughness:.05,metalness:.3,depthWrite:false,side:T.DoubleSide}));g.position.y=11.15;beacon.add(g)}
- const beaconLight=new T.PointLight(0xffcf7a,3,22,1.6);beaconLight.position.set(0,11.2,0);beacon.add(beaconLight);
+ const LH=scanReady?.8+10.4*LS:11.15,core=shape(iso,0xffcb61,0,LH,0,scanReady?.42:.5,scanReady?.62:.85,scanReady?.42:.5,0,0,0,beacon);core.material=new T.MeshStandardMaterial({color:0xffdc8a,emissive:0xffb03a,emissiveIntensity:1.1,roughness:.2,metalness:.1});
+ const beaconGlass=new T.Mesh(new T.CylinderGeometry(1.2,1.2,2.05,24,1,true),new T.MeshStandardMaterial({color:0xe2f1f3,transparent:true,opacity:.22,roughness:.05,metalness:.3,depthWrite:false,side:T.DoubleSide}));beaconGlass.position.y=LH;beaconGlass.visible=!scanReady;beacon.add(beaconGlass);
+ const beaconLight=new T.PointLight(0xffcf7a,3,22,1.6);beaconLight.position.set(0,LH+.05,0);beacon.add(beaconLight);
  const glowTex=(fade)=>canvasTex(64,256,c=>{const gr=c.createLinearGradient(0,0,0,256);fade?(gr.addColorStop(0,'rgba(255,240,200,1)'),gr.addColorStop(1,'rgba(255,240,200,0)')):(gr.addColorStop(0,'rgba(255,240,200,0)'),gr.addColorStop(.8,'rgba(255,240,200,.7)'),gr.addColorStop(1,'rgba(255,240,200,1)'));c.fillStyle=gr;c.fillRect(0,0,64,256)});
  const beamMat=fade=>new T.MeshBasicMaterial({map:glowTex(fade),color:0xffe2a0,transparent:true,opacity:.5,blending:T.AdditiveBlending,depthWrite:false,side:T.DoubleSide});
- const beaconBeam=new T.Mesh(new T.CylinderGeometry(2.6,.6,70,24,1,true),beamMat(false));beaconBeam.position.set(BX,lamp9+11.2+35,BZ);scene.add(beaconBeam);
- const sweep=new T.Group();sweep.position.set(BX,lamp9+11.2,BZ);scene.add(sweep);
+ const beaconBeam=new T.Mesh(new T.CylinderGeometry(2.6,.6,70,24,1,true),beamMat(false));beaconBeam.position.set(BX,lamp9+LH+35,BZ);scene.add(beaconBeam);
+ const sweep=new T.Group();sweep.position.set(BX,lamp9+LH,BZ);scene.add(sweep);
+ // the drawn fallback tower has its lantern room lower: move crystal, glass, light and beams down if it is built after all
+ beaconAt=(h)=>{core.position.y=beaconGlass.position.y=h;core.scale.set(.5,.85,.5);beaconGlass.visible=true;beaconLight.position.y=h+.05;beaconBeam.position.y=lamp9+h+35;sweep.position.y=lamp9+h};
  for(const s of [-1,1]){const m=new T.Mesh(new T.CylinderGeometry(.35,3.4,32,20,1,true),beamMat(true));m.rotation.z=s*Math.PI/2;m.position.x=s*16;sweep.add(m)}
  // a round paved plaza with a brass compass rose around the beacon
  {const L=lamp9,pl=new T.Mesh(new T.CircleGeometry(6,48),new T.MeshStandardMaterial({map:(()=>{const m=loadSurface('paving.jpg');m.repeat.set(3,3);return m})(),color:0xd9d0c0,roughness:.95,polygonOffset:true,polygonOffsetFactor:-3}));
@@ -1121,8 +1194,12 @@ void main(){float y=vUv.y;
  // Each door opens into a furnished walkable room in a separate part of the scene.
  // Interior floors: oak boards in the houses, flagstones in the smithy. Every room has its own trade.
  const floorTex=(file,n)=>{const m=loadSurface(file);m.repeat.set(n,n);return m};
- const woodFloor=withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('wood.jpg',4),color:0xc9a27e,roughness:.8}));
- const stoneFloor=withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('paving.jpg',3),color:0xb9b2a6,roughness:.95}));
+ // Interior floors (audit PR #17): staggered oak boards with real joints and large stone flags, each with a normal map
+ // for the seams. The old floors reused the shingle-like wall boards and the outdoor crazy paving and read as slate roofs.
+ const floorNor=(file,n)=>{const m=floorTex(file,n);m.colorSpace=T.NoColorSpace;return m};
+ const oakFloorMat=n=>new T.MeshStandardMaterial({map:floorTex('floor_oak.jpg',n),normalMap:floorNor('floor_oak_nor.jpg',n),normalScale:new T.Vector2(.8,.8),color:0xe8c9a4,roughness:.72});
+ const woodFloor=withSurface(cube.clone(),oakFloorMat(3));
+ const stoneFloor=withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('floor_flag.jpg',2.2),normalMap:floorNor('floor_flag_nor.jpg',2.2),color:0xe6dccb,roughness:.9}));
  const goods=createGoods();
  let fseed=4021;const frnd=()=>(fseed=(fseed*16807)%2147483647)/2147483647;
  function parchment(kind){const c=document.createElement('canvas');c.width=512;c.height=360;const g=c.getContext('2d');
@@ -1176,7 +1253,7 @@ void main(){float y=vUv.y;
   for(const side of [-1,1])build(wall,0xe1cfaa,side*2.9,H/2,5,4.4,H,.22);build(wall,0xe1cfaa,0,(H+3.1)/2,5,1.6,H-3.1,.22);
   for(const sx of [-1,1])build(beam,wood,sx*.72,1.5,4.86,.14,3.05,.16);build(beam,wood,0,3.05,4.86,1.6,.18,.17);build(beam,wood,0,3.75,4.82,10,.21,.2);
   const roomDoor=hingedDoor(room,-.625,0,4.92,0,1.25,2.95,0x6e4a30);mesh(new T.PlaneGeometry(1.45,3.1),doorView,0,1.55,5.14,1,1,1,Math.PI);
-  build(withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('wood.jpg',3),color:0x8a6a4c,roughness:.9})),0xffffff,0,H+.12,0,10.3,.18,10.3);
+  build(withSurface(cube.clone(),oakFloorMat(3)),0xffffff,0,H+.12,0,10.3,.18,10.3);
   // window with light coming in
   mesh(new T.PlaneGeometry(2.45,1.45),portalGlass,-2,2.6,-4.87);
   for(const xx of [-3.24,-2,-.76])build(beam,wood,xx,2.6,-4.75,.11,1.58,.12);
@@ -1341,7 +1418,7 @@ void main(){float y=vUv.y;
    for(let k=0;k<=steps;k++){const z0=3.6-(k+.5)*4.6/steps,y=4.2*(k+1)/steps;if(k<steps)build(beam,0x5a3d26,3.86,y+.48,z0,.05,.96,.05)}for(const [zz,yy] of [[3.45,.3],[-.95,4.2]])build(beam,0x4a3020,3.86,yy+.6,zz,.14,1.2,.14);
    build(beam,0x5a3d26,3.86,2.1+1,1.3,.1,.08,6.3,0,0,Math.atan2(4.2,4.6));
    // gallery floor with railing
-   build(withSurface(cube.clone(),new T.MeshStandardMaterial({map:floorTex('wood.jpg',2),color:0xb08a62,roughness:.85})),0xffffff,0,4.1,-3,9.78,.2,4);
+   build(withSurface(cube.clone(),oakFloorMat(2)),0xffffff,0,4.1,-3,9.78,.2,4);
    build(beam,0x5a3d26,-.45,3.95,-1.02,9.1,.12,.16);for(let k=0;k<22;k++)build(beam,0x5a3d26,-4.8+k*.41,4.65,-1.05,.05,.9,.05);build(beam,0x5a3d26,-.45,5.12,-1.05,9.1,.08,.12);
    for(const xx of [-4.0,-.8,2.4])build(beam,wood,xx,2.0,-1.05,.2,4.0,.2);solid(-4,-1.05,.3,.3);solid(-.8,-1.05,.3,.3);solid(2.4,-1.05,.3,.3);
    // gallery: library and a reading corner
@@ -1423,7 +1500,7 @@ void main(){float y=vUv.y;
  const walkers=context?createWalkers(scene,{free:walkable,lift:liftAt}):null;
  const fauna=context?createFauna(scene,{ground:(x,z,s)=>ground(x,z,s),blocked:(x,z,s,y,r,h)=>blocked(x,z,s,y,r,h),walkable,lift:liftAt}):null;solids.add({x:12.5,z:11.5,r:.6,base:0,top:.8});
  const hero=expeditionPilot(scene,!!context),shadow=new T.Mesh(new T.PlaneGeometry(1.46,.94),new T.MeshBasicMaterial({map:loadSurface("footshadow.png"),transparent:true,depthWrite:false}));shadow.rotation.x=-Math.PI/2;scene.add(shadow);
- const nodes=[[-5,7,'hout'],[5,-1,'hout'],[-5,-9,'steen'],[6,-15,'steen'],[-6,-47,'hout'],[5,-54,'steen'],[-5,-66,'hout'],[5,-73,'steen'],[-5,-104,'steen'],[6,-114,'hout'],[-5,-120,'steen'],[7,-132,'hout'],[-52,14,'hout'],[-67,13,'hout'],[-67,-4,'hout'],[-52,-3,'steen'],[-58,-69,'hout'],[-63,-70,'steen'],[62,-86,'steen'],[52,-90,'steen'],[64,-74,'steen'],[60,-121,'steen'],[49,-134,'hout']].map(([x,z,type],i)=>{
+ const nodes=[[-5,7,'hout'],[5,-1,'hout'],[-5,-9,'steen'],[6,-15,'steen'],[-6,-47,'hout'],[5,-54,'steen'],[-5,-66,'hout'],[5,-73,'steen'],[-5,-104,'steen'],[6,-114,'hout'],[-5,-120,'steen'],[7,-132,'hout'],[-52,14,'hout'],[-67,13,'hout'],[-71.5,-7,'hout'],[-52,-3,'steen'],[-58,-69,'hout'],[-63,-70,'steen'],[62,-86,'steen'],[52,-90,'steen'],[64,-74,'steen'],[60,-121,'steen'],[49,-134,'hout']].map(([x,z,type],i)=>{
   solids.add(type==='hout'?{x,z,w:.83,d:1.12,base:0,top:1.48,harvest:i}:{x,z,r:1.16,base:0,top:1.74,harvest:i});
   const g=group(x,0,z);
   if(type==='hout'){const barkParts=[],endParts=[];
@@ -1589,7 +1666,7 @@ void main(){float y=vUv.y;
   const e=c.door,h=terrain(e.x,e.z);if(h<-50||Math.abs(h-lo)>.5||solids.blocked(e.x,e.z,st,h+.05,.35,2.2))return {valid:false,reason:'de voordeur komt niet vrij uit'};
   return {valid:true}}
  let houseLastS=null,houseGhostDesign=null;
- function sync(s){houseLastS=s;houseSync(s,houseGhostDesign);flags.length=0;{const tn=towerProgress(s);for(const k in towerGroups)towerGroups[k].visible=towerShow[k](tn)}portPads.forEach((list,i)=>list.forEach(m=>m.visible=s.stage<=i));bridgeGroups.forEach(b=>b.list.forEach(g=>g.visible=s.stage>=b.stage));beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
+ function sync(s){houseLastS=s;houseSync(s,houseGhostDesign);flags.length=0;{const tn=towerProgress(s);for(const k in towerGroups)towerGroups[k].visible=towerShow[k](tn)}portPads.forEach((list,i)=>list.forEach(m=>m.visible=s.stage<=i));bridgeGroups.forEach(b=>b.list.forEach(g=>g.visible=s.stage>=b.stage));beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(lightTower)[].concat(lightTower.material).forEach(m=>{if(m.emissiveMap)m.emissiveIntensity=s.stage>=3?2.6:.15});if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
  function ground(x,z,s,y=100){if(inside)return inside.floorAt(x-inside.x,z,y);const L=liftAt(x,z);let h=islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.35)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r-.35?L+mountainH(x,z):-100;
  for(const b of bridges){if(b.stage>s.stage)continue;const o=onBridge(b,x,z,2.3);if(o&&o.v<b.hw-.02)h=Math.max(h,o.y+.19)}
  if(tower)h=Math.max(h,tower.stairs(x,z,s,y));
@@ -1614,7 +1691,8 @@ void main(){float y=vUv.y;
   for(const a of airships){const th=a.phase+t*.012,x=a.center.x+Math.cos(th)*a.rx,z=a.center.z+Math.sin(th)*a.rz;a.g.position.set(x,a.y+Math.sin(t*.35)*.9,z);a.g.rotation.set(Math.sin(t*.27)*.025,Math.atan2(Math.sin(th)*a.rx,-Math.cos(th)*a.rz),Math.sin(t*.31)*.03);for(const pr of a.props)pr.rotation.z=t*14}
   {const f=gondola.userData.f,c=cableAt(f),a=cableTop(cableA),b=cableTop(cableB);gondola.position.copy(c);gondola.rotation.y=Math.atan2(b.x-a.x,b.z-a.z)}
   cascadeUniforms.time.value=t;for(const [m,s,o] of mists){m.material.opacity=.32+.16*Math.sin(t*.5+o);const k=1+.08*Math.sin(t*.4+o);m.scale.set(s*k,s*.6*k,1)}
-  for(const f of torrents)f.material.map.offset.y=(f.material.map.offset.y-dt*(f.geometry.type==='PlaneGeometry'?1.6:.9))%1;
+  // All streams share one flow texture: scroll each texture once per frame, not once per mesh (PR #8).
+  {const moved=new Set();for(const f of torrents){const map=f.material?.map;if(!map||moved.has(map))continue;moved.add(map);map.offset.y=(map.offset.y-dt*(f.geometry.type==='PlaneGeometry'?1.6:.9))%1}}
   for(const f of flags){const q=f.geometry.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i)+.55;q.setZ(i,Math.sin(t*5-x*4)*.09*x)}q.needsUpdate=true}
   fauna?.update(t,dt,start?{x:0,y:0,z:13}:p,s,inside);walkers?.update(t,dt,start?{x:0,y:0,z:13}:p,inside,s);
   sail.visible=!start&&!!p.glide;const portrait=start?{x:0,y:0,z:13,heading:Math.PI+.32+.13*Math.sin(t*.37),on:true,speed:0,walk:0}:p;hero.pose(t,portrait,dt,view.yaw);
@@ -1636,7 +1714,7 @@ void main(){float y=vUv.y;
     }
    }
   }
-  cam.lookAt(target);
+  cam.lookAt(target);firLod(cam.position);
   if(inside&&(portalTick++%(inside.door.open>.02?3:6)===0||dt>=1))renderPortal();
   if(context){sun.position.set(portrait.x-36,portrait.y+34,portrait.z+22);sun.target.position.set(portrait.x,portrait.y,portrait.z)}
   else {const angle=Math.atan2(eye.x-target.x,eye.z-target.z);skyCanvas.style.backgroundPosition=(50+angle*100/Math.PI)+'% 62%'}
@@ -1652,6 +1730,21 @@ void main(){float y=vUv.y;
   renderer.setPixelRatio(Math.min(devicePixelRatio,q>=2?1.65:q===1?1.2:1));resize();
   if(context&&!fx){renderer.toneMapping=T.ACESFilmicToneMapping}else if(q===0){renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15}}
  function resize(){let w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();if(fx){const r=renderer.getPixelRatio();fx.setSize(Math.round(w*r),Math.round(h*r))}}resize();
- if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));Models.load('sf_bookshelf').then(r=>r.material.color.setHex(0xa8876a)).catch(()=>{});dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb39c86);dressCrags();dressStumps()}
- return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),rooms,enterRoom,outfit:hero.outfit,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,housePlots,siteCheck,houseGhost:d=>{houseGhostDesign=d||null;houseSync(houseLastS,houseGhostDesign)},houseLocal:(x,z)=>houseNow?houseLocal(x,z):null,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
+ // Realistic firs (LOLIPOP, "Realistic fir trees pack", CC BY 4.0): three tall and three medium trees, each in three
+ // levels of detail. Near the camera the full tree, further on the lighter one and beyond 80 m a billboard; the
+ // instances are re-sorted whenever the camera has moved a couple of metres. Trees sway with the shared wind.
+ let firSet=null;const firAt=new T.Vector3(1e9,0,0);
+ function plantFirs(){const names=[];for(let v=1;v<=6;v++)for(const l of [1,2,3])names.push('fir'+v+'_l'+l);
+  Promise.all(names.map(Models.load)).then(list=>{const H=[9.31,9.24,8.1,4.43,4.16,6.61],Q=new T.Quaternion(),S=new T.Vector3(),P=new T.Vector3(),Y=new T.Vector3(0,1,0),sets=[[],[],[],[],[],[]],mats=new Set();
+   for(const t of pines){const k=(t.h>=5?0:3)+t.v,sc=t.h*FIR/H[k];P.set(t.x,t.y-.05,t.z);Q.setFromAxisAngle(Y,t.ry);S.set(sc,sc*(.94+.12*((t.v*7+Math.abs(Math.round(t.x)))%5)/4),sc);sets[k].push({x:t.x,y:t.y,z:t.z,m:new T.Matrix4().compose(P,Q,S)})}
+   firSet=sets.map((trees,k)=>{if(!trees.length)return null;return {trees,tiers:[0,1,2].map(l=>{const r=list[k*3+l],mesh=new T.InstancedMesh(r.geometry,r.material,trees.length);
+     mesh.count=0;mesh.visible=false;mesh.castShadow=l<2;mesh.receiveShadow=true;mesh.frustumCulled=false;scene.add(mesh);for(const m of [].concat(r.material))mats.add(m);return mesh})}}).filter(Boolean);
+   mats.forEach(m=>{if(!m.userData.swayed){m.userData.swayed=true;Nature.sway(m,.0016)}});
+   scene.traverse(o=>{if(o.isInstancedMesh&&(o.geometry===pineTrunk||conifers.includes(o.geometry)))o.visible=false});firAt.set(1e9,0,0)
+  }).catch(e=>console.warn('firs',e))}
+ function firLod(c){if(!firSet||firAt.distanceToSquared(c)<6)return;firAt.copy(c);
+  for(const {trees,tiers} of firSet){const n=[0,0,0];for(const t of trees){const d=Math.hypot(t.x-c.x,t.z-c.z,(t.y-c.y)*.5),l=d<24?0:d<80?1:2;tiers[l].setMatrixAt(n[l]++,t.m)}
+   tiers.forEach((m,l)=>{m.count=n[l];m.visible=n[l]>0;m.instanceMatrix.needsUpdate=true})}}
+ if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));Models.load('sf_bookshelf').then(r=>r.material.color.setHex(0xa8876a)).catch(()=>{});dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb39c86);dressCrags();dressStumps();plantFirs()}
+ return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),rooms,enterRoom,outfit:hero.outfit,rig:()=>hero.rig?.(),reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,housePlots,siteCheck,houseGhost:d=>{houseGhostDesign=d||null;houseSync(houseLastS,houseGhostDesign)},houseLocal:(x,z)=>houseNow?houseLocal(x,z):null,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
 }
