@@ -38,3 +38,10 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
 - Gescande rotsen, rotsblokken, boomstronk en rots-/klifoppervlakken: Poly Haven (polyhaven.com),
   CC0 1.0. Modellen: moon_rock_02, moon_rock_04, rock_07, rock_09, tree_stump_01.
   Texturen: cliff_side, aerial_rocks_02.
+
+1.15.0
+- Scans van Poly Haven (polyhaven.com), CC0 1.0: wine_barrel_01, WoodenTable_01, wooden_picnic_table,
+  small_wooden_table_01, round_wooden_table_01, painted_wooden_bench, wooden_stool_01, compost_bag_02,
+  watering_can_metal_01, rusted_spade_01, wicker_basket_01, wooden_bucket_01, wooden_bucket_02, wooden_crate_02,
+  stone_fire_pit, large_castle_door, gothic_statue.
+- Texturen van Poly Haven, CC0 1.0: castle_wall_slates, castle_brick_broken_06, clay_roof_tiles_02.
