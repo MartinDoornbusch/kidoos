@@ -35,7 +35,7 @@ const admin={on:false,asked:/[?&](beheer|admin)\b/i.test(location.search),fly:fa
 function adminOpen(){if(admin.on){adminPanel();return}
  show('<small>BEHEERMODUS</small><h2>Pincode</h2><p>Voer de pincode in om de beheermodus te openen. Daarna wordt er in deze sessie niets meer opgeslagen.</p><form id="pinform" class="row"><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="Pincode"><button class="primary">Openen</button></form><p id="pinmsg"></p>'+buttons());back();setTimeout(()=>$('pin')?.focus(),50);
  $('pinform').onsubmit=async e=>{e.preventDefault();let hex='';try{const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('skybound:'+$('pin').value.trim()));hex=[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('')}catch{}
-  if(hex===admin.hash){admin.on=true;notify('Beheermodus aan: er wordt niets meer opgeslagen.');adminPanel()}else{$('pinmsg').textContent='Die pincode klopt niet.';$('pin').value=''}}}
+  if(hex===admin.hash){admin.on=true;admin.pin=$('pin').value.trim();notify('Beheermodus aan: er wordt niets meer opgeslagen.');adminPanel()}else{$('pinmsg').textContent='Die pincode klopt niet.';$('pin').value=''}}}
 function adminPanel(){
  const st=[['Begin, alles dicht',0,1],['Havenbrug klaar',1,1],['Bergbrug klaar',2,1],['Baken brandt',3,1],['Level 2 gestart',3,2],['Molen draait',4,2],['Kraan hijst',5,2],['Alles klaar',6,2]];
  const isl=world.islands.map((I,i)=>'<button data-go="'+i+'">'+I.name+'</button>').join('');
@@ -43,10 +43,12 @@ function adminPanel(){
  show('<small>BEHEERMODUS · WORDT NIET OPGESLAGEN</small><h2>Godmodus</h2><p>Alles wat je hier doet is tijdelijk. Ververs de pagina zonder <b>?beheer</b> om terug te gaan naar de echte voortgang.</p>'+
   '<div class="question">Voortgang (nu: stap '+s.stage+', level '+(s.level||1)+')</div><div class="row">'+st.map(([t,n,l],i)=>'<button data-stage="'+i+'">'+t+'</button>').join('')+'</div>'+
   '<div class="question">Uitrusting en vliegen</div><div class="row"><button id="admAll" class="primary">Alles tonen + al het gereedschap</button><button id="admRes">+50 van alles</button><button id="admFly">Vliegen '+(admin.fly?'uit':'aan')+'</button></div><p><small>Vliegen: W/S/A/D om te bewegen, spatie omhoog, C omlaag, Shift sneller. Je gaat door muren heen.</small></p>'+
+  '<div class="question">Ouders</div><p>'+(Track.linked()?'Dit apparaat is gekoppeld aan het ouderoverzicht.':'Dit apparaat is nog niet gekoppeld. Koppel elk apparaat waarop de kinderen spelen één keer.')+'</p><div class="row"><button id="admOverview" class="primary">Ouderoverzicht</button><button id="admLink">'+(Track.linked()?'Ontkoppelen':'Dit apparaat koppelen')+'</button></div>'+
   '<div class="question">Naar een eiland</div><div class="row">'+isl+'<button id="admCable">Kabelbaanstation</button></div>'+
   '<div class="question">Binnen kijken</div><div class="row">'+homes+'</div>'+buttons());back();
  const setStage=(n,l)=>{s.stage=n;s.level=l;s.seals=0;world.sync(s);updateHUD()};
  document.querySelectorAll('[data-stage]').forEach(b=>b.onclick=()=>{const [,n,l]=st[+b.dataset.stage];setStage(n,l);closePanel();notify('Beheer: '+st[+b.dataset.stage][0]+'.')});
+ $('admOverview').onclick=parentOverview;$('admLink').onclick=linkThisDevice;
  $('admAll').onclick=()=>{setStage(6,2);Object.keys(TOOLS).forEach(k=>s.tools[k]=true);world.equip(s.tools);closePanel();notify('Beheer: alle bruggen, effecten en gereedschap staan aan.')};
  $('admRes').onclick=()=>{s.hout+=50;s.steen+=50;s.planken+=50;s.munten=(s.munten||0)+50;closePanel();notify('Beheer: 50 hout, steen, planken en munten erbij.')};
  $('admFly').onclick=()=>{admin.fly=!admin.fly;p.glide=false;closePanel();notify(admin.fly?'Vliegen aan: spatie omhoog, C omlaag.':'Vliegen uit.')};
@@ -54,6 +56,34 @@ function adminPanel(){
  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const I=world.islands[+b.dataset.go],g=I.gate;g?go(g.x+(I.x-g.x)/I.r*3,g.z+(I.z-g.z)/I.r*3):go(0,I.z+8)});
  $('admCable').onclick=()=>{const a=world.cable.a;go(a.x-1.5,a.z+1.8)};
  document.querySelectorAll('[data-house]').forEach(b=>b.onclick=()=>{const r=world.rooms[+b.dataset.house];if(currentRoom)leaveHouse();ride=null;p.ride=false;closePanel();visitHouse(r)})}
+// Parent overview (beheermodus): practice and play time per day, results per subject and the weakest topics,
+// merged from every linked device.
+const snapshot=()=>({stage:s.stage,level:s.level||1,munten:s.munten||0,hout:s.hout,steen:s.steen,planken:s.planken,tools:Object.keys(s.tools).filter(k=>s.tools[k]).map(k=>TOOLS[k]?.name||k),village:Object.keys(s.village||{}).length,best:s.best||0});
+async function parentOverview(){
+ show('<small>OUDEROVERZICHT</small><h2>Oefentijd en voortgang</h2><p>Gegevens ophalen...</p>'+buttons());back();
+ let res;try{res=await Track.overview(admin.pin)}catch(e){$('content').innerHTML='<small>OUDEROVERZICHT</small><h2>Niet gelukt</h2><p>'+(e.message==='opslag'?'De opslag op de server is nog niet ingesteld.':e.message==='pincode'?'De server accepteerde de pincode niet.':'Er is geen verbinding met de server.')+'</p>'+buttons();back();return}
+ const m=v=>Math.round(v/60),pct=a=>a&&a[1]?Math.round(a[0]/a[1]*100)+'%':'nog geen',key=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+ const days=[...Array(14)].map((_,i)=>{const d=new Date();d.setHours(12);d.setDate(d.getDate()-13+i);return d}),wd=['zo','ma','di','wo','do','vr','za'];
+ const fmt=t=>new Date(t).toLocaleString('nl-NL',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+ const table=(head,rows)=>'<table style="width:100%;border-collapse:collapse;font-size:13px;margin:.4em 0 1em"><tr>'+head.map(h=>'<th style="text-align:left;border-bottom:1px solid #c9b98f;padding:3px 4px">'+h+'</th>').join('')+'</tr>'+rows.map(r=>'<tr>'+r.map(c=>'<td style="padding:3px 4px;border-bottom:1px solid #eadfc4">'+c+'</td>').join('')+'</tr>').join('')+'</table>';
+ function kid(name,k){
+  if(!k)return '<h3>'+name+'</h3><p>Nog geen gegevens. Koppel het apparaat waarop '+name+' speelt via de beheermodus op dat apparaat.</p>';
+  const v=d=>k.days[key(d)]||{play:0,practice:0,subj:{}},max=Math.max(60,...days.map(d=>v(d).practice+v(d).play));
+  const bars='<div style="display:flex;gap:3px;align-items:flex-end;margin:.3em 0">'+days.map(d=>{const x=v(d);return '<div style="flex:1;text-align:center"><div style="height:80px;display:flex;flex-direction:column;justify-content:flex-end"><div style="height:'+Math.round(x.play/max*78)+'px;background:#d9c49a;border-radius:3px 3px 0 0"></div><div style="height:'+Math.round(x.practice/max*78)+'px;background:#2f6f6a"></div></div><div style="font-size:10px;line-height:1.2">'+wd[d.getDay()]+'<br>'+d.getDate()+'<br><b>'+m(x.practice)+'</b></div></div>'}).join('')+'</div>';
+  const sum=list=>list.reduce((a,d)=>{const x=v(d);a.p+=x.practice;a.s+=x.play;for(const [sub,[ok,n]] of Object.entries(x.subj)){const t=a.subj[sub]??=[0,0];t[0]+=ok;t[1]+=n}return a},{p:0,s:0,subj:{}});
+  const week=sum(days.slice(7)),all={};for(const x of Object.values(k.days))for(const [sub,[ok,n]] of Object.entries(x.subj)){const t=all[sub]??=[0,0];t[0]+=ok;t[1]+=n}
+  const weak=Object.entries(k.skills).flatMap(([sub,sk])=>Object.entries(sk).map(([n,a])=>({sub,n,a}))).filter(x=>x.a[1]>=4).sort((x,y)=>x.a[0]/x.a[1]-y.a[0]/y.a[1]).slice(0,3);
+  const g=k.game||{},lvl=g.stage<3?'level 1, missie '+(g.stage+1):g.stage===3&&g.level<2?'level 1 klaar':g.stage>=6?'alle levels klaar':'level 2, missie '+(g.stage-2);
+  return '<h3>'+name+'</h3><p>Laatst actief: '+(k.sessions[0]?fmt(k.sessions[0].end):'nog niet')+'. Nu in '+lvl+', met '+(g.tools?.length||0)+' gereedschap en '+(g.munten||0)+' munten'+(k.devices>1?' (op '+k.devices+' apparaten)':'')+'.</p>'+
+   '<p><b>Deze week:</b> '+m(week.p)+' minuten oefenen en '+m(week.s)+' minuten spelen.</p>'+bars+
+   '<p style="font-size:12px"><span style="display:inline-block;width:10px;height:10px;background:#2f6f6a"></span> oefenen (getal = minuten) <span style="display:inline-block;width:10px;height:10px;background:#d9c49a;margin-left:8px"></span> spelen</p>'+
+   (Object.keys(all).length?table(['Vak','Vragen 7 dagen','Goed 7 dagen','Vragen totaal','Goed totaal'],Object.keys(all).map(sub=>[sub,week.subj[sub]?.[1]||0,pct(week.subj[sub]),all[sub][1],pct(all[sub])])):'<p>Nog geen vragen beantwoord.</p>')+
+   (weak.length?'<p><b>Lastigste onderdelen:</b></p>'+table(['Vak','Onderdeel','Goed'],weak.map(x=>[x.sub,x.n,x.a[0]+' van '+x.a[1]+' ('+pct(x.a)+')'])):'')+
+   (k.sessions.length?'<p><b>Laatste sessies:</b></p>'+table(['Start','Actief','Oefenen','Vragen','Goed'],k.sessions.slice(0,6).map(x=>[fmt(x.start),m(x.play+x.practice)+' min',m(x.practice)+' min',x.q,pct([x.ok,x.q])])):'')}
+ $('content').innerHTML='<small>OUDEROVERZICHT · ALLE GEKOPPELDE APPARATEN</small><h2>Oefentijd en voortgang</h2><p>Alleen actieve tijd telt: na een minuut zonder toets of tik stopt de klok. Oefenen is de tijd waarin een vraag op het scherm staat.</p>'+kid('Niek',res.kids?.Niek)+kid('Floor',res.kids?.Floor)+buttons();back()}
+async function linkThisDevice(){const b=$('admLink');if(Track.linked()){Track.unlink();notify('Dit apparaat is ontkoppeld.');adminPanel();return}
+ b.disabled=true;b.textContent='Koppelen...';try{await Track.linkDevice(admin.pin);notify('Gekoppeld. Ververs de pagina zonder ?beheer om te spelen; de oefentijd wordt dan bijgehouden.');adminPanel()}
+ catch(e){b.disabled=false;b.textContent='Dit apparaat koppelen';notify(e.message==='opslag'?'De opslag op de server is nog niet ingesteld.':e.message==='pincode'?'Pincode niet geaccepteerd.':'Geen verbinding met de server.')}}
 const houseOf=key=>world.rooms.find(r=>r.house.key===key).house;
 const repair=[{x:0,z:-21},{x:0,z:-81},{x:0,z:-130},{x:-63.5,z:-63.5},{x:56.5,z:-84},{x:63,z:-128}];
 const key=()=> 'studyquest.skybound.v1.'+(profile==='Floor'?'Nova':'Flint');
@@ -61,7 +91,7 @@ function persist(){if(!playing||admin.on)return;try{s.position=currentRoom?{...o
 function notify(str){$('toast').textContent=str;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').textContent='',3500)}
 function dist(o){return Math.hypot(o.x-p.x,o.z-p.z)}
 function area(){return world.islands.reduce((a,b)=>dist(a)<dist(b)?a:b)}
-function restore(){currentRoom=null;world.enterRoom(null);resetSteering();world.outfit(profile==="Floor"?"Nova":"Flint");race=null;let data;try{data=JSON.parse(localStorage.getItem(key()))}catch{}s=data?.version===1?Object.assign(newSave(),data):newSave();
+function restore(){Track.save();Track.load(profile);currentRoom=null;world.enterRoom(null);resetSteering();world.outfit(profile==="Floor"?"Nova":"Flint");race=null;let data;try{data=JSON.parse(localStorage.getItem(key()))}catch{}s=data?.version===1?Object.assign(newSave(),data):newSave();
  if(s.log.chapter!==7){s.previousGermanLog=s.log;s.log={chapter:7,turn:0,items:{}}}
  let pos=s.position;Object.assign(p,{x:pos?.x??0,z:pos?.z??13,y:pos?.y??0,vy:0,speed:0,heading:pos?.yaw??0,on:false,glide:false});view.yaw=pos?.yaw??0;if(world.ground(p.x,p.z,s)<-20||world.blocked(p.x,p.z,s,p.y))respawn();world.sync(s);world.equip(s.tools);world.scarf(s.scarf);if(s.dogFriend)world.fauna?.befriend()}
 function respawn(){let anchor=world.islands[Math.min(s.stage,2)];Object.assign(p,{x:0,z:anchor.z+8,y:world.ground(0,anchor.z+8,s),vy:0,on:true,speed:0,glide:false});if(playing)notify('Terug op vaste grond. Je uitrusting is mee.')}
@@ -152,6 +182,7 @@ function harvest(n){
  swing()
 }
 // Which subject a pupil practises: Niek mainly German, Floor Dutch. Linde's map asks history of Niek.
+function germanSkill(q){return German.groups[(German.bank[q.id]||q).skill]||'Duits'}
 function subject(kind){if(profile==='Floor')return 'nl';if(kind==='kaart')return 'hist';return 'de'}
 function nextDutch(){const bank=dutchBanks[profile],st=s.dutch||={good:0,total:0,cursor:0};st.retry||=[];
  const due=st.retry.find(r=>r.at<=st.total);if(due){st.retry=st.retry.filter(r=>r!==due);return due.i}
@@ -160,13 +191,13 @@ function nextDutch(){const bank=dutchBanks[profile],st=s.dutch||={good:0,total:0
 function askOne(kind,{kicker,title,lead},onGraded){
  let q,prompt,task,check,record,correct,why,options=null,german=false;
  if(kind==='de'){q=German.next(s.log,null);german=true;prompt=q.sentence;task=q.task||'Schrijf het juiste antwoord.';correct=q.correct;why=q.why;
-  check=v=>German.accepts(q,v);record=ok=>German.record(s.log,q,ok)}
+  check=v=>German.accepts(q,v);record=ok=>{German.record(s.log,q,ok);Track.answer('Duits',germanSkill(q),ok)}}
  else if(kind==='hist'){const log=s.history??={turn:0,items:{}};q=HistoryCourse.next(log,null);prompt=q.prompt;task=HistoryCourse.task(q);correct=q.answer.split('|')[0];why=q.why;options=q.choices||null;
-  check=v=>HistoryCourse.accepts(q,v);record=ok=>German.record(log,q,ok)}
+  check=v=>HistoryCourse.accepts(q,v);record=ok=>{German.record(log,q,ok);Track.answer('Geschiedenis',HistoryCourse.titles[q.section]||'Geschiedenis',ok)}}
  else{const bank=dutchBanks[profile],i=nextDutch(),[topic,p,answer,w,t]=bank[i];prompt=p;why=w;task=t||(Array.isArray(answer)?'Kies het beste antwoord.':'Typ je antwoord.');
   const norm=v=>v.trim().toLocaleLowerCase('nl').replace(/[“”"‘’',;:]/g,'').replace(/[.!?]+$/,'').replace(/\s+/g,' ').trim();
   const accepted=typeof answer==='string'?answer.split('|'):[answer[0]];correct=accepted[0];if(Array.isArray(answer))options=answer;
-  check=v=>accepted.some(a=>norm(a)===norm(v));record=ok=>{const st=s.dutch;st.total++;if(ok)st.good++;else st.retry.push({i,at:st.total+3})}}
+  check=v=>accepted.some(a=>norm(a)===norm(v));record=ok=>{Track.answer('Nederlands',topic,ok);const st=s.dutch;st.total++;if(ok)st.good++;else st.retry.push({i,at:st.total+3})}}
  show('<small>'+kicker+'</small><h2>'+title+'</h2>'+(lead?'<p>'+lead+'</p>':'')+'<div class="question"></div><p class="task"></p><form id="oneForm"></form>'+buttons());back();
  document.querySelector('.question').textContent=prompt;document.querySelector('.task').textContent=task;const form=$('oneForm');
  function grade(value){
@@ -259,7 +290,7 @@ function exercise(mission,skill=null){
  document.querySelector('.question').textContent=q.sentence;
  const input=$('word');
  if(q.language==='de')for(const ch of ['ä','ö','ü','ß','Ä','Ö','Ü']){const b=document.createElement('button');b.type='button';b.textContent=ch;b.onclick=()=>{input.setRangeText(ch,input.selectionStart,input.selectionEnd,'end');input.focus()};$('letters').append(b)}
- $('answer').onsubmit=e=>{e.preventDefault();const reply=input.value,ok=German.accepts(q,reply);German.record(s.log,q,ok);if(ok&&mission)s.seals++;if(ok&&!mission)coin();persist();
+ $('answer').onsubmit=e=>{e.preventDefault();const reply=input.value,ok=German.accepts(q,reply);German.record(s.log,q,ok);Track.answer('Duits',germanSkill(q),ok);if(ok&&mission)s.seals++;if(ok&&!mission)coin();persist();
  show('<small>'+(ok?'INSTRUCTIE BEGREPEN':'HERHALING INGEPLAND')+'</small><h2>'+(ok?'Helemaal goed!':'Kijk nog even mee')+'</h2><p class="source"></p><div class="question"></div><p class="youranswer"></p><p class="why"></p><div class="row"><button id="continue" class="primary">'+(mission&&s.seals>=mission()[3]?'Naar de reparatie':'Volgende opdracht')+'</button></div>'+buttons());
  document.querySelector('.source').textContent=q.sentence;document.querySelector('.question').textContent=q.correct;document.querySelector('.youranswer').textContent=ok?'':'Jouw antwoord: '+reply;document.querySelector('.why').textContent=(!ok&&German.nearMiss(q,reply)?'Bijna goed, alleen de hoofdletters kloppen niet. In het Duits krijgt elk zelfstandig naamwoord een hoofdletter, net als de beleefde vorm Sie. ':'')+q.why;back();
  $('continue').onclick=()=>mission&&s.seals>=mission()[3]?workshop():exercise(mission,skill)};
@@ -276,7 +307,7 @@ function site(){let x=Math.round((p.x-Math.sin(p.heading)*2.9)/2)*2,z=Math.round
  return {x,y,z,valid}}
 function place(){let b=site();if(!b.valid){notify('Zoek een vrije plek op het eiland.');return}const item=!['blok','lamp'].includes(placement);let material=placement==='blok'?'hout':'steen';if(item?!s.items[placement]:!s[material]){clearPlacement();return}
  s.builds.push({x:b.x,y:b.y,z:b.z,type:placement});if(item)s.items[placement]--;else s[material]--;clearPlacement();world.sync(s);persist();updateHUD();notify('Bouwwerk geplaatst')}
-function logbook(){show('<small>VLUCHTLOG · '+profile.toUpperCase()+'</small><h2>Jouw expeditie</h2><p>'+(s.stage<3?'Level 1: '+s.stage+' van 3 missies voltooid.':(s.level||1)<2?'Level 1 voltooid. Level 2 staat klaar.':s.stage>=6?'Alle levels voltooid.':'Level 2: '+(s.stage-3)+' van 3 missies voltooid.')+' Per vaardigheid zie je hoeveel antwoorden goed waren van alle pogingen.</p>'+(profile==='Niek'?German.groups.map((g,i)=>{let entries=Object.values(s.log.items).filter(e=>German.bank[e.id].skill===i);return '<div class="meter">'+g+'<b>'+entries.reduce((a,e)=>a+e.good,0)+' / '+entries.reduce((a,e)=>a+e.attempts,0)+'</b></div>'}).join('')+'<p>'+Object.values(s.log.items).filter(e=>e.due!==null).length+' opdrachten staan klaar voor herhaling.</p>':'<p>Duits en geschiedenis worden toegevoegd zodra je havo 3-stof er is.</p>')+dutchStats()+(s.best?'<p>Persoonlijk record windrace: '+s.best.toFixed(1)+' seconden.</p>':'')+'<h3>Dorpsonderzoeken</h3>'+villageHomes.map(h=>'<div class="meter">'+h.place+' · '+h.name+'<b>'+(s.village?.[h.key]?'Afgerond':'Open')+'</b></div>').join('')+'<div class="row"><button id="practice">Oefen Duits</button><button id="historyLog">Oefen geschiedenis</button><button id="practiceNL">Oefen Nederlands</button><button id="pilot">Wissel personage</button>'+(s.stage===3&&(s.level||1)<2?'<button id="lvl2" class="primary">Start level 2</button>':'')+'<button id="restart">Opnieuw beginnen</button></div><p><a href="art/credits.txt" target="_blank" rel="noopener">Makers van de 3D-beelden</a></p>'+buttons());back();$('practiceNL').onclick=()=>dutchRound(false);if($('lvl2'))$('lvl2').onclick=startLevel2;$('restart').onclick=restartGame;$('practice').disabled=$('historyLog').disabled=profile==='Floor';$('practice').onclick=school;$('historyLog').onclick=historyMenu;$('pilot').onclick=()=>{persist();playing=false;clearPlacement();$('panel').close();$('hud').hidden=true;$('entry').hidden=false}}
+function logbook(){show('<small>VLUCHTLOG · '+profile.toUpperCase()+'</small><h2>Jouw expeditie</h2><p>'+(s.stage<3?'Level 1: '+s.stage+' van 3 missies voltooid.':(s.level||1)<2?'Level 1 voltooid. Level 2 staat klaar.':s.stage>=6?'Alle levels voltooid.':'Level 2: '+(s.stage-3)+' van 3 missies voltooid.')+' Vandaag heb je '+Track.minutesToday()+' minuten geoefend. Per vaardigheid zie je hoeveel antwoorden goed waren van alle pogingen.</p>'+(profile==='Niek'?German.groups.map((g,i)=>{let entries=Object.values(s.log.items).filter(e=>German.bank[e.id].skill===i);return '<div class="meter">'+g+'<b>'+entries.reduce((a,e)=>a+e.good,0)+' / '+entries.reduce((a,e)=>a+e.attempts,0)+'</b></div>'}).join('')+'<p>'+Object.values(s.log.items).filter(e=>e.due!==null).length+' opdrachten staan klaar voor herhaling.</p>':'<p>Duits en geschiedenis worden toegevoegd zodra je havo 3-stof er is.</p>')+dutchStats()+(s.best?'<p>Persoonlijk record windrace: '+s.best.toFixed(1)+' seconden.</p>':'')+'<h3>Dorpsonderzoeken</h3>'+villageHomes.map(h=>'<div class="meter">'+h.place+' · '+h.name+'<b>'+(s.village?.[h.key]?'Afgerond':'Open')+'</b></div>').join('')+'<div class="row"><button id="practice">Oefen Duits</button><button id="historyLog">Oefen geschiedenis</button><button id="practiceNL">Oefen Nederlands</button><button id="pilot">Wissel personage</button>'+(s.stage===3&&(s.level||1)<2?'<button id="lvl2" class="primary">Start level 2</button>':'')+'<button id="restart">Opnieuw beginnen</button></div><p><a href="art/credits.txt" target="_blank" rel="noopener">Makers van de 3D-beelden</a></p>'+buttons());back();$('practiceNL').onclick=()=>dutchRound(false);if($('lvl2'))$('lvl2').onclick=startLevel2;$('restart').onclick=restartGame;$('practice').disabled=$('historyLog').disabled=profile==='Floor';$('practice').onclick=school;$('historyLog').onclick=historyMenu;$('pilot').onclick=()=>{persist();playing=false;clearPlacement();$('panel').close();$('hud').hidden=true;$('entry').hidden=false}}
 $('journal').onclick=logbook;$('adminbtn').hidden=!admin.asked;$('adminbtn').onclick=adminOpen;$('mapbtn').onclick=()=>{show('<small>ATLAS · NOORD ↑</small><h2>De windroute</h2><canvas id="atlas" width="600" height="420" aria-label="Kaart met eilanden, bruggen en je positie"></canvas>'+[2,1,0].map(i=>'<div class="mapline"><b>'+world.islands[i].name+'</b><span>'+['Houthaven en molen · vertrekpunt','Bloesembos en tweede brugwerf','Windringen en sterrenbaken'][i]+' · '+(area()===world.islands[i]?'Je bent hier':i<=s.stage?'Bereikbaar':'Brug nodig')+'</span></div>').join('')+buttons());drawAtlas();back()};
 $('act').onclick=act;$('build').onclick=chooseBuild;function jump(){if(currentRoom||admin.fly)return;if(p.on){p.vy=7.8;p.on=false}else if(s.stage>=2&&p.y>.35){p.glide=!p.glide;if(p.glide)notify('Zwever open · stuur met je gewone besturing')}}$('jump').onclick=jump;
 // Physical keys (e.code) keep WASD working with Shift, Caps Lock or another layout. Synthetic test events without a code fall back to e.key.
@@ -383,7 +414,7 @@ function interview(){
  }
  menu()
 }
-let hudAt=0,saveAt=0;function frame(now){let dt=Math.min(.06,(now-last)/1000||.016);last=now;if(playing&&!$('panel').open){let elapsed=Math.min(.25,(now-(frame.previous??now))/1000);while(elapsed>0){let step=Math.min(.025,elapsed);move(step);elapsed-=step}followCamera(dt)}frame.previous=now;if(now>hudAt){updateHUD();hudAt=now+140}if(now>saveAt){persist();saveAt=now+2000}if(playing)world.animate(now/1000,s,p,view,false,dt);requestAnimationFrame(frame)}
+let hudAt=0,saveAt=0;function frame(now){let dt=Math.min(.06,(now-last)/1000||.016);last=now;if(playing&&!admin.on){Track.tick(dt,$('panel').open&&!!$('content').querySelector('form input,form button,[data-ask],.question'));Track.sync(snapshot)}if(playing&&!$('panel').open){let elapsed=Math.min(.25,(now-(frame.previous??now))/1000);while(elapsed>0){let step=Math.min(.025,elapsed);move(step);elapsed-=step}followCamera(dt)}frame.previous=now;if(now>hudAt){updateHUD();hudAt=now+140}if(now>saveAt){persist();saveAt=now+2000}if(playing)world.animate(now/1000,s,p,view,false,dt);requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
 
 function updateProfileMenu(){
@@ -398,3 +429,4 @@ function updateProfileMenu(){
 $('dutch').onclick=()=>{start();if(playing)dutchRound(false)};
 let remembered;try{remembered=sessionStorage.getItem('skybound.pupil')}catch{}
 document.querySelector('[data-profile="'+(remembered==='Floor'?'Floor':'Niek')+'"]').click();
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing&&!admin.on){Track.save();Track.sync(snapshot,true)}});

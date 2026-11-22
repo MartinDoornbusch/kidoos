@@ -19,7 +19,7 @@ function historyQuestion(section,mission,round={count:0,good:0}){
  show('<small>GESCHIEDENIS · '+(mission?'WERKPLAATS':'VRAAG '+(round.count+1)+' VAN 10')+'</small><h2>'+HistoryCourse.titles[q.section]+'</h2><div class="question"></div><p id="historyTask"></p><form id="historyForm"></form>'+buttons());
  back();document.querySelector('.question').textContent=q.prompt;$('historyTask').textContent=HistoryCourse.task(q);const form=$('historyForm');
  function grade(value){
-  const ok=HistoryCourse.accepts(q,value);German.record(log,q,ok);round.count++;round.good+=Number(ok);if(ok&&mission)s.seals++;if(ok&&!mission)coin();persist();
+  const ok=HistoryCourse.accepts(q,value);German.record(log,q,ok);Track.answer('Geschiedenis',HistoryCourse.titles[q.section]||'Geschiedenis',ok);round.count++;round.good+=Number(ok);if(ok&&mission)s.seals++;if(ok&&!mission)coin();persist();
   show('<small>DE OPSTAND · '+(ok?'GOED BEANTWOORD':'HERHALING INGEPLAND')+'</small><h2>'+(ok?'Dat klopt!':'Zo zit het')+'</h2><p class="source"></p><p class="youranswer"></p><div class="question"></div><p class="why"></p><div class="row"><button class="primary" id="historyNext"></button><button id="historyHome">Paragrafen</button></div>'+buttons());back();
   document.querySelector('.source').textContent=q.prompt;document.querySelector('.youranswer').textContent=ok?'':'Jouw antwoord: '+value.trim()+' · Het goede antwoord is:';document.querySelector('.question').textContent=q.answer.split('|')[0];document.querySelector('.why').textContent=q.why;
   const ready=mission&&s.seals>=mission()[3];
