@@ -72,7 +72,9 @@ function createWorld(canvas) {
   for(let i=0;i<684;i++)rnd(); // keeps every later random placement exactly where it was
   const N=96,s=(Math.abs(x*13.7+z*7.1)%97),rim=a=>1+.013*Math.sin(a*9)+.008*Math.sin(a*17);
   const n=(a,y)=>.55*Math.sin(a*3+s)+.3*Math.sin(a*7+y*.35+s*1.7)+.15*Math.sin(a*13-y*.6+s*2.3);
-  const profile=[[1.012,-.13,0],[1.022,-.4,0],[1.018,-.85,1],[.995,-1.7,1],[.95,-.2*depth,2],[.84,-.4*depth,2],[.68,-.6*depth,2],[.48,-.8*depth,3],[.27,-.97*depth,3],[.1,-1.12*depth,3],[.02,-1.22*depth,3]];
+  // underside: a soil band under the turf, then rock strata that step inwards in ledges down to a ragged tip
+  const strata=[.0,.07,.11,.2,.24,.34,.38,.5,.54,.66,.7,.8,.86,.93,1];
+  const profile=[[1.012,-.13,0],[1.02,-.45,1],[1.0,-1.0,1],...strata.slice(1).map((t,i)=>{const ledge=i%2?.06:0;return [Math.max(.015,(1-Math.pow(t,1.35))*.97-ledge),-1.0-t*(depth*1.22-1.0),t<.45?2:3]})];
   const band=[0x45642c,0x5a4634,0x7d7871,0x57545c];
   const top=[],topC=[],topUv=[],topIdx=[],cliff=[],cliffC=[],cliffUv=[],cliffIdx=[],c=new T.Color(),grassTint=new T.Color(land).lerp(new T.Color(0x9cc07c),.6);
   top.push(x,h,z);c.copy(grassTint);topC.push(c.r,c.g,c.b);topUv.push(0,0);
@@ -82,15 +84,21 @@ function createWorld(canvas) {
   for(let i=0;i<N;i++)topIdx.push(0,1+i+1,1+i);
   for(let ring=0;ring<fr.length-1;ring++)for(let i=0;i<N;i++){const a=1+ring*(N+1)+i,b=a+N+1;topIdx.push(a,a+1,b,a+1,b+1,b)}
   const rows=profile.length;
-  for(let k=0;k<rows;k++){const [rr,yy,bi]=profile[k],deep=k>=4;
-   for(let i=0;i<=N;i++){const a=i/N*Math.PI*2,rad=r*rr*(deep?1+.1*n(a,yy):rim(a)),wob=deep?n(a*1.3,yy*2)*depth*.04:0;
-    const crag=deep?1+.06*Math.sin(a*41+s)+.035*Math.sin(a*67+yy):1;const px=x+Math.cos(a)*rad*crag,py=h+yy+wob,pz=z+Math.sin(a)*rad*crag;cliff.push(px,py,pz);
+  for(let k=0;k<rows;k++){const [rr,yy,bi]=profile[k],deep=k>=3;
+   for(let i=0;i<=N;i++){const a=i/N*Math.PI*2,rad=r*rr*(deep?1+.11*n(a,yy):rim(a)),wob=deep?n(a*1.3,yy*2)*depth*.05+.25*Math.sin(a*29+k*2.1+s):0;
+    const crag=deep?1+.07*Math.sin(a*41+s+k)+.05*Math.sin(a*67+yy)+.04*Math.sin(a*23-k*1.7):1;const px=x+Math.cos(a)*rad*crag,py=h+yy+wob,pz=z+Math.sin(a)*rad*crag;cliff.push(px,py,pz);
     c.set(band[bi]).lerp(new T.Color(band[Math.min(3,bi+1)]),(.5+.5*n(a*2,yy))*.6).multiplyScalar(1-k/rows*.25);cliffC.push(c.r,c.g,c.b);cliffUv.push(a*r/4,py/4)}}
   for(let k=0;k<rows-1;k++)for(let i=0;i<N;i++){const a=k*(N+1)+i,b=a+N+1;cliffIdx.push(a,b,a+1,a+1,b,b+1)}
   for(const [points,tints,uv,index,map] of [[top,topC,topUv,topIdx,turf],[cliff,cliffC,cliffUv,cliffIdx,rockMap]]){
    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(points,3));g.setAttribute('color',new T.Float32BufferAttribute(tints,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(index);g.computeVertexNormals();
-   const m=new T.Mesh(g,new T.MeshStandardMaterial({vertexColors:true,map,roughness:1}));m.receiveShadow=map===turf;m.castShadow=map===rockMap;scene.add(m)
+   const m=new T.Mesh(g,new T.MeshStandardMaterial({vertexColors:true,map,roughness:1,flatShading:map===rockMap,side:map===turf?T.DoubleSide:T.FrontSide}));m.receiveShadow=map===turf;m.castShadow=map===rockMap;scene.add(m)
   }
+  // hanging rocks under the island and roots dangling from the soil band (own random stream, absolute heights)
+  let q=Math.floor(s*1000)+7;const R=()=>(q=(q*16807)%2147483647)/2147483647;liftOff=true;
+  for(let i=0,n2=Math.round(r*1.1);i<n2;i++){const a=R()*6.283,t=.12+R()*.7,rr=Math.max(.05,(1-Math.pow(t,1.35))*.9),yy=-1-t*(depth*1.22-1),sz=.45+R()*Math.min(1.5,r*.075);
+   shape(stoneGeo,0xffffff,x+Math.cos(a)*r*rr*.88,h+yy-sz*.4,z+Math.sin(a)*r*rr*.88,sz,sz*(1.3+R()*.8),sz,a,R()*.3,R()*.3)}
+  for(let i=0,n3=Math.round(r*1.4);i<n3;i++){const a=R()*6.283,len=.5+R()*1.6,px=x+Math.cos(a)*r*1.01,pz=z+Math.sin(a)*r*1.01;cord(px,h-.35,pz,px+Math.cos(a)*.25,h-.35-len,pz+Math.sin(a)*.25,.025+R()*.02,0x4a3a28)}
+  liftOff=false;
  }
  const plantCards=new Map();
  function foliage(name){if(plantCards.has(name))return plantCards.get(name);
@@ -637,8 +645,8 @@ void main(){float y=vUv.y;
    solids.add({x:cx,z:cz,r:.6,base:0,top:8});keepOut(cx,cz,1.6);keepOut(cx+4.6,cz-1.4,1.2)}
   // the quarry face: three cut terraces of pale limestone stepping up towards the rim, rubble at the foot
   {const cliff=withSurface(cube.clone(),new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xf4eedf,roughness:.95}));
-   for(let tier=0;tier<3;tier++){const d=11.2+tier*1.75,h=2.1+tier*2.0;for(let a=-1.25;a<=1.25;a+=.17){const x=quarry.x+Math.cos(a)*d,z=quarry.z+Math.sin(a)*d;if(clear.some(([a2,b2,r2])=>Math.hypot(x-a2,z-b2)<r2+1.1))continue;
-     const j=Math.sin(a*23+tier*5);shape(cliff,0xffffff,x,h/2-.2,z,d*.17+.35,h+.25*j,1.85,-a-Math.PI/2,.02*j,.03*j);solids.add({x,z,r:1.25,base:0,top:h})}}
+   for(let tier=0;tier<3;tier++){const d=10.3+tier*2.1,h=1.25+tier*1.3;let k=0;for(let a=-1.2;a<=1.2;a+=.16){k++;const x=quarry.x+Math.cos(a)*d,z=quarry.z+Math.sin(a)*d;if((k+tier*3)%9===0||clear.some(([a2,b2,r2])=>Math.hypot(x-a2,z-b2)<r2+1.1))continue;
+     const j=Math.sin(a*23+tier*5);shape(cliff,(k+tier)%3?0xffffff:0xe2dac8,x,(h+.3*j)/2-.1,z,d*.16+.3,h+.3*j,2.0,-a-Math.PI/2,.02*j,.03*j);solids.add({x,z,r:1.2,base:0,top:h+.3*j})}}
    for(let i=0;i<18;i++){const a=-1.2+i*.14,d=9.6+.5*Math.sin(i*3.1),x=quarry.x+Math.cos(a)*d,z=quarry.z+Math.sin(a)*d,s=.35+.3*Math.abs(Math.sin(i*1.7));if(clear.some(([a2,b2,r2])=>Math.hypot(x-a2,z-b2)<r2+.4))continue;shape(stoneGeo,0xffffff,x,s*.3,z,s,s*.7,s,i)}
    keepOut(quarry.x+11,quarry.z,6)}
   workshop(47,-84,4.4,true);keepOut(47,-84,3.8);
@@ -671,7 +679,7 @@ void main(){float y=vUv.y;
   // Distant hamlets floating higher up, each with a cottage and a falling stream.
   function cottage(x,z,y,w){const d=w*.8;shape(plasterBox,0xf3e4cc,x,y+w*.35,z,w,w*.7,d);for(const s of [-1,1])shape(tiles,0xffffff,x,y+w*.86,z+s*d*.27,w+.5,.14,d*.62,0,0,s*.62);shape(masonry,0xcfc1a8,x+w*.3,y+w*1.0,z,.45,.9,.45);shape(glass,0xffffff,x,y+w*.4,z+d/2+.01,w*.22,w*.24,.04)}
   for(const [x,z,y,r] of [[-112,-30,14,9],[118,-40,18,10],[-96,-150,22,8],[104,-170,12,9],[-130,40,10,8],[96,48,20,8],[0,-205,24,11],[-40,-200,8,7]]){const s=seed;island(x,z,r,land[(x>0)+1],r*1.2,y);seed=s;cottage(x+r*.2,z,y,3.2);for(let j=0;j<3;j++)pine(x-r*.45+j*1.6,z+r*.3-j*.9,4+j,y);
-   const f=new T.Mesh(new T.PlaneGeometry(1.4,y*1.3+10,1,1),water);f.position.set(x+r*.99,y-(y*1.3+10)/2,z);f.rotation.y=Math.PI/2;scene.add(f);falls.push([f,y-(y*1.3+10)/2])}
+   for(const o of [-.35,.35]){const f=new T.Mesh(new T.PlaneGeometry(1.3,11,1,1),water);f.position.set(x+r*1.0,y-5.5,z+o);f.rotation.y=Math.PI/2+o*.6;scene.add(f);falls.push([f,y-5.5])}mist(x+r*1.0,y-10,z,5)}
   seed=keep}
  const cloudGeo=new T.PlaneGeometry();
  cloudGeo.userData.surface=new T.MeshBasicMaterial({map:loadSurface('mist.png'),transparent:true,depthWrite:false,side:T.DoubleSide,opacity:.77});
@@ -760,9 +768,9 @@ void main(){float y=vUv.y;
     bar(0,v,.74,L,v,.74,.03,steel)}
    // portal pillars with lanterns, and abutments under both ends
    for(const t of [-.45,L+.45])for(const v of [-2.32,2.32]){box(masonry,0xd7ccb7,t,v,1.0,.7,2.1,.7,false);box(masonry,0xe6dcc8,t,v,2.12,.86,.16,.86,false);box(masonry,0xcfc1a8,t,v,.06,.9,.12,.9,false);const [x,y,z]=at(t,v,2.56);lantern(x,y,z)}
-   for(const t of [-.35,L+.35])box(masonry,0xcfc1a8,t,0,-1.75,4.8,3.4,1.3,false);
+   for(const [t,dir] of [[-.3,-1],[L+.3,1]])[[4.8,.7,1.3,0],[3.9,.9,1.1,.35],[2.8,1.0,.9,.7]].reduce((y,[w2,h2,d2,inset])=>{box(masonry,0xcfc1a8,t+dir*inset,0,y-h2/2,w2,h2,d2,false);return y-h2},-.05);
    // steel arch with struts underneath
-   if(L>9){const K=14,dy=t=>-.6-2.65*(1-Math.sin(Math.PI*Math.max(0,Math.min(1,t/L))));
+   if(L>9){const K=14,dy=t=>-.6-1.9*(1-Math.sin(Math.PI*Math.max(0,Math.min(1,t/L))));
     for(const v of [-1.45,1.45]){for(let i=0;i<K;i++){const a=.2+(L-.4)*i/K,c=.2+(L-.4)*(i+1)/K;bar(a,v,dy(a),c,v,dy(c),.15,steel)}
      for(let i=1;i<N;i++){const t=i*seg;if(dy(t)<-.75)bar(t,v,dy(t),t,v,-.44,.06,steelDark)}}
     for(let i=1;i<N;i+=2){const t=i*seg;bar(t,-1.45,dy(t),t,1.45,dy(t),.06,steelDark)}}
