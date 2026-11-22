@@ -201,8 +201,8 @@
   }
 
   /* Independent, deliberately simple preview geometry. Claude supplies final art. */
-  if(!T){$("renderError").hidden=false;setupUI();update();return}
   let renderer,scene,camera,model,controls={yaw:.55,pitch:.55,distance:23}, dragging=null, resizeObserver;
+  if(!T){$("renderError").hidden=false;setupUI();update();return}
   const colors={ground:0x516b4a,stone:0xafa99d,stoneDark:0x786f67,stoneLight:0xc9c4bb,wood:0x75523a,woodLight:0x9f7950,plaster:0xd2c5a5,brick:0xa76c56,slate:0x515c5e,roof:0x994c38,roofBrown:0x705249,gold:0xeacb81,glass:0x90c1b6};
   const mats={};Object.entries(colors).forEach(([k,color])=>mats[k]=new T.MeshStandardMaterial({color,roughness:k==="glass"?.4:.87,metalness:k==="gold"?.22:0}));
   mats.ghost=new T.MeshStandardMaterial({color:0xf3d99e,transparent:true,opacity:.23,depthWrite:false});
