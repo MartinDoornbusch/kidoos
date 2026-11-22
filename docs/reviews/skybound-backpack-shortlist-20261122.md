@@ -1,6 +1,9 @@
 # StudyQuest SKYBOUND — Rugzakken: gecontroleerde vervangingskandidaten
 **22 november 2026 — research door ChatGPT, nog geen download of 3D-integratie.**
 
+## Besluit van gebruiker — 22 november 2026
+**Gekozen:** tevy **Canvas Backpack with Bedroll**, gebruik de **LOD1-variant met 2.362 triangles**. XOIAL en Kirill1991 vallen af voor de eerste integratie. Dit is een **keuze voor het model**, geen bevestiging dat de rugzak inmiddels in de GitHub-code is ingebouwd. In `main` op 22 november is de oude `explorerGear`-tas nog zichtbaar in de broncode. Claude beheert de daadwerkelijke import, juiste binding en release.
+
 ## Huidige situatie, gecontroleerd in de ontwikkelbranch
 In `src/scenery.js` maakt `explorerGear(person,girl)` de huidige rugzak zelf van boxgeometry, voorvakjes, schouderbanden, leren sluitingen en een gerolde deken. De tas is aan `B.Spine2` gekoppeld, waarbij het rugvlak voor beide Rocketbox-kindermodellen wordt opgemeten (o.a. `fit.back`, `fit.top`, `fit.low`). Gereedschap uit het spel zit ook op de rug; de rest van explorerGear (riem, kompas en sjaal) moet blijven werken.
 
