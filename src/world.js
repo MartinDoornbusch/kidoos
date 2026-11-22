@@ -889,17 +889,23 @@ void main(){float y=vUv.y;
   function appleTree(x,z,h){shape(cyl,0x5a4230,x,h*.24,z,.15,h*.48,.15,0,.04);for(const [dx,dz,top] of [[.8,.3,.66],[-.6,-.55,.62],[.1,-.7,.72],[-.3,.6,.7]])cord(x,h*.42,z,x+dx,h*top,z+dz,.065,0x5a4230);
    for(let k=0;k<10;k++){const a=k*.68+x,r=k<7?.8+.15*Math.sin(k*2.3):.3,yy=h*(.55+(k%3)*.08)+(k>=7?.4:0);shape(bushGeo,[0x4f7d32,0x5b8b3b,0x3f6e2c][k%3],x+Math.cos(a)*r,yy,z+Math.sin(a)*r,.78,.7,.78,a*2)}
    for(let k=0;k<12;k++){const a=k*2.4+z,e=.1+(k%4)*.2,r=1.25*Math.cos(e);shape(ball,k%3?0xb3262a:0xc9572c,x+Math.cos(a)*r,h*.62+Math.sin(e)*.8,z+Math.sin(a)*r,.07,.07,.07)}}
-  function field(x0,x1,z0,z1,crop,stone=false){const cx=(x0+x1)/2,cz=(z0+z1)/2;shape(cube,0x6b4a2e,cx,.04,cz,x1-x0,.08,z1-z0);
+  function field(x0,x1,z0,z1,crop,stone=false,gate=0){const cx=(x0+x1)/2,cz=(z0+z1)/2,gx=cx+gate;shape(cube,0x6b4a2e,cx,.04,cz,x1-x0,.08,z1-z0);
    for(let z=z0+.5;z<z1-.3;z+=.8){shape(cube,0x5e4128,cx,.12,z,x1-x0-.4,.16,.42);for(let x=x0+.45;x<x1-.3;x+=crop?.42:.7){const j=Math.sin(x*12.9+z*7.3);crop?shape(wheatGeo,j>0?0xd9b862:0xc9a552,x+j*.05,.16,z,1,.9+.12*j,1,j*3):(shape(leafGeo,j>0?0x5d8f4c:0x6b9a52,x,.14,z,1.7,1.05,1.7,j*3),shape(ball,0x9cc37a,x,.24,z,.1,.09,.1))}}
    // a scanned dry-stone wall (Sketchfab, CC-BY) around the vegetable plot; post-and-rail fence elsewhere or as fallback
-   const fence=()=>{for(let x=x0;x<=x1+.01;x+=2){for(const z of [z0,z1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}for(let z=z0;z<=z1+.01;z+=2){for(const x of [x0,x1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}
-    for(const y of [.45,.85]){for(const z of [z0,z1])shape(beam,0xffffff,cx,y,z,x1-x0,.07,.05);for(const x of [x0,x1])shape(beam,0xffffff,x,y,cz,.05,.07,z1-z0)}};
-   if(stone&&scanReady){const gx=cx;scanProp('sf_gate',gx,0,z0,0,[1.1,.82,1.1]);for(const sx of [-1,1])shape(masonry,0xcfc5b4,gx+sx*.88,.62,z0,.36,1.24,.5);
+   // both fields have a gate in the side facing the farm path (z0); it stands open, swung into the field
+   const fence=()=>{for(let x=x0;x<=x1+.01;x+=2){for(const z of [z0,z1])if(z!==z0||Math.abs(x-gx)>.9)shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}for(let z=z0;z<=z1+.01;z+=2){for(const x of [x0,x1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}
+    for(const px of [gx-.75,gx+.75])shape(beam,0xffffff,px,.6,z0,.12,1.2,.12);
+    for(const y of [.45,.85]){shape(beam,0xffffff,cx,y,z1,x1-x0,.07,.05);for(const [a,b] of [[x0,gx-.75],[gx+.75,x1]])shape(beam,0xffffff,(a+b)/2,y,z0,b-a,.07,.05);for(const x of [x0,x1])shape(beam,0xffffff,x,y,cz,.05,.07,z1-z0)}
+    for(const y of [.4,.9])shape(beam,0xffffff,gx-.7,y,z0+.74,.05,.07,1.4);for(let k=0;k<4;k++)shape(beam,0xffffff,gx-.7,.65,z0+.18+k*.38,.05,.62,.07)};
+   if(stone&&scanReady){const fi=75*Math.PI/180;scanProp('sf_gate',gx-.715+.715*Math.cos(fi),0,z0+.715*Math.sin(fi),-fi,[1.1,.82,1.1]);solids.add({x:gx-.6,z:z0+.45,r:.14,base:0,top:1.5});solids.add({x:gx-.53,z:z0+.95,r:.14,base:0,top:1.5});for(const sx of [-1,1])shape(masonry,0xcfc5b4,gx+sx*.88,.62,z0,.36,1.24,.5);
     for(const [ax,az,bx,bz,ry] of [[x0,z0,gx-1.3,z0,Math.PI],[gx+1.3,z0,x1,z0,Math.PI],[x0,z1,x1,z1,0],[x0,z0,x0,z1,-Math.PI/2],[x1,z0,x1,z1,Math.PI/2]]){const len=Math.hypot(bx-ax,bz-az)+.5,n=Math.ceil(len/2.4);
      for(let i=0;i<n;i++){const t=(i+.5)/n,j=Math.sin(i*7.1+ax),f=(t*len-.25)/(len-.5);scanProp('sf_drywall',ax+(bx-ax)*f,-.12,az+(bz-az)*f,ry,[len/n/34.5*1.04,.07+.006*j,.048])}}}
    else fence();
-   solids.add({x:cx,z:cz,w:(x1-x0)/2+.1,d:(z1-z0)/2+.1,base:0,top:1.1});keepOut(cx,cz,Math.hypot(x1-x0,z1-z0)/2+.6)}
-  field(-66,-56,-52,-45,true);field(-53,-46,-53,-47,false,true);
+   // collision follows the fence or wall only, so you can walk in through the gate and between the crops
+   {const gw=stone&&scanReady?.68:.7,th=stone&&scanReady?.3:.1;for(const [a,b] of [[x0-.1,gx-gw],[gx+gw,x1+.1]])solids.add({x:(a+b)/2,z:z0,w:(b-a)/2,d:th,base:0,top:1.1});
+    solids.add({x:cx,z:z1,w:(x1-x0)/2+.1,d:th,base:0,top:1.1});for(const x of [x0,x1])solids.add({x,z:cz,w:th,d:(z1-z0)/2+.1,base:0,top:1.1})}
+   keepOut(cx,cz,Math.hypot(x1-x0,z1-z0)/2+.6)}
+  field(-66,-56,-52,-45,true,false,2.2);field(-53,-46,-53,-47,false,true);
   // farm clutter (scanned): soil and manure sacks, a watering can, a spade, a basket of apples, a tub by the well, a picnic table
   if(scanReady){
    for(const [x,z,ry,dy] of [[-45.3,-52.3,.3,0],[-44.8,-51.6,-.5,0],[-45.05,-51.95,1.3,.38]])scanProp('compost_bag',x,dy,z,ry,1);solids.add({x:-45.05,z:-51.95,r:.7,base:0,top:.8});keepOut(-45.05,-51.95,1.2);
