@@ -1193,7 +1193,7 @@ void main(){float y=vUv.y;
   let a=view.yaw,dist=view.dist,height=view.height;
   let target=start?new T.Vector3(cam.aspect<.85?-.48:-1.65,1.58,12.5):new T.Vector3(p.x,p.y+1.35,p.z);
   let eye=start?new T.Vector3(-1+.14*Math.sin(t*.22),1.95,17.5):new T.Vector3(p.x+Math.sin(a)*dist,p.y+height,p.z+Math.cos(a)*dist);
-  if(inside){target.set(p.x,p.y+1.45,p.z);const dd=Math.min(dist,4.2);{const ex=Math.max(inside.x-4.45,Math.min(inside.x+4.45,p.x+Math.sin(a)*dd)),ez=Math.max(-4.45,Math.min(4.45,p.z+Math.cos(a)*dd));eye.set(ex,Math.min(inside.ceil(ex-inside.x,ez,p.y)-.4,p.y+3.1),ez)}if(inside.actor.mixer||inside.actor.update)resident(inside,t,Math.min(dt,.1),p);else{inside.actor.root.rotation.y=Math.atan2(inside.npc.x-p.x,inside.npc.z-p.z);inside.actor.blend([])}if(inside.accent.intensity)inside.accent.intensity=6+1.6*Math.sin(t*9)*Math.sin(t*3.7)}
+  if(inside){target.set(p.x,p.y+1.65,p.z);const dd=Math.min(dist,4.2);{const ex=Math.max(inside.x-4.45,Math.min(inside.x+4.45,p.x+Math.sin(a)*dd)),ez=Math.max(-4.45,Math.min(4.45,p.z+Math.cos(a)*dd));eye.set(ex,Math.min(inside.ceil(ex-inside.x,ez,p.y)-.4,p.y+2.35),ez)}if(inside.actor.mixer||inside.actor.update)resident(inside,t,Math.min(dt,.1),p);else{inside.actor.root.rotation.y=Math.atan2(inside.npc.x-p.x,inside.npc.z-p.z);inside.actor.blend([])}if(inside.accent.intensity)inside.accent.intensity=6+1.6*Math.sin(t*9)*Math.sin(t*3.7)}
   cam.position.lerp(eye,dt>=1?1:1-Math.exp(-dt*10));
   if(!start&&!inside){
    const offset=cam.position.clone().sub(target),distance=offset.length();offset.normalize();
