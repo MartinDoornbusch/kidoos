@@ -5,7 +5,23 @@ function createWorld(canvas) {
  const context=canvas.getContext('webgl2',options)||canvas.getContext('webgl',options);
  const renderer=context?new T.WebGLRenderer({canvas,context,...options}):softwareRenderer(canvas);
  renderer.setPixelRatio(Math.min(devicePixelRatio,1.65));renderer.outputColorSpace=T.SRGBColorSpace;
- scene.fog=new T.FogExp2(0x7f979e,.0068);
+ scene.fog=new T.FogExp2(0x7f979e,.0037);
+ // Aerial perspective: lit surfaces fade towards the sky panorama that lies behind them (sampled from the
+ // environment map in the view direction), so distant islands sink into the mountains instead of turning
+ // into flat blue-grey cut-outs. Materials without the environment map keep the plain fog colour.
+ T.ShaderChunk.fog_fragment=`#ifdef USE_FOG
+ #ifdef FOG_EXP2
+  float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+ #else
+  float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+ #endif
+ vec3 fogTint = fogColor;
+ #if defined( STANDARD ) && defined( USE_ENVMAP ) && defined( ENVMAP_TYPE_CUBE_UV )
+  vec3 fogDir = inverseTransformDirection( normalize( - vViewPosition ), viewMatrix );
+  fogTint = mix( fogColor, textureCubeUV( envMap, fogDir, 0.06 ).rgb * envMapIntensity, 0.8 );
+ #endif
+ gl_FragColor.rgb = mix( gl_FragColor.rgb, fogTint, fogFactor );
+#endif`;
  scene.add(new T.HemisphereLight(0xbfd6e4,0x3c4a2e,2.05));
  const sun=new T.DirectionalLight(0xffbb78,2.25);sun.position.set(-36,34,22);scene.add(sun);
  const turf=loadSurface('grass.jpg'),rockMap=loadSurface('rock.jpg'),timber=loadSurface('wood.jpg');
@@ -115,7 +131,6 @@ function createWorld(canvas) {
   let q=Math.floor(s*1000)+7;const R=()=>(q=(q*16807)%2147483647)/2147483647;liftOff=true;
   for(let i=0,n2=Math.round(r*1.1);i<n2;i++){const a=R()*6.283,t=.12+R()*.7,rr=Math.max(.05,(1-Math.pow(t,1.35))*.9),yy=-1-t*(depth*1.22-1),sz=.45+R()*Math.min(1.5,r*.075);
    shape(hangGeo,0xffffff,x+Math.cos(a)*r*rr*.88,h+yy-sz*.4,z+Math.sin(a)*r*rr*.88,sz,sz*(1.3+R()*.8),sz,a,R()*.3,R()*.3)}
-  for(let i=0,n3=Math.round(r*1.4);i<n3;i++){const a=R()*6.283,len=.5+R()*1.6,px=x+Math.cos(a)*r*1.01,pz=z+Math.sin(a)*r*1.01;cord(px,h-.35,pz,px+Math.cos(a)*.25,h-.35-len,pz+Math.sin(a)*.25,.025+R()*.02,0x4a3a28)}
   liftOff=false;
  }
  const plantCards=new Map();
