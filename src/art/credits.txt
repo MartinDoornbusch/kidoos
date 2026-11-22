@@ -45,3 +45,35 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
   watering_can_metal_01, rusted_spade_01, wicker_basket_01, wooden_bucket_01, wooden_bucket_02, wooden_crate_02,
   stone_fire_pit, large_castle_door, gothic_statue.
 - Texturen van Poly Haven, CC0 1.0: castle_wall_slates, castle_brick_broken_06, clay_roof_tiles_02.
+
+1.16.0
+- "Wooden Bridge Modular Kit" door Umar (https://sketchfab.com/123umar123), CC BY 4.0,
+  https://sketchfab.com/3d-models/wooden-bridge-modular-kit-9caac4745ead4d41918bb22c969ea785
+  Gebruikt voor de planken en touwen van de touwbruggen (verkleind, texturen 512 px).
+- "Photogrammetry low poly stone wall" door vicente betoret ferrero (https://sketchfab.com/deathcow), CC BY 4.0,
+  https://sketchfab.com/3d-models/photogrammetry-low-poly-stone-wall-c5059ae65ef24fe3bcb87107b3aa63f9
+  Gebruikt voor de droge stenen muur rond de moestuin van de Molenhoeve (vereenvoudigd tot 1500 driehoeken).
+- Bouwprojecten (wachttoren, level 3): ConstructionProjects, ConstructionStory en ConstructionCampaign uit de repository.
+- "Medieval Fireplace (Free)" door wolfgar74 (https://sketchfab.com/wolfgar74), CC BY 4.0,
+  https://sketchfab.com/3d-models/medieval-fireplace-free-36b73510064943d2b7a08918339dfb99
+  Gebruikt als schouw in de houtvesterij en het landhuis.
+- "Wooden window (FREE DL)" door Dokazvo (https://sketchfab.com/dokazvo), CC BY 4.0,
+  https://sketchfab.com/3d-models/wooden-window-free-dl-abd1539d94bd45c3af4e755d2537ed74
+  Gebruikt als raamkozijn op de vakwerkhuizen (glas verwijderd).
+- "Old Wooden Gate - Game Ready" door Krystofeles (https://sketchfab.com/Krystofeles), CC BY 4.0,
+  https://sketchfab.com/3d-models/old-wooden-gate-game-ready-696af15927b74a51afec68e1948088f1
+  Gebruikt als poort in de stenen muur van de moestuin op de Molenhoeve.
+- "Medieval house" door DoniTodorov (https://sketchfab.com/DoniTodorov), CC BY 4.0,
+  https://sketchfab.com/3d-models/medieval-house-a8ad9d2723444b1b8ac054c232e61f12
+  Gebruikt als stenen huis van de houtvester in Dennenhoek.
+- "Medieval Wall-Mounted Lantern" door Kigha (https://sketchfab.com/Kigha), CC BY 4.0,
+  https://sketchfab.com/3d-models/medieval-wall-mounted-lantern-dc8fa19703224286b0bb95cdd028cc06
+  Gebruikt als wandlantaarn bij de voordeuren.
+
+1.17.0
+- "Free Wooden Scaffolding Set" door Just8 (https://sketchfab.com/Just8), CC BY 4.0,
+  https://sketchfab.com/3d-models/free-wooden-scaffolding-set-de6d3cb59d0e4ef99103523ae22fbd88
+  Gebruikt voor de palen, schoren en planken van de steiger rond de wachttoren.
+- "Old Wooden Ladder" door CurlyFryWhy (https://sketchfab.com/CurlyFryWhy), CC BY 4.0,
+  https://sketchfab.com/3d-models/old-wooden-ladder-5e818740606642c0885b32bda78cd479
+  Gebruikt als trapladder bij de wachttoren, de schuur van de Molenhoeve en de houtvesterij.
