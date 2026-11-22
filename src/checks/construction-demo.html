@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#182e30">
+<title>StudyQuest · Bouwatelier (proefversie)</title>
+<link rel="stylesheet" href="construction-demo.css">
+</head>
+<body>
+<header class="masthead">
+ <div class="brand"><span class="crest">◆</span><span><b>STUDYQUEST</b><small>BOUWATELIER</small></span></div>
+ <div class="version">AFGESCHERMDE PROEF · GEEN LIVE GAME</div>
+</header>
+<main class="layout">
+ <section class="visual-panel" aria-label="3D-preview van het bouwproject">
+  <div class="scene-top">
+    <div><span class="eyebrow">JOUW BOUWAVONTUUR</span><h1 id="sceneTitle">De vergeten wachttoren</h1><p id="sceneSubtitle">Herstel de ruïne in vijf stappen</p></div>
+    <div class="tabs" role="group" aria-label="Kies bouwproject">
+      <button id="tabRuin" class="active" type="button">De ruïne</button>
+      <button id="tabHouse" type="button">Mijn huis</button>
+    </div>
+  </div>
+  <div class="viewport-shell">
+    <canvas id="viewport" aria-label="Draaibare 3D-preview"></canvas>
+    <div class="render-error" id="renderError" hidden>3D-weergave niet beschikbaar. De bouwregels en opdrachten blijven bruikbaar.</div>
+    <div class="corner-help">Sleep om te draaien · Scroll om te zoomen</div>
+    <button class="inside" id="lookInside" type="button" hidden>Kijk binnen</button>
+  </div>
+  <div class="progress-area"><div class="progress-label"><b id="phaseCount">0 van 5 fasen</b><span id="progressPct">0%</span></div><div class="progress-track"><span id="progressBar"></span></div></div>
+  <div class="status" id="feedback" role="status" aria-live="polite">Welkom in het Bouwatelier.</div>
+ </section>
+ <aside class="panel">
+  <div class="panel-head"><span class="eyebrow">PROJECTDAGBOEK</span><h2 id="stageTitle">Onderzoek de ruïne</h2><p id="storyText"></p></div>
+  <div class="inventory"><div><span>Hout</span><strong id="wood">0</strong></div><div><span>Steen</span><strong id="stone">0</strong></div><div><span>Planken</span><strong id="planks">0</strong></div><div><span>Munten</span><strong id="coins">0</strong></div></div>
+  <button id="gather" class="subtle" type="button">+ Verzamel testmaterialen</button>
+  <section id="designSection" class="design-section" hidden><h3>Ontwerp je eigen huis</h3>
+   <div class="fields">
+    <label>Dakvorm<select id="roof"><option value="gable">Zadeldak</option><option value="hip">Schilddak</option></select></label>
+    <label>Dakpannen<select id="roofMaterial"><option value="clay_red">Rood</option><option value="clay_brown">Bruin</option><option value="slate">Leisteen</option></select></label>
+    <label>Gevel<select id="facade"><option value="plaster">Wit pleisterwerk</option><option value="brick">Baksteen</option><option value="stone">Natuursteen</option></select></label>
+    <label>Houtwerk<select id="timber"><option value="dark_oak">Donker eiken</option><option value="oak">Eiken</option><option value="weathered">Verweerd</option></select></label>
+    <label>Vloer<select id="floor"><option value="oak_planks">Houten planken</option><option value="stone_tiles">Natuursteen</option></select></label>
+    <label>Voordeur<select id="door"><option value="front">Voorzijde</option><option value="back">Achterzijde</option></select></label>
+   </div>
+   <div class="rotate-controls"><button id="rotateLeft" type="button" class="subtle">↶ Draai 90°</button><button id="rotateRight" type="button" class="subtle">Draai 90° ↷</button></div>
+  </section>
+  <section class="questions"><h3 id="quizHeading">Opdracht</h3><p class="small-note">Voorbeeldvragen voor deze proef; nog niet gekoppeld aan Niek/Floor-leerstof.</p><div id="quizBox"></div></section>
+  <div class="needs" id="needs"></div>
+  <button type="button" class="primary" id="buildStep">Bouwfase afronden</button>
+  <div class="completion" id="completion" hidden></div>
+  <div class="footer-controls"><button class="text-button" id="reset" type="button">Proef opnieuw beginnen</button><a href="../index.html">Terug naar StudyQuest</a></div>
+ </aside>
+</main>
+<footer><p>Deze pagina gebruikt tijdelijke, eenvoudige 3D-vormen om de bouwlogica te demonstreren. Definitieve grafische assets en de echte leeropdrachten worden apart geïntegreerd. Alleen <code>studyquest.construction.preview.v1</code> wordt lokaal opgeslagen; bestaande StudyQuest-voortgang blijft ongemoeid.</p></footer>
+<script src="../vendor/three.min.js"></script>
+<script src="../construction-projects.js"></script>
+<script src="../construction-story.js"></script>
+<script src="../construction-campaign.js"></script>
+<script src="../house-designer.js"></script>
+<script src="../house-planner.js"></script>
+<script src="construction-demo.js"></script>
+</body>
+</html>
