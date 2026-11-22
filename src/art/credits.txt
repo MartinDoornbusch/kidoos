@@ -54,3 +54,18 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
   https://sketchfab.com/3d-models/photogrammetry-low-poly-stone-wall-c5059ae65ef24fe3bcb87107b3aa63f9
   Gebruikt voor de droge stenen muur rond de moestuin van de Molenhoeve (vereenvoudigd tot 1500 driehoeken).
 - Bouwprojecten (wachttoren, level 3): ConstructionProjects, ConstructionStory en ConstructionCampaign uit de repository.
+- "Medieval Fireplace (Free)" door wolfgar74 (https://sketchfab.com/wolfgar74), CC BY 4.0,
+  https://sketchfab.com/3d-models/medieval-fireplace-free-36b73510064943d2b7a08918339dfb99
+  Gebruikt als schouw in de houtvesterij en het landhuis.
+- "Wooden window (FREE DL)" door Dokazvo (https://sketchfab.com/dokazvo), CC BY 4.0,
+  https://sketchfab.com/3d-models/wooden-window-free-dl-abd1539d94bd45c3af4e755d2537ed74
+  Gebruikt als raamkozijn op de vakwerkhuizen (glas verwijderd).
+- "Old Wooden Gate - Game Ready" door Krystofeles (https://sketchfab.com/Krystofeles), CC BY 4.0,
+  https://sketchfab.com/3d-models/old-wooden-gate-game-ready-696af15927b74a51afec68e1948088f1
+  Gebruikt als poort in de stenen muur van de moestuin op de Molenhoeve.
+- "Medieval house" door DoniTodorov (https://sketchfab.com/DoniTodorov), CC BY 4.0,
+  https://sketchfab.com/3d-models/medieval-house-a8ad9d2723444b1b8ac054c232e61f12
+  Gebruikt als stenen huis van de houtvester in Dennenhoek.
+- "Medieval Wall-Mounted Lantern" door Kigha (https://sketchfab.com/Kigha), CC BY 4.0,
+  https://sketchfab.com/3d-models/medieval-wall-mounted-lantern-dc8fa19703224286b0bb95cdd028cc06
+  Gebruikt als wandlantaarn bij de voordeuren.

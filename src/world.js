@@ -77,7 +77,7 @@ function createWorld(canvas) {
  const quarryRock=new T.MeshStandardMaterial({map:rockMap,vertexColors:true,roughness:.9});
  const barkPile=new T.MeshStandardMaterial({map:(()=>{const m=loadSurface('ridged-bark.jpg');m.repeat.set(2,1);return m})(),vertexColors:true,roughness:.95});cutEnd.color.set(0xc9ab8a);
  const woodenColors=new Set([0x92583f,0xbc8352,0xb88054,0xca9362,0x745344,0xc18d5c]);
- const stoneMeshes=[],hangMeshes=[],cragMeshes=[],ropePlankMeshes=[],ropeRailMeshes=[];
+ const stoneMeshes=[],hangMeshes=[],cragMeshes=[];
  // Level 3 watchtower: which parts show at which restoration stage (0-5)
  const towerProgress=s=>(s&&Array.isArray(s.constructionProjects)?s.constructionProjects.find(p=>p.id==='wachttoren')?.completed:0)||0;
  const towerShow={ruin:n=>n<3,rubble:n=>n<2,survey:n=>n>=1&&n<3,cleared:n=>n>=2&&n<4,restored:n=>n>=3,scaffold:n=>n>=3&&n<5,stairs:n=>n>=4,roof:n=>n>=5};
@@ -102,7 +102,7 @@ function createWorld(canvas) {
   for(const [geo,rows] of batches){
    const groups=[rows.filter(r=>!woodenColors.has(r[1])),rows.filter(r=>woodenColors.has(r[1]))];
    groups.forEach((items,i)=>{if(!items.length)return;const surface=geo===roofGeo?1:geo===wallGeo?2:geo===stoneGeo||geo===hangGeo?3:i?0:-1;const m=new T.InstancedMesh(geo,geo.userData.surface||(surface>=0?detailsMat[surface]:mat),items.length);
-    items.forEach(([matrix,color],j)=>{m.setMatrixAt(j,matrix);m.setColorAt(j,new T.Color(surface===0?0xe9d6bd:surface===1?0xe4d1be:surface===2?0xf1e0c7:surface===3?0xd2d0c9:color))});m.castShadow=m.receiveShadow=true;scene.add(m);if(geo.userData.collect)geo.userData.collect.push(m);if(geo===stoneGeo)stoneMeshes.push(m);if(geo===hangGeo){m.castShadow=false;hangMeshes.push(m)}})
+    items.forEach(([matrix,color],j)=>{m.setMatrixAt(j,matrix);m.setColorAt(j,new T.Color(surface===0?0xe9d6bd:surface===1?0xe4d1be:surface===2?0xf1e0c7:surface===3?0xd2d0c9:color))});m.castShadow=m.receiveShadow=true;scene.add(m);if(geo.userData.dress&&scanReady)dressStones([m],...geo.userData.dress);if(geo===stoneGeo)stoneMeshes.push(m);if(geo===hangGeo){m.castShadow=false;hangMeshes.push(m)}})
   }
   batches.clear()
  }
@@ -237,11 +237,15 @@ function createWorld(canvas) {
   const knob=new T.Mesh(ball,new T.MeshStandardMaterial({color:0xb69765,metalness:.8,roughness:.35}));knob.scale.setScalar(.05);knob.position.set(w-.16,h*.47,.07);pivot.add(knob);
   const d={pivot,ry,open:0,x:hx+Math.cos(ry)*w/2,z:hz-Math.sin(ry)*w/2,parent};doors.push(d);return d}
  const oak=0x4d3526,paint=[0x3f6b63,0x7c3b2c,0x45603a];
+ // window frames: the scanned six-pane frame (glass removed) is dressed onto an invisible stand-in once loaded
+ const winFrame=new T.BufferGeometry();for(const [k,n] of [['position',3],['normal',3],['uv',2]])winFrame.setAttribute(k,new T.Float32BufferAttribute(new Array(3*n).fill(0),n));
+ winFrame.userData={dress:[['sf_window'],true,0xf0e6da,1],surface:new T.MeshBasicMaterial({visible:false})};
  function windowAt(P,lx,y,out,w,h,shutter,flowers=true){
   P(glass,0xffffff,lx,y,out+.015,w,h,.04);
-  for(const sx of [-1,1])P(beam,oak,lx+sx*(w/2+.045),y,out+.06,.09,h+.18,.12);
+  if(scanReady)P(winFrame,0xffffff,lx,y,out+.06,w+.2,h+.2,.12);
+  else{for(const sx of [-1,1])P(beam,oak,lx+sx*(w/2+.045),y,out+.06,.09,h+.18,.12);
   for(const sy of [-1,1])P(beam,oak,lx,y+sy*(h/2+.045),out+.06,w+.18,.09,.12);
-  P(beam,oak,lx,y,out+.05,.045,h,.05);P(beam,oak,lx,y+h*.12,out+.05,w,.045,.05);
+  P(beam,oak,lx,y,out+.05,.045,h,.05);P(beam,oak,lx,y+h*.12,out+.05,w,.045,.05)}
   P(planks,0xd8c3a2,lx,y-h/2-.11,out+.11,w+.34,.07,.22);
   for(const sx of [-1,1]){P(planks,shutter,lx+sx*(w/2+.27),y,out+.07,.4,h+.1,.04);P(beam,0x2a2a28,lx+sx*(w/2+.27),y+h*.25,out+.1,.32,.03,.02)}
   if(!flowers)return;
@@ -287,7 +291,7 @@ function createWorld(canvas) {
   // front: door with a window either side
   let P=frame(x,0,z+d/2,0);halfTimber(P,w/2,0,y0,hgt,[[0,1.6,true],[-w*.33,.95],[w*.33,.95]]);doorAt(P,0,y0,0,0x6e4a30);
   for(const s of [-1,1])windowAt(P,s*w*.33,y0+hgt*.55,0,.78,.96,colors);
-  lantern(x+1.12,y0+2.75,z+d/2+.32);
+  wallLantern(x+1.12,y0+2.75,z+d/2+.32,0,1);
   // sides and back
   for(const side of [-1,1]){P=frame(x+side*w/2,0,z,side*Math.PI/2);halfTimber(P,d/2,0,y0,hgt,[[side*-.45,.95]]);windowAt(P,side*-.45,y0+hgt*.6,0,.7,.78,colors,side>0)}
   P=frame(x,0,z-d/2,Math.PI);halfTimber(P,w/2,0,y0,hgt,[[0,.95]]);windowAt(P,0,y0+hgt*.6,0,.78,.86,colors,false);
@@ -371,7 +375,7 @@ function createWorld(canvas) {
    shape(tiles,0xffffff,wx,H+(ww/2)*tn+.08/Math.cos(sl)+.02,wz,(ww+.9)/Math.cos(sl),.16,wd+.8,0,-sl);
    for(const e of [-1,1]){shape(tri,0xf3e4cc,wx,H,wz+e*wd/2,1,1,1);shape(beam,oak,wx,H+rise/2+.03,wz+e*(wd/2+.05),Math.hypot(ww,rise)+.1,.12,.12,0,-sl)}}
   solids.add({x,z,w:w*.52+.15,d:d*.52+.15,base:0,top:yTop+rise});solids.add({x:wx,z:wz,w:ww*.52,d:wd*.52,base:0,top:y0+wh+.9});
-  lantern(x-.95,y0+2.95,front+.35);lantern(x+.95,y0+2.95,front+.35);
+  wallLantern(x-.95,y0+2.95,front+.35,0,1);wallLantern(x+.95,y0+2.95,front+.35,0,1);
   for(let i=0;i<7;i++){const hx=x-w/2+.6+i*1.25;if(Math.abs(hx-x)<2)continue;{shape(blossom,0x2c4a24,hx,.4,front+1.1,.4,.34,.28);shape(bushGeo,0x4f7d32,hx,.1,front+1.1,.6,.55,.45,hx*3)}}
  }
  const lathe=(points,n=16)=>new T.LatheGeometry(points.map(([r,h])=>new T.Vector2(r,h)),n);
@@ -392,6 +396,10 @@ function createWorld(canvas) {
   for(let i=0;i<6;i++){const a=i*Math.PI/3;shape(rope,bronze,x+.165*Math.cos(a),y-.003,z+.165*Math.sin(a),.014,.38,.014,0,0,0,parent)}
   piece(hoop,bronze,.48,.062,.078,.06)
  }
+ // scanned wall lantern (Sketchfab, CC-BY) with its own bracket; the procedural one is the fallback.
+ // (x,y,z) is where the procedural lantern hangs, (nx,nz) the direction the wall faces
+ if(scanReady)Models.load('sf_lantern').then(r=>{if(r.material.emissive){r.material.emissive.set(0xffb45c);r.material.emissiveIntensity=2.6}}).catch(()=>{});
+ function wallLantern(x,y,z,nx,nz){if(!scanReady){lantern(x,y,z);return}scanProp('sf_lantern',x-nx*.1,y-.52,z-nz*.1,Math.atan2(nx,nz)+Math.PI,1.7,null,()=>lantern(x,y,z))}
  function lamp(x,z,y=0,parent=null,side=1){
   const piece=(geo,color,dy,w,h,d)=>shape(geo,color,x,y+dy,z,w,h,d,side>0?0:Math.PI,0,0,parent);
   piece(masonry,0xdeceaf,.055,.55,.11,.55);piece(column,patina,.09,1,1,1);
@@ -737,6 +745,9 @@ void main(){float y=vUv.y;
   {const sx=-63.4,sz=9.4;for(const o of [-.7,.7])for(const k of [-1,1])shape(beam,0xffffff,sx+o,.45,sz,.08,1.05,.08,0,0,k*.5);shape(cyl,0x92583f,sx,.8,sz,.22,2.2,.22,0,Math.PI/2);solids.add({x:sx,z:sz,w:1.2,d:.4,base:0,top:1});keepOut(sx,sz,1.6);
    shape(cyl,0x92583f,-61.6,.3,12,.42,.6,.42);shape(beam,0x4a3426,-61.5,.85,12,.05,.6,.05,0,.4);shape(cube,0x8a9397,-61.3,1.08,12,.06,.22,.3,0,.4);solids.add({x:-61.6,z:12,r:.45,base:0,top:.6});keepOut(-61.6,12,1)}
   lamp(-55.8,4.1,0,null,1);solids.add({x:-55.8,z:4.1,r:.22,base:0,top:3.2});keepOut(-55.8,4.1,.8);
+  // the forester's stone house at the west edge of the clearing (scanned model, door facing the camp)
+  if(scanReady){const hx=-71,hz=9,hy=Math.min(...[[0,0],[3.4,2.5],[-3.4,2.5],[3.4,-2.5],[-3.4,-2.5]].map(([a,b])=>mountainH(hx+a,hz+b)));
+   scanProp('sf_house',hx,hy-.06,hz,0,1);solids.add({x:hx,z:hz,w:3.45,d:2.5,base:0,top:6.9});keepOut(hx,hz,5.4);trail(den,[[-59,6.6],[-63.5,8.1],[-67.3,8.6]])}
   // ---- Level 3 · De vergeten wachttoren. The castle ruin in the south of Dennenhoek is restored in five stages
   // (ConstructionCampaign): survey stakes and a plan table, cleared rubble, rebuilt walls with battlements, a wooden
   // stair up the tower and a roofed lookout. Every stage shows its own parts; collision follows what is built.
@@ -758,7 +769,7 @@ void main(){float y=vUv.y;
     // texture coordinates after the top is broken, so the stone courses keep their size instead of squeezing into waves
     for(let i=0;i<q.count;i++){const X=q.getX(i),Y=q.getY(i),Z=q.getZ(i),ax=Math.abs(n.getX(i)),ay=Math.abs(n.getY(i));uv.setXY(i,(ax>.5?Z:X)/2.4,(ay>.5?Z:Y+h/2)/2.4)}
     g.computeVertexNormals();const m=new T.Mesh(g,material);m.position.set(RX+x,L+h/2,RZ+z);m.castShadow=m.receiveShadow=true;(part?towerGroups[part]:always).add(m);wallSolids(part,x,z,w,d,h-jag*.5);return m}
-   function wallSolids(part,x,z,w,d,top){const len=Math.max(w,d),along=w>=d;for(let t=-len/2+.4;t<=len/2-.3;t+=.8)solid(part,{x:RX+x+(along?t:0),z:RZ+z+(along?0:t),r:Math.min(w,d)/2+.15,base:0,top})}
+   function wallSolids(part,x,z,w,d,top){const len=Math.max(w,d),along=w>=d;for(let t=-len/2+.4;t<=len/2-.3;t+=.8)solid(part,{x:RX+x+(along?t:0),z:RZ+z+(along?0:t),r:Math.min(w,d)/2+.02,base:0,top})}
    // a straight wall with a wall-walk parapet and merlons (restored)
    function battlement(part,x,z,w,h,d){box(part,'stone',w,h,d,x,h/2,z);const along=w>=d,len=along?w:d,n=Math.max(1,Math.floor(len/.9));
     const th=along?d:w;for(let i=0;i<n;i++){const t=-len/2+(i+.5)*len/n;if(i%2)continue;box(part,'stone',along?len/n*.92:th+.04,.6,along?th+.04:len/n*.92,x+(along?t:0),h+.3,z+(along?0:t))}
@@ -774,7 +785,7 @@ void main(){float y=vUv.y;
    broken('ruin',-3.75,1.1,.9,3.4,4.4,1.1,wallMat,1);broken('ruin',.55,-3.45,6.2,4.2,.9,1.6,wallMat,2);broken('ruin',3.95,-1.1,.9,1.7,3.4,.9,wallMat,3);broken('ruin',-2.6,3.0,1.6,1.1,.85,.6,wallMat,4);
    broken('ruin',-.95,2.8,1.0,4.1,1.0,.35,brickMat,5);broken('ruin',2.15,2.8,1.0,4.6,1.0,.5,brickMat,6);broken('ruin',.6,2.8,2.1,.75,1.0,.25,brickMat,7).position.y=L+3.62;
    // the old door and the statue stay through every stage
-   scanProp('castle_door',RX+.6,0,RZ+2.85,0,[1.03,1.0,1.0]);solid(null,{x:RX+.6,z:RZ+2.85,w:1.05,d:.2,base:0,top:3});
+   {const into=g=>m=>{if(m){m.removeFromParent();g.add(m)}};scanProp('castle_door',RX+.6,0,RZ+2.85,0,[1.03,1.0,1.0])?.then?.(into(towerGroups.ruin));solid('ruin',{x:RX+.6,z:RZ+2.85,w:1.05,d:.2,base:0,top:3});scanProp('castle_door',RX-.38,0,RZ+1.78,-Math.PI/2,[1.03,1.0,1.0])?.then?.(into(towerGroups.restored));solid('restored',{x:RX-.38,z:RZ+1.78,w:.12,d:1.05,base:0,top:3})}
    broken(null,.6,-1.2,1.15,.7,1.15,0,brickMat,8);scanProp('statue',RX+.6,.7,RZ-1.2,.3,1.08);solid(null,{x:RX+.6,z:RZ-1.2,r:.75,base:0,top:2.6});
    // rubble where the walls came down (gone once the site is cleared)
    Promise.all(['stone_a','stone_b','stone_c'].map(Models.load)).then(rocks=>[[3.4,1.3,.55],[4.4,.6,.4],[3.0,2.2,.35],[-1.6,-3.0,.45],[1.8,-2.5,.5],[-3.9,3.8,.42],[-4.7,-.6,.6],[2.9,-4.4,.38],[4.6,-2.9,.5],[-.9,-4.4,.36],[2.2,-1.9,.3],[1.2,1.8,.32]].forEach(([x,z,s3],i)=>{
@@ -814,7 +825,7 @@ void main(){float y=vUv.y;
 
    // STAIRS (stage 4+): a straight timber stair along the inside of the south wall, then a stair that winds
    // up round the tower to a landing through the parapet. Walkable: see tower.stairs below.
-   const S1={x0:3.4,x1:-.9,z0:-3.0,z1:-2.1,h0:.25,h1:3.4},S2={r0:2.32,r1:3.25,a0:0,a1:landing,h0:3.4,h1:TOP};
+   const S1={x0:3.4,x1:.05,z0:-3.0,z1:-2.1,h0:.25,h1:3.4},S2={r0:2.32,r1:3.25,a0:0,a1:landing,h0:3.4,h1:TOP};
    const h1At=x=>S1.h0+(S1.x0-x)/(S1.x0-S1.x1)*(S1.h1-S1.h0),h2At=a=>S2.h0+(a-S2.a0)/(S2.a1-S2.a0)*(S2.h1-S2.h0);
    {const n=14;for(let i=0;i<n;i++){const x=S1.x0-(i+.5)*(S1.x0-S1.x1)/n;box('stairs','wood',.3,.07,.86,x,h1At(x)-.035,(S1.z0+S1.z1)/2)}
     const run=Math.hypot(S1.x0-S1.x1,S1.h1-S1.h0),ang=Math.atan2(S1.h1-S1.h0,S1.x0-S1.x1);for(const z of [S1.z0+.04,S1.z1-.04])box('stairs','wood',run,.24,.07,(S1.x0+S1.x1)/2,(S1.h0+S1.h1)/2-.14,z,0,-ang);
@@ -841,7 +852,7 @@ void main(){float y=vUv.y;
      if(Math.abs(Math.atan2(Math.sin(a-landing),Math.cos(a-landing)))<.36&&r>=1.4&&r<S2.r0)h=Math.max(h,TOP);
      return h>-50&&y>=L+h-.7?L+h:-100},
     block(x,z,s,y){y-=L;if(towerProgress(s)<4||y<.9)return false;const lx=x-RX,lz=z-RZ,dx=lx+3.2,dz=lz+2.6,r=Math.hypot(dx,dz),a=Math.atan2(dz,dx);
-     if(lx<S1.x0-.2&&lx>S1.x1&&lz>S1.z1-.05&&lz<S1.z1+1.2&&y>h1At(lx)-.4)return true;
+     if(lx<S1.x0-.2&&lx>S1.x1+.9&&lz>S1.z1-.05&&lz<S1.z1+1.2&&y>h1At(lx)-.4)return true;
      if(a>S2.a0+.05&&a<S2.a1&&r>S2.r1-.05&&r<S2.r1+1.4&&y>h2At(a)-.4)return true;return false}};
   }
   for(let i=0;i<26;i++)tree(den,5,10);for(let i=0;i<9;i++)boulder(den,0x8f9184,.7,1.5);tufts(den,60);
@@ -871,7 +882,8 @@ void main(){float y=vUv.y;
    // a scanned dry-stone wall (Sketchfab, CC-BY) around the vegetable plot; post-and-rail fence elsewhere or as fallback
    const fence=()=>{for(let x=x0;x<=x1+.01;x+=2){for(const z of [z0,z1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}for(let z=z0;z<=z1+.01;z+=2){for(const x of [x0,x1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}
     for(const y of [.45,.85]){for(const z of [z0,z1])shape(beam,0xffffff,cx,y,z,x1-x0,.07,.05);for(const x of [x0,x1])shape(beam,0xffffff,x,y,cz,.05,.07,z1-z0)}};
-   if(stone&&scanReady){for(const [ax,az,bx,bz,ry] of [[x0,z0,x1,z0,Math.PI],[x0,z1,x1,z1,0],[x0,z0,x0,z1,-Math.PI/2],[x1,z0,x1,z1,Math.PI/2]]){const len=Math.hypot(bx-ax,bz-az)+.5,n=Math.ceil(len/2.4);
+   if(stone&&scanReady){const gx=cx;scanProp('sf_gate',gx,0,z0,0,[1.1,.82,1.1]);for(const sx of [-1,1])shape(masonry,0xcfc5b4,gx+sx*.88,.62,z0,.36,1.24,.5);
+    for(const [ax,az,bx,bz,ry] of [[x0,z0,gx-1.3,z0,Math.PI],[gx+1.3,z0,x1,z0,Math.PI],[x0,z1,x1,z1,0],[x0,z0,x0,z1,-Math.PI/2],[x1,z0,x1,z1,Math.PI/2]]){const len=Math.hypot(bx-ax,bz-az)+.5,n=Math.ceil(len/2.4);
      for(let i=0;i<n;i++){const t=(i+.5)/n,j=Math.sin(i*7.1+ax),f=(t*len-.25)/(len-.5);scanProp('sf_drywall',ax+(bx-ax)*f,-.12,az+(bz-az)*f,ry,[len/n/34.5*1.04,.07+.006*j,.048])}}}
    else fence();
    solids.add({x:cx,z:cz,w:(x1-x0)/2+.1,d:(z1-z0)/2+.1,base:0,top:1.1});keepOut(cx,cz,Math.hypot(x1-x0,z1-z0)/2+.6)}
@@ -1034,7 +1046,7 @@ void main(){float y=vUv.y;
  flush();
  const bridgeGroups=[];
  const plank=surfaced(cube.clone(),'board'),ropePlank=surfaced(cube.clone(),'board'),ropeRail=new T.CylinderGeometry(1,1,1,7);
- ropePlank.userData.collect=ropePlankMeshes;ropeRail.userData={collect:ropeRailMeshes};
+ ropePlank.userData.dress=[['sf_plank_a','sf_plank_b','sf_plank_c','sf_plank_d'],true,0xf2e9dc,1];ropeRail.userData={dress:[['sf_rope'],false,0xeadfca,1]};
  // ---- Bridges: stone abutments with portal pillars and lanterns, a timber deck on steel stringers,
  // riveted Warren trusses with an oak handrail, and a shallow steel arch underneath.
  {const steel=0x47605c,steelDark=0x2e3c3a;
@@ -1214,8 +1226,9 @@ void main(){float y=vUv.y;
   }
   if(house.key==='gerrit'){
    // woodsman's lodge: stone hearth, log rack, workbench with axes, a bunk with a wool blanket
-   build(masonry,0xc9bea9,-4.3,1.2,-2.2,.9,2.4,2.3);build(masonry,0xb9ae99,-4.3,2.75,-2.2,.7,.7,1.6);build(cube,0x1b1410,-3.86,.7,-2.2,.06,1.1,1.3);
-   for(let k=0;k<3;k++)build(cyl,0x92583f,-4.05,.22+k*.05,-2.5+k*.3,.1,.9,.1,0,Math.PI/2*.9);mesh(ball,flame,-4.0,.45,-2.2,.28,.32,.22);solid(-4.3,-2.2,1,2.4);
+   {const proc=()=>{build(masonry,0xc9bea9,-4.3,1.2,-2.2,.9,2.4,2.3);build(masonry,0xb9ae99,-4.3,2.75,-2.2,.7,.7,1.6);build(cube,0x1b1410,-3.86,.7,-2.2,.06,1.1,1.3);
+    for(let k=0;k<3;k++)build(cyl,0x92583f,-4.05,.22+k*.05,-2.5+k*.3,.1,.9,.1,0,Math.PI/2*.9)};
+    if(scanReady)scanProp('sf_fireplace',-4.22,0,-2.2,Math.PI/2,.84,room,proc);else proc();mesh(ball,flame,-4.0,.4,-2.2,.26,.3,.2);solid(-4.3,-2.2,1,2.4)}
    for(let r2=0;r2<4;r2++)for(let k=0;k<5-r2%2;k++)build(cyl,0x92583f,4.3,.2+r2*.38,-3.8+k*.42+(r2%2)*.21,.18,1.1,.18,0,0,Math.PI/2);solid(4.3,-3,1.2,2.3);
    table(1.4,-4.1,2.6,.9);build(beam,0x4a3426,.7,1.0,-4.0,.06,.07,.8,0,0,0);build(cube,0x8a9397,.7,1.0,-3.55,.26,.06,.16);build(beam,0x4a3426,1.5,1.0,-4.1,.06,.07,.8);build(cube,0x8a9397,1.5,1.0,-3.65,.3,.06,.2);
    build(cube,0x9aa3a6,2.3,.99,-4.2,.9,.02,.22);for(let k=0;k<6;k++)build(cube,0xd9bc8a,2.0+k*.12,.97,-3.85,.06,.01,.03,k);
@@ -1269,10 +1282,10 @@ void main(){float y=vUv.y;
   }
   if(house.manor){
    // ground floor: fireplace, dining table, armchairs, clock; stairs up to a gallery library
-   build(masonry,0xb9ab98,1.6,1.3,-4.6,2.6,2.6,.6);build(ember,0xffffff,1.6,.45,-4.32,1.2,.5,.08);build(beam,0x5a3d26,1.6,2.65,-4.4,3.0,.16,.75);build(masonry,0xb9ab98,1.6,3.6,-4.7,1.6,2.0,.4);
-   for(let k=0;k<3;k++)build(cyl,0x8a6a4a,1.3+k*.3,.32,-4.25,.06,.5,.06,0,0,Math.PI/2);solid(1.6,-4.5,2.8,.9);
+   {const proc=()=>{build(masonry,0xb9ab98,1.6,1.3,-4.6,2.6,2.6,.6);build(beam,0x5a3d26,1.6,2.65,-4.4,3.0,.16,.75);build(masonry,0xb9ab98,1.6,3.6,-4.7,1.6,2.0,.4);
+    for(let k=0;k<3;k++)build(cyl,0x8a6a4a,1.3+k*.3,.32,-4.25,.06,.5,.06,0,0,Math.PI/2);mesh(new T.PlaneGeometry(1.1,.8),mapPaper[1],1.6,3.5,-4.48,1,1,1,0);build(beam,0x5a3d26,1.6,3.5,-4.5,1.25,.95,.04)};
+    if(scanReady)scanProp('sf_fireplace',1.6,0,-4.3,0,1.02,room,proc);else proc();build(ember,0xffffff,1.6,.4,-4.45,1.0,.42,.06);solid(1.6,-4.5,2.8,.9)}
    accent.position.set(1.6,1.1,-3.6);accent.intensity=5;
-   mesh(new T.PlaneGeometry(1.1,.8),mapPaper[1],1.6,3.5,-4.48,1,1,1,0);build(beam,0x5a3d26,1.6,3.5,-4.5,1.25,.95,.04);
    table(-2.4,-1.2,2.4,1.2,.85,0x6e4a2e);for(const s of [-1,1])for(const t of [-.6,.6]){build(beam,0x6e4a2e,-2.4+t,.45,-1.2+s*.95,.45,.06,.45);build(beam,0x6e4a2e,-2.4+t,.85,-1.2+s*1.15,.45,.8,.06)}
    build(cyl,0xefe6cf,-2.4,.98,-1.2,.05,.2,.05);mesh(ball,flame,-2.4,1.12,-1.2,.025,.05,.025);
    for(const sx of [-.3,3.3]){build(beam,0x7a2e24,sx,.42,-2.6,.9,.3,.85);build(beam,0x7a2e24,sx,.85,-3.0,.9,.7,.18);for(const s of [-1,1])build(beam,0x7a2e24,sx+s*.4,.6,-2.6,.12,.45,.85);solid(sx,-2.7,1.0,1.0)}
@@ -1463,6 +1476,6 @@ void main(){float y=vUv.y;
   renderer.setPixelRatio(Math.min(devicePixelRatio,q>=2?1.65:q===1?1.2:1));resize();
   if(context&&!fx){renderer.toneMapping=T.ACESFilmicToneMapping}else if(q===0){renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15}}
  function resize(){let w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();if(fx){const r=renderer.getPixelRatio();fx.setSize(Math.round(w*r),Math.round(h*r))}}resize();
- if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb39c86);dressStones(ropePlankMeshes,['sf_plank_a','sf_plank_b','sf_plank_c','sf_plank_d'],true,0xf2e9dc,1);dressStones(ropeRailMeshes,['sf_rope'],false,0xeadfca,1);dressCrags();dressStumps()}
+ if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb39c86);dressCrags();dressStumps()}
  return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),rooms,enterRoom,outfit:hero.outfit,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
 }
