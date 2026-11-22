@@ -4,7 +4,7 @@ let world;
 const newSave=()=>({version:1,stage:0,hout:0,steen:0,planken:0,seals:0,rings:[],harvest:{},yield:{},tools:{},toolProgress:{},munten:0,items:{},scarf:null,dogFriend:false,builds:[],log:{chapter:7,turn:0,items:{}},position:null});
 let profile='Niek',s=newSave(),playing=false,context=null,guide=null,placement=null,preview=null,race=null,last=0,toastTimer,joyX=0,joyZ=0,drag=null;
 const p={x:0,y:0,z:13,vy:0,heading:0,speed:0,walk:0,on:true},view={yaw:0,height:3.9,dist:6.9,look:0},keys=new Set();
-let currentRoom=null, outdoorPose=null, ride=null;
+let currentRoom=null, outdoorPose=null, ride=null, windNote=-1e9;
 let movementYaw=null, followHeading=null;
 function resetSteering(){movementYaw=null;followHeading=null}
 function followCamera(dt){
@@ -169,6 +169,10 @@ let m=mission();$('region').textContent=area().name;$('chapter').textContent=m?'
  if(station>=0&&!context&&!placement&&!ride){context={kind:'cable',from:station};$('act').textContent=(station?'Kabelbaan naar de berg':'Kabelbaan naar de Bloesemvallei')+' · E'}
  const door=world.rooms.find(room=>dist(room.house)<1.8);
  if(door&&!context&&!race&&!placement){context={kind:'enter',door};$('act').textContent=door.house.place+' binnengaan · E'}
+ // something you built yourself can be picked up again: the top piece of the stack right in front of you
+ if(!context&&!race&&!placement&&!ride&&s.builds.length){const fx=p.x-Math.sin(p.heading)*1.9,fz=p.z-Math.cos(p.heading)*1.9;let best=null,bd=1.8;
+  for(const b of s.builds){const d=Math.hypot(b.x-fx,b.z-fz);if(d<bd&&b.y<=p.y+1.3&&b.y>=p.y-1.3&&!s.builds.some(o=>o!==b&&Math.abs(o.x-b.x)<.5&&Math.abs(o.z-b.z)<.5&&o.y>b.y)){best=b;bd=d}}
+  if(best){context={kind:'pickup',b:best};$('act').textContent=BUILD_NAME[best.type]+' oppakken · E'}}
  guide=objective();if(guide){let dx=guide.obj.x-p.x,dz=guide.obj.z-p.z;let angle=Math.atan2(dx,-dz)+view.yaw;$('waypoint').style.setProperty('--bearing',angle+'rad');$('waypoint').textContent=guide.name+' · '+Math.round(dist(guide.obj))+' m'}else $('waypoint').textContent='';
 }
 function act(){if(!playing||$('panel').open)return;updateHUD();if(!context)return;
@@ -177,6 +181,7 @@ function act(){if(!playing||$('panel').open)return;updateHUD();if(!context)retur
  if(context.kind==='talk'){interview();return}
  if(context.kind==='race'){race={start:performance.now(),hit:0};world.gates[0].g.visible=true;notify('Tijdrit gestart! Volg de drie windringen.');updateHUD();return}
  if(context.kind==='place'){place();return}
+ if(context.kind==='pickup'){const b=context.b,i=s.builds.indexOf(b);if(i<0)return;s.builds.splice(i,1);if(b.type==='blok')s.hout++;else if(b.type==='lamp')s.steen++;else s.items[b.type]=(s.items[b.type]||0)+1;world.sync(s);persist();updateHUD();notify(BUILD_NAME[b.type]+' terug in je rugzak');return}
  if(context.kind==='cable'){if(s.stage<1){notify('De kabelbaan draait pas als de havenbrug weer heel is.');return}ride={from:context.from,t:0,dur:15};p.ride=true;notify('Instappen! Geniet van het uitzicht.');return}
  if(context.kind==='resource'){harvest(context.n);return}
  if(context.kind==='tower'){projPanel(L3);return}
@@ -434,17 +439,18 @@ function exercise(mission,skill=null){
 }
 function clearPlacement(){placement=null;if(preview){preview.traverse(o=>{if(o.isMesh)o.material.dispose()});world.scene.remove(preview);preview=null}}
 function chooseBuild(){if(currentRoom||!playing||$('panel').open)return;if(placement){clearPlacement();updateHUD();return}
- show('<small>BOUWBOEK</small><h2>Eigen bouwwerken</h2><p>Kies een ontwerp. Loop naar een vrije plek en plaats het met E of de plaatsknop. Bouwblokken kun je beklimmen en stapelen.</p><div class="row"><button id="crate">Bouwblok · 1 hout</button><button id="lamp">Lantaarn · 1 steen</button>'+['bloembak','bankje','vlag'].filter(k=>s.items[k]).map(k=>'<button data-item="'+k+'">'+k[0].toUpperCase()+k.slice(1)+' · '+s.items[k]+' over</button>').join('')+'</div><p>In je rugzak: '+s.hout+' hout en '+s.steen+' steen. Bloembakken, bankjes en vlaggen koop je in de handelspost.</p>'+buttons());back();
+ show('<small>BOUWBOEK</small><h2>Eigen bouwwerken</h2><p>Kies een ontwerp. Loop naar een vrije plek en plaats het met E of de plaatsknop. Bouwblokken kun je naast elkaar zetten, stapelen en beklimmen. Sta je ervoor, dan pak je een bouwwerk met E weer op.</p><div class="row"><button id="crate">Bouwblok · 1 hout</button><button id="lamp">Lantaarn · 1 steen</button>'+['bloembak','bankje','vlag'].filter(k=>s.items[k]).map(k=>'<button data-item="'+k+'">'+k[0].toUpperCase()+k.slice(1)+' · '+s.items[k]+' over</button>').join('')+'</div><p>In je rugzak: '+s.hout+' hout en '+s.steen+' steen. Bloembakken, bankjes en vlaggen koop je in de handelspost.</p>'+buttons());back();
  document.querySelectorAll('[data-item]').forEach(b=>b.onclick=()=>choose(b.dataset.item));
  function choose(type){if(['blok','lamp'].includes(type)?s[type==='blok'?'hout':'steen']<1:!s.items[type]){notify('Verzamel eerst materiaal.');closePanel();return}placement=type;preview=world.construction(0,0,0,type,world.scene);preview.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.48}});closePanel()}
  $('crate').onclick=()=>choose('blok');$('lamp').onclick=()=>choose('lamp')}
+const BUILD_NAME={blok:'Bouwblok',lamp:'Lantaarn',bloembak:'Bloembak',bankje:'Bankje',vlag:'Vlag'};
 function site(){let x=Math.round((p.x-Math.sin(p.heading)*2.9)/2)*2,z=Math.round((p.z-Math.cos(p.heading)*2.9)/2)*2,y=world.ground(x,z,s);
- let near=[...world.nodes,...repair,...world.gates].some(o=>Math.hypot(o.x-x,o.z-z)<3);let valid=area()&&world.islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-2)&&y>=world.liftAt(x,z)-.01&&y<=p.y+1.23&&!near&&!world.blocked(x,z,s,y,placement==='blok'?1.40:.55)&&!s.builds.some(b=>b.x===x&&b.z===z&&b.type==='lamp');
+ let near=[...world.nodes,...repair,...world.gates].some(o=>Math.hypot(o.x-x,o.z-z)<3);let valid=area()&&world.islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-2)&&y>=world.liftAt(x,z)-.01&&y<=p.y+1.23&&!near&&!world.blocked(x,z,placement==='blok'?{...s,builds:s.builds.filter(b=>b.type!=='blok')}:s,y,placement==='blok'?1.40:.55)&&(placement!=='blok'||!s.builds.some(b=>b.type==='blok'&&b.x===x&&b.z===z&&Math.abs(b.y-y)<1.1))&&!s.builds.some(b=>b.x===x&&b.z===z&&b.type==='lamp');
  return {x,y,z,valid}}
 function place(){let b=site();if(!b.valid){notify('Zoek een vrije plek op het eiland.');return}const item=!['blok','lamp'].includes(placement);let material=placement==='blok'?'hout':'steen';if(item?!s.items[placement]:!s[material]){clearPlacement();return}
  s.builds.push({x:b.x,y:b.y,z:b.z,type:placement});if(item)s.items[placement]--;else s[material]--;clearPlacement();world.sync(s);persist();updateHUD();notify('Bouwwerk geplaatst')}
 function logbook(){show('<small>VLUCHTLOG · '+profile.toUpperCase()+'</small><h2>Jouw expeditie</h2><p>'+(s.stage<3?'Level 1: '+s.stage+' van 3 missies voltooid.':(s.level||1)<2?'Level 1 voltooid. Level 2 staat klaar.':l3On()?'Level 3: '+l3().progress.current+' van 5 fases van de wachttoren hersteld.':(s.level||1)>=4&&houseReady()?(houseInfo()?(houseInfo().progress.finished?'Alle vier de levels voltooid. Je huis staat; richt het in.':'Level 4: '+houseInfo().progress.current+' van 5 fases van je huis gebouwd.'):'Level 4: ontwerp je huis.'):l3Done()?'Level 3 voltooid. Level 4 staat klaar.':s.stage>=6?'Level 2 voltooid. Level 3 staat klaar.':'Level 2: '+(s.stage-3)+' van 3 missies voltooid.')+' Vandaag heb je '+Track.minutesToday()+' minuten geoefend. Per vaardigheid zie je hoeveel antwoorden goed waren van alle pogingen.</p>'+(profile==='Niek'?German.groups.map((g,i)=>{let entries=Object.values(s.log.items).filter(e=>German.bank[e.id].skill===i);return '<div class="meter">'+g+'<b>'+entries.reduce((a,e)=>a+e.good,0)+' / '+entries.reduce((a,e)=>a+e.attempts,0)+'</b></div>'}).join('')+'<p>'+Object.values(s.log.items).filter(e=>e.due!==null).length+' opdrachten staan klaar voor herhaling.</p>':'<p>Duits en geschiedenis worden toegevoegd zodra je havo 3-stof er is.</p>')+dutchStats()+(s.best?'<p>Persoonlijk record windrace: '+s.best.toFixed(1)+' seconden.</p>':'')+'<h3>Dorpsonderzoeken</h3>'+villageHomes.map(h=>'<div class="meter">'+h.place+' · '+h.name+'<b>'+(s.village?.[h.key]?'Afgerond':'Open')+'</b></div>').join('')+'<div class="row"><button id="practice">Oefen Duits</button><button id="historyLog">Oefen geschiedenis</button><button id="practiceNL">Oefen Nederlands</button><button id="pilot">Wissel personage</button>'+(s.stage===3&&(s.level||1)<2?'<button id="lvl2" class="primary">Start level 2</button>':'')+(s.stage>=6&&(s.level||1)<3?'<button id="lvl3" class="primary">Start level 3</button>':'')+(l3Done()&&(s.level||1)<4?'<button id="lvl4" class="primary">Start level 4</button>':'')+((s.level||1)>=4&&houseReady()?'<button id="myhouse">Mijn huis</button>':'')+'<button id="restart">Opnieuw beginnen</button></div><p><a href="art/credits.txt" target="_blank" rel="noopener">Makers van de 3D-beelden</a></p>'+buttons());back();$('practiceNL').onclick=()=>dutchRound(false);if($('lvl2'))$('lvl2').onclick=startLevel2;if($('lvl3'))$('lvl3').onclick=startLevel3;if($('lvl4'))$('lvl4').onclick=startLevel4;if($('myhouse'))$('myhouse').onclick=housePanel;$('restart').onclick=restartGame;$('practice').disabled=$('historyLog').disabled=profile==='Floor';$('practice').onclick=school;$('historyLog').onclick=historyMenu;$('pilot').onclick=()=>{persist();playing=false;clearPlacement();$('panel').close();$('hud').hidden=true;$('entry').hidden=false}}
-$('journal').onclick=logbook;$('adminbtn').hidden=!admin.asked;$('adminbtn').onclick=adminOpen;$('mapbtn').onclick=()=>{show('<small>ATLAS · NOORD ↑</small><h2>De windroute</h2><canvas id="atlas" width="600" height="420" aria-label="Kaart met eilanden, bruggen en je positie"></canvas>'+[2,1,0].map(i=>'<div class="mapline"><b>'+world.islands[i].name+'</b><span>'+['Houthaven en molen · vertrekpunt','Bloesembos en tweede brugwerf','Windringen en sterrenbaken'][i]+' · '+(area()===world.islands[i]?'Je bent hier':i<=s.stage?'Bereikbaar':'Brug nodig')+'</span></div>').join('')+buttons());drawAtlas();back()};
+$('journal').onclick=logbook;$('adminbtn').hidden=!admin.asked;$('adminbtn').onclick=adminOpen;$('mapbtn').onclick=()=>{show('<small>ATLAS · NOORD ↑</small><h2>De windroute</h2><canvas id="atlas" width="600" height="420" aria-label="Kaart met eilanden, bruggen en je positie"></canvas>'+missionOverview()+buttons());drawAtlas();back()};
 $('act').onclick=act;$('build').onclick=chooseBuild;function jump(){if(currentRoom||admin.fly)return;if(p.on){p.vy=7.8;p.on=false}else if(s.stage>=2&&p.y>.35){p.glide=!p.glide;if(p.glide)notify('Zwever open · stuur met je gewone besturing')}}$('jump').onclick=jump;
 // Physical keys (e.code) keep WASD working with Shift, Caps Lock or another layout. Synthetic test events without a code fall back to e.key.
 const codeNames={KeyW:'w',KeyA:'a',KeyS:'s',KeyD:'d',KeyE:'e',KeyB:'b',KeyM:'m',ArrowUp:'arrowup',ArrowDown:'arrowdown',ArrowLeft:'arrowleft',ArrowRight:'arrowright',Space:' ',ShiftLeft:'shift',ShiftRight:'shift',Escape:'escape'};
@@ -491,6 +497,11 @@ function move(dt){
  if(admin.fly&&!currentRoom){p.glide=false;p.vy=0;if(keys.has(' '))p.y+=(keys.has('shift')?18:9)*dt;if(keys.has('c'))p.y-=(keys.has('shift')?18:9)*dt;const fl=world.ground(p.x,p.z,s,p.y+.5);if(p.y<=fl){p.y=fl;p.on=true}else p.on=false}else{
  // The glider only drifts forward while you steer; let go and it sinks slowly in place.
  if(p.glide&&p.speed>.03){let gx=p.x-Math.sin(p.heading)*dt*2.6,gz=p.z-Math.cos(p.heading)*dt*2.6;if(!world.blocked(gx,gz,s,p.y)){p.x=gx;p.z=gz}else p.glide=false}let floor=world.ground(p.x,p.z,s,p.y);p.vy-=20*dt;if(p.glide)p.vy=Math.max(-1.15,p.vy);if(p.vy>0){let limit=world.ceiling(p.x,p.z,s,p.y,2.68)-2.68;if(p.y+p.vy*dt>limit){p.y=limit;p.vy=0}}p.y+=p.vy*dt;if(p.y<=floor&&p.vy<=0){p.y=floor;p.glide=false;p.vy=0;p.on=true}else if(p.on&&p.vy<=0&&!p.glide&&floor>p.y-.5&&floor>-50){p.y=floor;p.vy=0}else p.on=false;}if(p.y<world.liftAt(p.x,p.z)-12)respawn();
+ // Wind barrier: an island whose bridge is not built yet cannot be reached by jumping, gliding or stacking blocks.
+ // Near its edge a gust blows you back the way you came (and once over open air you drop back to safe ground).
+ if(!admin.fly&&!currentRoom&&!p.ride){for(const I of world.islands){if((I.open??0)<=s.stage)continue;const dx=p.x-I.x,dz=p.z-I.z,d=Math.hypot(dx,dz)||1,edge=I.r+2.5;
+   if(d<edge){p.x=I.x+dx/d*edge;p.z=I.z+dz/d*edge;p.gust={x:dx/d*7,z:dz/d*7,t:.7};p.glide=false;const now=performance.now();if(now-windNote>5000){windNote=now;notify('Een windvlaag blaast je terug. Bouw eerst de brug naar '+I.name+'.')}}}
+  if(p.gust){const gx=p.x+p.gust.x*dt,gz=p.z+p.gust.z*dt;if(!world.blocked(gx,gz,s,p.y)){p.x=gx;p.z=gz}p.gust.t-=dt;if(p.gust.t<=0)p.gust=null}}
  // Wind rings count when you pass through them, walking or jumping.
  const throughGate=g=>{const L=world.liftAt(g.x,g.z);return dist(g)<1.8&&p.y>L-.2&&p.y<L+4.4};
  if(s.stage===2)world.gates.forEach((g,i)=>{if(!s.rings.includes(i)&&throughGate(g)){s.rings.push(i);g.g.visible=false;notify('Windring gevonden · '+s.rings.length+'/3');persist()}});
@@ -498,6 +509,16 @@ function move(dt){
  if(race.hit===3){let seconds=(performance.now()-race.start)/1000;s.best=Math.min(s.best??Infinity,seconds);s.hout+=2;s.steen++;race=null;persist();notify('Finish! '+seconds.toFixed(1)+' s · +2 hout en +1 steen')}else world.gates[race.hit].g.visible=true}}
  if(preview){let b=site();preview.position.set(b.x,Math.max(0,b.y),b.z);preview.visible=b.valid}
 }
+// Missions per level for the atlas: what is done, what is next, what comes later. The numbers match the map pins.
+function missionList(){const lvl=s.level||1,st=s.stage,out=[];
+ missions.forEach((m,i)=>{const L=i<3?1:2,open=L===1||lvl>=2;out.push({level:L,n:L===1?i+1:i-2,text:m[0],state:st>i?'done':st===i&&open?'now':'later',at:repair[i]})});
+ const t=l3(),tp=t&&t.progress;out.push({level:3,n:1,text:'Herstel de vergeten wachttoren'+(tp&&!tp.finished?' · fase '+(tp.current+1)+' van '+tp.total:''),state:tp?.finished?'done':lvl>=3?'now':'later',at:L3.site});
+ const h=typeof houseInfo==='function'?houseInfo():null,hp=h&&h.progress,d=h?h.design:s.houseDraft;
+ out.push({level:4,n:1,text:hp?(hp.finished?'Je huis is klaar · richt het in':'Bouw je huis · fase '+(hp.current+1)+' van '+hp.total):'Ontwerp en bouw je eigen huis',state:hp?.finished?'done':lvl>=4?'now':'later',at:d?{x:d.x,z:d.z}:null});
+ return out}
+function missionOverview(){const list=missionList(),done=villageHomes.filter(h=>s.village?.[h.key]).length;
+ return '<div class="mlevels">'+[1,2,3,4].map(L=>'<div class="mlevel"><b>Level '+L+'</b>'+list.filter(m=>m.level===L).map(m=>'<div class="mrow '+m.state+'"><i>'+(m.state==='done'?'✓':m.state==='now'?'▶':'')+'</i><span>'+(L<3?L+'.'+m.n+' ':'')+m.text+'</span></div>').join('')+'</div>').join('')+
+  '<div class="mlevel"><b>Dorpsonderzoeken</b><div class="mrow '+(done===villageHomes.length?'done':'now')+'"><i>'+(done===villageHomes.length?'✓':'▶')+'</i><span>'+done+' van '+villageHomes.length+' bewoners geholpen</span></div></div></div>'}
 function drawAtlas(){
  const c=$('atlas'),ctx=c.getContext('2d');ctx.fillStyle='#c6e0df';ctx.fillRect(0,0,c.width,c.height);
  const px=x=>225+x*2.33,py=z=>345+z*2.33;
@@ -508,6 +529,9 @@ function drawAtlas(){
  for(let k=0;k<2;k++){ctx.strokeStyle=s.stage>k?'#926b46':'#70959e';ctx.lineWidth=5;ctx.setLineDash(s.stage>k?[]:[5,6]);ctx.beginPath();ctx.moveTo(px(0),py(world.ports[k]));ctx.lineTo(px(0),py(world.islands[k+1].z+21));ctx.stroke()}ctx.setLineDash([]);
  world.nodes.forEach(n=>{ctx.fillStyle=n.type==='hout'?'#915e36':'#52878c';ctx.fillRect(px(n.x)-3,py(n.z)-3,6,6)});
  for(const home of villageHomes){ctx.fillStyle='#a47336';ctx.fillRect(px(home.x)-4,py(home.z)-4,8,8)}
+ // mission pins: a green tick when done, an orange numbered pin for the current mission, grey for later ones
+ for(const m of missionList()){if(!m.at)continue;const x=px(m.at.x),y=py(m.at.z),now=m.state==='now';ctx.beginPath();ctx.arc(x,y,now?11:8,0,Math.PI*2);ctx.fillStyle=m.state==='done'?'#5d9a5a':now?'#ff8a3d':'#9aa7a6';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#fff';ctx.stroke();
+  ctx.fillStyle='#fff';ctx.font='bold '+(now?13:11)+'px system-ui';ctx.textAlign='center';ctx.fillText(m.state==='done'?'✓':m.level<3?m.level+'.'+m.n:'L'+m.level,x,y+4);ctx.textAlign='left'}
  const spot=currentRoom?outdoorPose:p;
  ctx.beginPath();ctx.arc(px(spot.x),py(spot.z),9,0,Math.PI*2);ctx.fillStyle='#ffb947';ctx.fill();ctx.lineWidth=3;ctx.strokeStyle='#23444f';ctx.stroke();ctx.fillStyle='#204754';ctx.font='bold 16px system-ui';ctx.fillText('N ↑',26,32)
 }

@@ -77,3 +77,12 @@ dialog .opts button:disabled,dialog .wingrid button:disabled{opacity:.45;transfo
 .wingrid{display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:5px;align-items:center}.wingrid span{font-size:12px;font-weight:700;padding-right:6px}
 .okline{color:#2e6b44;font-weight:700}.badline{color:#a2482c;font-weight:700}
 .meter b button{padding:5px 9px;font-size:12px;margin-left:4px}
+/* atlas: missions per level */
+.mlevels{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.5rem .9rem;margin:.7rem 0}
+.mlevel b{display:block;font-size:.82rem;letter-spacing:.06em;text-transform:uppercase;opacity:.75;margin-bottom:.15rem}
+.mrow{display:flex;gap:.45rem;align-items:baseline;font-size:.92rem;line-height:1.35;padding:.08rem 0}
+.mrow i{font-style:normal;width:1.1rem;text-align:center;flex:none}
+.mrow.done{opacity:.62}.mrow.done i{color:#5d9a5a}
+.mrow.now{font-weight:600}.mrow.now i{color:#ff8a3d}
+.mrow.later{opacity:.45}
+

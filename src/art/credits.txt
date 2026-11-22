@@ -95,3 +95,18 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
 - "Da Vinci's - Flying Machine" door vanessalani (https://sketchfab.com/vanessalani), CC BY 4.0,
   https://sketchfab.com/3d-models/da-vincis-flying-machine-ac60c0bc847e4929bf8aa9772ac49b1a
   Gebruikt als zwever boven de speler.
+
+1.19.0
+- "Realistic fir trees pack (LODS, gameready)" door LOLIPOP (https://sketchfab.com/lolipop_1707), CC BY 4.0,
+  https://sketchfab.com/3d-models/realistic-fir-trees-pack-lods-gameready-f58e8b6d733e4b0586e5b7db847b89e7
+  Gebruikt voor alle dennen: drie grote en drie middelgrote bomen in drie detailniveaus (dichtbij, verder weg, billboard).
+- "Vintage Airship" door Evan16 (https://sketchfab.com/evanzrefde), CC BY 4.0,
+  https://sketchfab.com/3d-models/vintage-airship-23c78c2e28934d1491ff216a3eabf982
+  Gebruikt als luchtschip dat rond de archipel vaart.
+- "Lighthouse" door Fabio (https://sketchfab.com/fabiolopez), CC BY 4.0,
+  https://sketchfab.com/3d-models/lighthouse-3b475508402e4fb98d65fad6489b875e
+  Gebruikt als sterrenbaken op de Sterrenwacht (zonder de meegeleverde lichtbundel; het baken heeft eigen stralen).
+- Padtexturen van Poly Haven (polyhaven.com), CC0 1.0: grey_stone_path (dorpsstraten), wood_chip_path (bospaden),
+  grass_path_3 (Bloesemvallei), gravel_road (boerderij en zijpaden), rocky_gravel (steengroeve en bergpaden). Verkleind naar 1K.
+- Vloertexturen (eiken planken en stenen tegels) samengesteld uit de bestaande board.jpg en rock-grey.jpg.
+
