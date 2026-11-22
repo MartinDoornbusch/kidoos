@@ -645,9 +645,12 @@ void main(){float y=vUv.y;
   const [ex,ez]=B[B.length-1],ang=Math.atan2(ex-I.x,ez-I.z),ox=Math.sin(ang),oz=Math.cos(ang),fallH=I.r*.8+10;
   for(const [wd,off,op] of [[2.2,.25,.95],[3.2,.5,.45]]){const fall=new T.Mesh(new T.PlaneGeometry(wd,fallH,1,1),cascadeMaterial(0xd5ecf3,op));fall.material.uniforms.time=cascadeUniforms.time;fall.position.set(ex+ox*off,L-fallH/2+.12,ez+oz*off);fall.rotation.y=ang;fall.renderOrder=3;scene.add(fall)}
   mist(ex+ox*1.2,L-fallH+2,ez+oz*1.2,8);mist(ex+ox*.6,L+.4,ez+oz*.6,2);
-  const pool=new T.Mesh(new T.CircleGeometry(1,24),HL.flow);pool.rotation.x=-Math.PI/2;pool.position.set(B[0][0],L+mountainH(B[0][0],B[0][1])+.1,B[0][1]);scene.add(pool);
+  // Springs should not inherit the river's animated UV offset. Share image pixels, not texture transforms.
+  const poolMaterial=HL.flow.clone();poolMaterial.map=HL.flow.map.clone();poolMaterial.map.repeat.set(1,1);
+  const pool=new T.Mesh(new T.CircleGeometry(1,24),poolMaterial);pool.rotation.x=-Math.PI/2;pool.position.set(B[0][0],L+mountainH(B[0][0],B[0][1])+.1,B[0][1]);scene.add(pool);
   liftOff=true;for(let k=0;k<6;k++){const a=k*1.05,x=B[0][0]+Math.cos(a)*1.2,z=B[0][1]+Math.sin(a)*1.2;shape(stoneGeo,0x8f8a7e,x,L+mountainH(x,z)+.15,z,.42,.33,.38,a)}liftOff=false}
-  const pool=new T.Mesh(new T.CircleGeometry(1.1,24),flow);pool.rotation.x=-Math.PI/2;pool.position.set(brook[0][0],mountainH(brook[0][0],brook[0][1])+.1,brook[0][1]);scene.add(pool);
+  const sourceMaterial=flow.clone();sourceMaterial.map=flow.map.clone();sourceMaterial.map.repeat.set(1,1);
+  const pool=new T.Mesh(new T.CircleGeometry(1.1,24),sourceMaterial);pool.rotation.x=-Math.PI/2;pool.position.set(brook[0][0],mountainH(brook[0][0],brook[0][1])+.1,brook[0][1]);scene.add(pool);
   for(let k=0;k<6;k++){const a=k*1.05,x=brook[0][0]+Math.cos(a)*1.3,z=brook[0][1]+Math.sin(a)*1.3;shape(stoneGeo,0x8f8a7e,x,mountainH(x,z)+.15,z,.45,.35,.4,a)}
  }
  // ---- Cable car from the summit down to the Bloesemvallei (runs once the harbour bridge is repaired).
@@ -1452,7 +1455,9 @@ void main(){float y=vUv.y;
   for(const a of airships){const th=a.phase+t*.012,x=a.center.x+Math.cos(th)*a.rx,z=a.center.z+Math.sin(th)*a.rz;a.g.position.set(x,a.y+Math.sin(t*.35)*.9,z);a.g.rotation.set(Math.sin(t*.27)*.025,Math.atan2(Math.sin(th)*a.rx,-Math.cos(th)*a.rz),Math.sin(t*.31)*.03);for(const pr of a.props)pr.rotation.z=t*14}
   {const f=gondola.userData.f,c=cableAt(f),a=cableTop(cableA),b=cableTop(cableB);gondola.position.copy(c);gondola.rotation.y=Math.atan2(b.x-a.x,b.z-a.z)}
   cascadeUniforms.time.value=t;for(const [m,s,o] of mists){m.material.opacity=.32+.16*Math.sin(t*.5+o);const k=1+.08*Math.sin(t*.4+o);m.scale.set(s*k,s*.6*k,1)}
-  for(const f of torrents)f.material.map.offset.y=(f.material.map.offset.y-dt*(f.geometry.type==='PlaneGeometry'?1.6:.9))%1;
+  // All five streams share one flow material/texture: scroll it once per frame, not once per mesh.
+  // In the old loop the last-added brook multiplied the effective current speed and moved source pools too.
+  const movingWaterMaps=new Set();for(const f of torrents){const map=f.material?.map;if(!map||movingWaterMaps.has(map))continue;movingWaterMaps.add(map);map.offset.y=(map.offset.y-dt*.9)%1}
   for(const f of flags){const q=f.geometry.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i)+.55;q.setZ(i,Math.sin(t*5-x*4)*.09*x)}q.needsUpdate=true}
   fauna?.update(t,dt,start?{x:0,y:0,z:13}:p,s,inside);walkers?.update(t,dt,start?{x:0,y:0,z:13}:p,inside,s);
   sail.visible=!start&&!!p.glide;const portrait=start?{x:0,y:0,z:13,heading:Math.PI+.32+.13*Math.sin(t*.37),on:true,speed:0,walk:0}:p;hero.pose(t,portrait,dt,view.yaw);
