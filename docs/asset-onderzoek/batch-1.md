@@ -80,3 +80,22 @@ De textuurresolutie geeft Sketchfab pas vrij na inloggen. Die controleer ik bij 
 
 - "Medieval Wall-Mounted Lantern" (https://sketchfab.com/3d-models/medieval-wall-mounted-lantern-dc8fa19703224286b0bb95cdd028cc06) by Kigha, licensed under CC BY 4.0.
 - "Medieval house" (https://sketchfab.com/3d-models/medieval-house-a8ad9d2723444b1b8ac054c232e61f12) by DoniTodorov, licensed under CC BY 4.0.
+
+## Vervolg 22 november: gedownload en getest in de game
+
+Martin heeft #2 en #5 als glTF gedownload. Licentiebestanden bevestigen CC BY 4.0 en de attributieteksten hierboven.
+
+| Model | Bron | Na conversie |
+|---|---|---|
+| Medieval house | 27.778 driehoeken, 5 materialen, 15 texturen van 2048 px (48 MB) | 14.327 driehoeken, 5 materialen, texturen 1024 (kleur) / 512 (normal) / 256 (ruwheid en AO), 1,9 MB |
+| Wall-Mounted Lantern | 3.422 driehoeken, 4 texturen van 4096 px (21 MB) | 1.100 driehoeken, texturen 512 px inclusief emissive, 0,1 MB |
+
+De 5 materialen van het huis zijn niet tot één atlas samengevoegd. Dat geeft 5 draw calls voor één gebouw, wat acceptabel is voor één hero-object.
+
+![Links het Sketchfab-huis naast een bestaand vakwerkhuis, rechts de Sketchfab-lantaarn (links van de deur) naast de huidige](batch-1-ingame.jpg)
+
+**Bevinding huis:** duidelijk meer architectonisch detail dan onze vakwerkhuizen, en de stijl past. Het oogt donkerder en verweerder. Geschikt als extra gebouw, niet als vervanging.
+
+**Bevinding lantaarn:** meer detail (beugel, geribd glas), maar op ware grootte is hij te klein naast onze lantaarns. Hij moet 1,7× zo groot en het glas moet warmer en sterker gloeien om in de lichtstijl van de game te passen. Daarna is het een verbetering. Zonder die aanpassing niet.
+
+Nog niet ingebouwd. Wacht op keuze voor plaats en toepassing.
