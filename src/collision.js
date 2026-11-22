@@ -25,7 +25,7 @@ function createSolids(){
    }
   }
   for(const b of s.builds){
-   const o=b.type==='blok'?{...b,w:1,d:1,base:b.y,top:b.y+1.12}:b.type==='bankje'?{...b,w:.6,d:.28,base:b.y,top:b.y+.6}:b.type==='bloembak'?{...b,r:.48,base:b.y,top:b.y+.62}:{...b,r:b.type==='vlag'?.12:.24,base:b.y,top:b.y+3.4};
+   const o=b.type==='blok'?{...b,w:1,d:1,base:b.y,top:b.y+1.12}:b.type==='bankje'?{...b,w:.6,d:.28,base:b.y,top:b.y+.6}:b.type==='bloembak'?{...b,r:.48,base:b.y,top:b.y+.62}:b.type==='werkbank'?{...b,w:.95,d:.45,base:b.y,top:b.y+1.04}:{...b,r:b.type==='vlag'?.12:.24,base:b.y,top:b.y+3.4};
    if(overlaps(o,x,z,r)&&visit(o))return true;
   }
   return false;

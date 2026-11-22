@@ -86,3 +86,9 @@ dialog .opts button:disabled,dialog .wingrid button:disabled{opacity:.45;transfo
 .mrow.now{font-weight:600}.mrow.now i{color:#ff8a3d}
 .mrow.later{opacity:.45}
 
+/* hunger bar (1.20) above the backpack line */
+#hud #hunger{position:absolute;left:0;bottom:calc(100% + 8px);width:170px;height:16px;border-radius:9px;background:#0d2027b3;border:1px solid var(--line);overflow:hidden;pointer-events:none}
+#hud #hunger b{display:block;height:100%;width:100%;background:linear-gradient(90deg,#d9772f,#f0b54a);transition:width .6s}
+#hud #hunger.low b{background:linear-gradient(90deg,#b8322a,#e0643a)}
+#hud #hunger span{position:absolute;inset:0;font-size:11px;font-weight:750;letter-spacing:.06em;line-height:16px;padding-left:8px;color:#fff;text-transform:uppercase}
+#hud #hunger[hidden]{display:none}

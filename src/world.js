@@ -477,7 +477,7 @@ function createWorld(canvas) {
    blade(cube,wood,0,2.28,0,.145,4.66,.15);
    for(const rail of [.38,.88])blade(cube,wood,rail,3,0,.042,3.1,.06);
    for(let j=0;j<10;j++)blade(cube,wood,.435,1.47+j*.337,.02,.97,.048,.076);
-   blade(sailcloth,cream,.42,3.10,.069,1,1,1);
+   blade(sailcloth,cream,.42,3.10,.069,1,1,1).name='sail';
   }
   shape(cyl,wood,0,0,.065,.34,.43,.34,0,0,Math.PI/2,hub);
   shape(ball,brass,0,0,.31,.133,.133,.068,0,0,0,hub);rotors.push(hub);solids.add({x,z,r:smock?2.74:2.54,base:0,top:10.1})
@@ -769,7 +769,7 @@ void main(){float y=vUv.y;
  hut(12,-60,5,1);pennants(0,-58,9);mill(-12,-68,true);
  tradingPost(13,-6.36);manor(-13,-52.94);
  for(let i=0;i<30;i++){let s=i%2?1:-1,x=s*(48+rnd()*88),z=32-rnd()*205,r=4+rnd()*12,h=-6+rnd()*15;while(extraIslands.some(E=>Math.hypot(x-E.x,z-E.z)<E.r+r+9))x+=s*24;island(x,z,r,land[i%3],r*.85,h);for(let j=0;j<3;j++)pine(x+rnd()*r*.6,z+rnd()*r*.55,3+rnd()*4,h)}
- let farmRotor=null,craneHook=null,signalFire=null;
+ let farmRotor=null,craneHook=null,signalFire=null,millDebris=null;const appleTrees=[];
  // ---- The new islands. Own random stream and a saved seed, so every earlier placement stays where it was.
  {const keep=seed,R=Nature.rng(5150),pick2=(a,b)=>a+R()*(b-a);
   // forest and island trails: the walkable corridor (trails, 1.35) is unchanged, the worn core is a little narrower
@@ -943,7 +943,10 @@ void main(){float y=vUv.y;
 
   // Molenhoeve: a windmill, a barn, a well and two fenced fields.
   trail(farm,[g0(farm),[-45,-59.2],[-52,-58.6],[-58,-57.2],[-63,-58.8],[-64.6,-61.9]]);
-  mill(-68,-62);farmRotor=rotors[rotors.length-1];solids.add({x:-68,z:-62,r:2.6,base:0,top:9});keepOut(-68,-62,4.2);
+  mill(-68,-62);farmRotor=rotors[rotors.length-1];
+  // rubble and broken sail lattice at the foot of the mill, cleared when you mend its foot (level 2, first part)
+  millDebris=group(-68,0,-62);for(const [x,z,r,k] of [[2,2.4,.4,1],[-1.4,2.8,1.2,.8],[.9,3.3,2.1,.7],[2.6,1.4,.3,.9]])shape(stoneGeo,0x9d9384,x,.22*k,z,.6*k,.42*k,.5*k,r,0,0,millDebris);
+  for(const [x,z,r,t] of [[-.4,3.6,.5,.25],[1.6,3.0,1.9,-.2],[-2.2,2.0,1.1,.35]])shape(cube,0x8a6a48,x,.12,z,.13,.09,2.3,r,t,0,millDebris);solids.add({x:-68,z:-62,r:2.6,base:0,top:9});keepOut(-68,-62,4.2);
   hut(-50,-67,6,1);keepOut(-50,-67,4.8);if(scanReady){scanProp('sf_ladder',-45.9,0,-64.4,.9,1);solids.add({x:-45.9,z:-64.4,r:.55,base:0,top:1.85});keepOut(-45.9,-64.4,1)}
   {const wx=-62,wz=-54,ring=new T.CylinderGeometry(1,1,1,24,1,true);ring.userData.surface=new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xd8cfbf,roughness:.95,side:T.DoubleSide});
    // fieldstone well: an open stone ring with a capstone rim, dark water, a timber frame with a shingle roof, a crank, rope and bucket
@@ -958,7 +961,7 @@ void main(){float y=vUv.y;
   const wheatGeo=plantGeo((pos,idx)=>{for(let k=0;k<9;k++){const a=k*2.4,r0=.03+.09*((k*7)%5)/5,x=Math.cos(a)*r0,z=Math.sin(a)*r0,h=.72+.12*((k*3)%4)/3,lean=.05*Math.cos(a*3);
     for(const [ox,oz] of [[.006,0],[0,.006]]){const b=pos.length/3;pos.push(x-ox,0,z-oz,x+ox,0,z+oz,x+lean+ox,h,z+oz,x+lean-ox,h,z-oz);idx.push(b,b+1,b+2,b,b+2,b+3)}
     leafSet(pos,idx,x+lean,h-.03,z,a,1.32,.14,.04)}},new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.8}));
-  function appleTree(x,z,h){shape(cyl,0x5a4230,x,h*.24,z,.15,h*.48,.15,0,.04);for(const [dx,dz,top] of [[.8,.3,.66],[-.6,-.55,.62],[.1,-.7,.72],[-.3,.6,.7]])cord(x,h*.42,z,x+dx,h*top,z+dz,.065,0x5a4230);
+  function appleTree(x,z,h){appleTrees.push({x,z,h,y:liftAt(x,z)});shape(cyl,0x5a4230,x,h*.24,z,.15,h*.48,.15,0,.04);for(const [dx,dz,top] of [[.8,.3,.66],[-.6,-.55,.62],[.1,-.7,.72],[-.3,.6,.7]])cord(x,h*.42,z,x+dx,h*top,z+dz,.065,0x5a4230);
    for(let k=0;k<10;k++){const a=k*.68+x,r=k<7?.8+.15*Math.sin(k*2.3):.3,yy=h*(.55+(k%3)*.08)+(k>=7?.4:0);shape(bushGeo,[0x4f7d32,0x5b8b3b,0x3f6e2c][k%3],x+Math.cos(a)*r,yy,z+Math.sin(a)*r,.78,.7,.78,a*2)}
    for(let k=0;k<12;k++){const a=k*2.4+z,e=.1+(k%4)*.2,r=1.25*Math.cos(e);shape(appleGeo,k%3?0xb3262a:0xc9572c,x+Math.cos(a)*r,h*.62+Math.sin(e)*.8,z+Math.sin(a)*r,.07,.07,.07)}}
   function field(x0,x1,z0,z1,crop,stone=false,gate=0){const cx=(x0+x1)/2,cz=(z0+z1)/2,gx=cx+gate;shape(cube,0x6b4a2e,cx,.04,cz,x1-x0,.08,z1-z0);
@@ -1162,35 +1165,45 @@ void main(){float y=vUv.y;
    const at=(t,v,dy=0)=>{const tt=Math.max(0,Math.min(L,t));return [b.ax+b.dx*t+nx*v,b.ya+m*tt+dy-b.sag*Math.sin(Math.PI*tt/L),b.az+b.dz*t+nz*v]};
    const box=(geo,color,t,v,dy,sx,sy,sz,tilt=true)=>{const [x,y,z]=at(t,v,dy);shape(geo,color,x,y,z,sx,sy,sz,yaw,0,tilt?pitch:0)};
    const bar=(t1,v1,y1,t2,v2,y2,r,color,geo)=>{const p=at(t1,v1,y1),q=at(t2,v2,y2);cord(p[0],p[1],p[2],q[0],q[1],q[2],r,color,geo)};
+   // Built in three parts (1.20): 0 the stone (abutments, pillars, posts), 1 the load-bearing structure, 2 the deck
+   // and railings. Each part is flushed into its own batch so a half-built bridge can show what has been laid.
+   const parts=[];const cut=()=>{const k=scene.children.length;flush();parts.push(scene.children.slice(k))};flush();
    if(b.rope){const sgd=t=>-b.sag*Math.PI/L*Math.cos(Math.PI*Math.max(0,Math.min(1,t/L)));
-    const n=Math.ceil((L+2.4)/.33);for(let i=0;i<n;i++){const t=-1.2+(i+.5)*(L+2.4)/n,j=Math.sin(i*12.9);const [x,y,z]=at(t,.03*j,.1);shape(ropePlank,0xe0cfb0,x,y,z,2.15+.12*j,.09,.25,yaw+.035*j,0,(t>0&&t<L)?-Math.atan(m+sgd(t)):0)}
-    for(const v of [-1.03,1.03]){for(const dy of [.02,.6,1.12]){const K=Math.ceil(L/1.1);for(let i=0;i<K;i++)bar(i*L/K,v,dy,(i+1)*L/K,v,dy,dy>1?.05:.035,0x9b7b52,ropeRail)}for(let t=0;t<=L+.01;t+=1.1)bar(t,v,.02,t,v,1.12,.022,0x8a6c47)}
     for(const [t,dir] of [[-.55,-1],[L+.55,1]])for(const v of [-1.25,1.25]){const [x,y,z]=at(t,v,0);shape(cyl,0x5a4230,x,y+.8,z,.16,1.8,.16);for(const yy of [.62,1.14])shape(new T.TorusGeometry(.17,.045,5,12),0x9b7b52,x,y+yy,z,1,1,1,0,0,Math.PI/2);
      const [ax2,ay2,az2]=at(t+dir*1.7,v*1.35,-.12);cord(x,y+1.55,z,ax2,ay2,az2,.032,0x9b7b52);lantern(x,y+1.95,z);solids.add({x,z,r:.26,base:-.2,top:2.1,stage:b.stage})}
+    cut();
+    for(const v of [-1.03,1.03]){for(const dy of [.02,.6,1.12]){const K=Math.ceil(L/1.1);for(let i=0;i<K;i++)bar(i*L/K,v,dy,(i+1)*L/K,v,dy,dy>1?.05:.035,0x9b7b52,ropeRail)}for(let t=0;t<=L+.01;t+=1.1)bar(t,v,.02,t,v,1.12,.022,0x8a6c47)}
+    cut();
+    const n=Math.ceil((L+2.4)/.33);for(let i=0;i<n;i++){const t=-1.2+(i+.5)*(L+2.4)/n,j=Math.sin(i*12.9);const [x,y,z]=at(t,.03*j,.1);shape(ropePlank,0xe0cfb0,x,y,z,2.15+.12*j,.09,.25,yaw+.035*j,0,(t>0&&t<L)?-Math.atan(m+sgd(t)):0)}
+    cut();
    }else{
    const t0=-2.2,t1=L+2.2,n=Math.ceil((t1-t0)/.4);
-   for(let i=0;i<n;i++){const t=t0+(i+.5)*(t1-t0)/n;box(plank,0xf3e3c9,t,.02*Math.sin(i*7),.055,3.66+.08*Math.sin(i*17),.24,(t1-t0)/n-.025,t>0&&t<L)}
-   for(const v of [-1.84,1.84])box(beam,0xffffff,L/2,v,.25,.12,.16,L);
-   for(const v of [-1.45,1.45])box(cube,steelDark,L/2,v,-.24,.2,.42,L+1.2);
-   for(let t=.8;t<L-.4;t+=1.6)box(cube,steelDark,t,0,-.42,3.3,.14,.16);
-   const N=Math.max(4,Math.round(L/2.1)),seg=L/N;
-   for(const v of [-1.96,1.96]){box(cube,steel,L/2,v,.14,.16,.24,L+.2);box(cube,steel,L/2,v,1.3,.15,.15,L+.2);box(beam,0xffffff,L/2,v,1.42,.22,.09,L+.3);
-    for(let i=0;i<=N;i++){box(cube,steel,i*seg,v,.72,.14,1.2,.14,false);box(cube,steelDark,i*seg,v,.16,.05,.34,.34,false)}
-    for(let i=0;i<N;i++)bar(i*seg,v,i%2?1.25:.22,(i+1)*seg,v,i%2?.22:1.25,.05,steel);
-    bar(0,v,.74,L,v,.74,.03,steel)}
    // portal pillars with lanterns, and abutments under both ends
    for(const t of [-.45,L+.45])for(const v of [-2.32,2.32]){box(masonry,0xd7ccb7,t,v,1.0,.7,2.1,.7,false);box(masonry,0xe6dcc8,t,v,2.12,.86,.16,.86,false);box(masonry,0xcfc1a8,t,v,.06,.9,.12,.9,false);const [x,y,z]=at(t,v,2.56);lantern(x,y,z);solids.add({x,z,r:.48,base:-.2,top:2.9,stage:b.stage})}
    for(const [t,dir] of [[-.3,-1],[L+.3,1]])[[4.8,.7,1.3,0],[3.9,.9,1.1,.35],[2.8,1.0,.9,.7]].reduce((y,[w2,h2,d2,inset])=>{box(masonry,0xcfc1a8,t+dir*inset,0,y-h2/2,w2,h2,d2,false);return y-h2},-.05);
+   cut();
+   for(const v of [-1.45,1.45])box(cube,steelDark,L/2,v,-.24,.2,.42,L+1.2);
+   for(let t=.8;t<L-.4;t+=1.6)box(cube,steelDark,t,0,-.42,3.3,.14,.16);
+   const N=Math.max(4,Math.round(L/2.1)),seg=L/N;
+   for(const v of [-1.96,1.96]){box(cube,steel,L/2,v,.14,.16,.24,L+.2);box(cube,steel,L/2,v,1.3,.15,.15,L+.2);
+    for(let i=0;i<=N;i++){box(cube,steel,i*seg,v,.72,.14,1.2,.14,false);box(cube,steelDark,i*seg,v,.16,.05,.34,.34,false)}
+    for(let i=0;i<N;i++)bar(i*seg,v,i%2?1.25:.22,(i+1)*seg,v,i%2?.22:1.25,.05,steel);
+    bar(0,v,.74,L,v,.74,.03,steel)}
    // steel arch with struts underneath
    if(L>9){const K=14,dy=t=>-.6-1.9*(1-Math.sin(Math.PI*Math.max(0,Math.min(1,t/L))));
     for(const v of [-1.45,1.45]){for(let i=0;i<K;i++){const a=.2+(L-.4)*i/K,c=.2+(L-.4)*(i+1)/K;bar(a,v,dy(a),c,v,dy(c),.15,steel)}
      for(let i=1;i<N;i++){const t=i*seg;if(dy(t)<-.75)bar(t,v,dy(t),t,v,-.44,.06,steelDark)}}
     for(let i=1;i<N;i+=2){const t=i*seg;bar(t,-1.45,dy(t),t,1.45,dy(t),.06,steelDark)}}
+   cut();
+   for(let i=0;i<n;i++){const t=t0+(i+.5)*(t1-t0)/n;box(plank,0xf3e3c9,t,.02*Math.sin(i*7),.055,3.66+.08*Math.sin(i*17),.24,(t1-t0)/n-.025,t>0&&t<L)}
+   for(const v of [-1.84,1.84])box(beam,0xffffff,L/2,v,.25,.12,.16,L);
+   for(const v of [-1.96,1.96])box(beam,0xffffff,L/2,v,1.42,.22,.09,L+.3);
    // a lantern on a post at mid span on both sides
    for(const v of [-1.96,1.96]){box(cube,steel,L/2,v,1.7,.1,.5,.1,false);const [x,y,z]=at(L/2,v,2.12);lantern(x,y,z)}
+   cut();
    }
    liftOff=false;rotOrder='XYZ';
-   let k=scene.children.length;flush();bridgeGroups.push({stage:b.stage,list:scene.children.slice(k)})}}
+   bridgeGroups.push({stage:b.stage,list:parts.flat(),parts})}}
  // Each door opens into a furnished walkable room in a separate part of the scene.
  // Interior floors: oak boards in the houses, flagstones in the smithy. Every room has its own trade.
  const floorTex=(file,n)=>{const m=loadSurface(file);m.repeat.set(n,n);return m};
@@ -1540,6 +1553,11 @@ void main(){float y=vUv.y;
  else if(type==='bloembak'){shape(planks,0x8a5a34,0,.27,0,1.0,.5,.5,0,0,0,g);shape(cube,0x3b2a1e,0,.5,0,.92,.06,.42,0,0,0,g);const tones=[0xe2475b,0xf6c443,0xf4f0f2,0xd45a9b];for(let i=0;i<3;i++){const px=-.3+i*.3;shape(leafGeo,0x4f7d32,px,.52,0,1.05,1.05,1.05,i*2,0,0,g);shape(flowerGeo,tones[i%4],px,.52,0,1.05,1.05,1.05,i*2,0,0,g)}}
  else if(type==='bankje'){shape(planks,0xb08d67,0,.48,0,1.3,.08,.42,0,0,0,g);shape(planks,0xb08d67,0,.85,-.2,1.3,.3,.06,0,0,0,g);for(const s of [-1,1]){shape(beam,oak,s*.55,.24,0,.08,.48,.38,0,0,0,g);shape(beam,oak,s*.55,.66,-.2,.08,.4,.06,0,0,0,g)}}
  else if(type==='vlag'){shape(cyl,0x6b5a48,0,1.7,0,.05,3.4,.05,0,0,0,g);shape(ball,0xb69765,0,3.45,0,.08,.08,.08,0,0,0,g);const f=new T.Mesh(new T.PlaneGeometry(1.1,.7,8,1),new T.MeshStandardMaterial({map:canvasTex(128,80,c=>{c.fillStyle='#2f5d63';c.fillRect(0,0,128,80);c.fillStyle='#e7c46a';c.beginPath();c.moveTo(40,40);c.lineTo(64,16);c.lineTo(88,40);c.lineTo(64,64);c.fill()}),side:T.DoubleSide,roughness:.9}));f.position.set(.58,3.0,0);f.castShadow=true;g.add(f);flags.push(f)}
+ // the workbench (1.20): a heavy plank top on four square legs with a shelf, a vice and a hammer lying ready
+ else if(type==='werkbank'){shape(planks,0xb08d67,0,.98,0,1.9,.12,.85,0,0,0,g);for(const sx of [-1,1])for(const sz of [-1,1])shape(beam,oak,sx*.82,.47,sz*.33,.13,.94,.13,0,0,0,g);
+  shape(planks,0x9c7a56,0,.28,0,1.66,.06,.7,0,0,0,g);for(const sz of [-1,1])shape(beam,oak,0,.62,sz*.33,1.6,.08,.08,0,0,0,g);
+  shape(cube,0x3a3a3c,-.78,1.1,.42,.26,.16,.14,0,0,0,g);shape(cyl,0x3a3a3c,-.78,1.1,.56,.025,.36,.025,0,0,Math.PI/2,g);shape(cube,0x8a6a48,.35,1.07,.1,.7,.05,.14,.2,0,0,g);
+  if(scanReady&&parent!==scene)scanProp('sf_hammer',-.25,1.04,-.12,1.1,.8,g);else{shape(cube,0x3a3a3c,-.25,1.08,-.12,.09,.08,.2,0,0,0,g);shape(cyl,0x8a6a48,-.25,1.06,.1,.02,.38,.02,0,0,Math.PI/2,g)}}
  else {lamp(0,0,0,g)}return g}
  // ---- Level 4 · Mijn huis. The player's own 8 x 6 m half-timbered house on an approved plot (HouseDesigner plan,
  // ConstructionCampaign stages). Drawn per completed stage, with the stages still to come as a pale ghost; the walls
@@ -1666,7 +1684,11 @@ void main(){float y=vUv.y;
   const e=c.door,h=terrain(e.x,e.z);if(h<-50||Math.abs(h-lo)>.5||solids.blocked(e.x,e.z,st,h+.05,.35,2.2))return {valid:false,reason:'de voordeur komt niet vrij uit'};
   return {valid:true}}
  let houseLastS=null,houseGhostDesign=null;
- function sync(s){houseLastS=s;houseSync(s,houseGhostDesign);flags.length=0;{const tn=towerProgress(s);for(const k in towerGroups)towerGroups[k].visible=towerShow[k](tn)}portPads.forEach((list,i)=>list.forEach(m=>m.visible=s.stage<=i));bridgeGroups.forEach(b=>b.list.forEach(g=>g.visible=s.stage>=b.stage));beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(lightTower)[].concat(lightTower.material).forEach(m=>{if(m.emissiveMap)m.emissiveIntensity=s.stage>=3?2.6:.15});if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
+ function sync(s){houseLastS=s;houseSync(s,houseGhostDesign);flags.length=0;{const tn=towerProgress(s);for(const k in towerGroups)towerGroups[k].visible=towerShow[k](tn)}portPads.forEach((list,i)=>list.forEach(m=>m.visible=s.stage<=i));{// parts laid so far for the mission in progress (1.20): a bridge shows its stone, then its frame, then the whole span
+  const built=s.parts&&s.parts.m===s.stage?s.parts.n:0;
+  bridgeGroups.forEach(b=>{const full=s.stage>=b.stage,n=b.stage===s.stage+1?built:0;b.parts.forEach((list,i)=>list.forEach(g=>g.visible=full||n>i))});
+  // the Molenhoeve mill: rubble at its foot until the foot is mended, then the stocks and lattice, the sails last
+  if(farmRotor){const whole=s.stage>=4,n=s.stage===3?built:0;farmRotor.visible=whole||n>=2;farmRotor.traverse(o=>{if(o.name==='sail')o.visible=whole});if(millDebris)millDebris.visible=!whole&&n<1}}beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(lightTower)[].concat(lightTower.material).forEach(m=>{if(m.emissiveMap)m.emissiveIntensity=s.stage>=3?2.6:.15});if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
  function ground(x,z,s,y=100){if(inside)return inside.floorAt(x-inside.x,z,y);const L=liftAt(x,z);let h=islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.35)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r-.35?L+mountainH(x,z):-100;
  for(const b of bridges){if(b.stage>s.stage)continue;const o=onBridge(b,x,z,2.3);if(o&&o.v<b.hw-.02)h=Math.max(h,o.y+.19)}
  if(tower)h=Math.max(h,tower.stairs(x,z,s,y));
@@ -1746,5 +1768,5 @@ void main(){float y=vUv.y;
   for(const {trees,tiers} of firSet){const n=[0,0,0];for(const t of trees){const d=Math.hypot(t.x-c.x,t.z-c.z,(t.y-c.y)*.5),l=d<24?0:d<80?1:2;tiers[l].setMatrixAt(n[l]++,t.m)}
    tiers.forEach((m,l)=>{m.count=n[l];m.visible=n[l]>0;m.instanceMatrix.needsUpdate=true})}}
  if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));Models.load('sf_bookshelf').then(r=>r.material.color.setHex(0xa8876a)).catch(()=>{});dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb39c86);dressCrags();dressStumps();plantFirs()}
- return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),rooms,enterRoom,outfit:hero.outfit,rig:()=>hero.rig?.(),reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,housePlots,siteCheck,houseGhost:d=>{houseGhostDesign=d||null;houseSync(houseLastS,houseGhostDesign)},houseLocal:(x,z)=>houseNow?houseLocal(x,z):null,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
+ return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),rooms,enterRoom,outfit:hero.outfit,rig:()=>hero.rig?.(),appleTrees,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,housePlots,siteCheck,houseGhost:d=>{houseGhostDesign=d||null;houseSync(houseLastS,houseGhostDesign)},houseLocal:(x,z)=>houseNow?houseLocal(x,z):null,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
 }
