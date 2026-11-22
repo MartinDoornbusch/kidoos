@@ -56,6 +56,10 @@ function explorerGear(person,girl){
  const T=THREE,B=person.bones,made=[],leather=new T.MeshStandardMaterial({color:0x4b301d,roughness:.62}),canvas=new T.MeshStandardMaterial({color:0x6a5a3f,roughness:.92}),
   roll=new T.MeshStandardMaterial({color:0x8d6b45,roughness:.95}),brass=new T.MeshStandardMaterial({color:0xb48a3c,metalness:.85,roughness:.32}),
   scarf=new T.MeshStandardMaterial({color:0xc4862f,roughness:.92,side:T.DoubleSide});
+ const tex=(w,h,draw,rep=1)=>{const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(rep,rep);return t};
+ canvas.map=tex(128,128,(g,w,h)=>{g.fillStyle='#8f7b55';g.fillRect(0,0,w,h);for(let y=0;y<h;y+=2){g.fillStyle=y%4?'rgba(50,38,20,.22)':'rgba(255,240,200,.1)';g.fillRect(0,y,w,1)}for(let x=0;x<w;x+=2){g.fillStyle='rgba(40,30,15,.14)';g.fillRect(x,0,1,h)}for(let i=0;i<60;i++){g.fillStyle=`rgba(40,30,15,${Math.random()*.12})`;g.fillRect(Math.random()*w,Math.random()*h,6+Math.random()*14,3+Math.random()*8)}},3);canvas.color.set(0xc4b08a);
+ leather.map=tex(128,128,(g,w,h)=>{g.fillStyle='#6b4428';g.fillRect(0,0,w,h);for(let i=0;i<500;i++){g.fillStyle=`rgba(${Math.random()<.5?20:120},${Math.random()<.5?12:80},6,${Math.random()*.18})`;g.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*3,1+Math.random()*3)}},2);leather.color.set(0xb08868);
+ roll.map=tex(64,128,(g,w,h)=>{g.fillStyle='#8c2f28';g.fillRect(0,0,w,h);for(const [y,c] of [[18,'#e8dcc2'],[26,'#2c3e4a'],[94,'#e8dcc2'],[102,'#2c3e4a']]){g.fillStyle=c;g.fillRect(0,y,w,5)}for(let i=0;i<300;i++){g.fillStyle=`rgba(255,255,255,${Math.random()*.06})`;g.fillRect(Math.random()*w,Math.random()*h,2,2)}});roll.color.set(0xffffff);
  const body=person.body;body.updateMatrixWorld(true);
  function part(geo,mat,x,y,z,bone,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1){const m=new T.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.scale.set(sx,sy,sz);m.castShadow=true;body.add(m);m.updateMatrixWorld(true);(B[bone]||B.Spine2).attach(m);made.push(m);return m}
  const box=(w,h,d)=>new T.BoxGeometry(w,h,d,2,2,2);
@@ -69,7 +73,9 @@ function explorerGear(person,girl){
  for(const x of [-9,9])part(new T.TorusGeometry(6.5,.55,6,16),leather,x,girl?py-19:py+19,pz+1,'Spine2',0,Math.PI/2);
  // shoulder straps
  for(const s of [-1,1]){const c=new T.CatmullRomCurve3([[7,py+11,pz+4],[8.2,py+16,pz+9],[8.6,py+15,pz+15.5],[8.4,py+7,pz+25],[8.4,py-3,pz+26.5],[8,py-12,pz+26]].map(([x,y,z])=>new T.Vector3(s*x,y,z)));
-  part(new T.TubeGeometry(c,18,1.05,5),leather,0,0,0,'Spine2',0,0,0,1,1,1)}
+  part(new T.TubeGeometry(c,18,1.05,5),leather,0,0,0,'Spine2',0,0,0,1,1,1);part(box(2.8,2.4,.7),brass,s*8.4,py+2,pz+26.3,'Spine2')}
+ for(const x of [-5.5,5.5]){part(box(2,12,1),leather,x,py+12,pz-6.4,'Spine2',.18);part(box(2.6,2.2,.6),brass,x,py+7.6,pz-6.9,'Spine2')}
+ part(new T.CylinderGeometry(2.4,2.1,4.2,16,1,true),new T.MeshStandardMaterial({color:0xaab0b4,metalness:.8,roughness:.4,side:T.DoubleSide}),11.5,py-10,pz-2,'Spine2');
  // belt, buckle, pouch, compass
  const by=girl?81:80;
  part(new T.CylinderGeometry(1,1,3.6,40,1,true),leather,0,by,.4,'Pelvis',0,0,0,14.2,1,12.1);
@@ -98,9 +104,13 @@ function explorerGear(person,girl){
  {const handle=new T.CylinderGeometry(.9,1,44,8),iron=new T.MeshStandardMaterial({color:0x5d5e60,metalness:.75,roughness:.38}),haft=new T.MeshStandardMaterial({color:0x8a6239,roughness:.75});
   const tool=(name,build)=>{const g=new T.Group();build(g);g.traverse(o=>{if(o.isMesh)o.castShadow=true});body.add(g);g.updateMatrixWorld(true);B.Spine2.attach(g);g.visible=false;kit[name]=g};
   const add=(g,geo,mat,x,y,z,rx=0,ry=0,rz=0)=>{const m=new T.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);g.add(m)};
-  tool('bijl',g=>{g.position.set(-11.5,py+2,pz-4);g.rotation.set(.1,0,.5);add(g,handle,haft,0,0,0);add(g,new T.BoxGeometry(10,6,1.4),iron,4,19,0);add(g,new T.BoxGeometry(1.2,7.5,1.8),iron,9,19,0)});
-  tool('houweel',g=>{g.position.set(11.5,py+2,pz-4);g.rotation.set(.1,0,-.5);add(g,handle,haft,0,0,0);add(g,new T.ConeGeometry(1.4,13,6),iron,-6.5,20,0,0,0,Math.PI/2);add(g,new T.ConeGeometry(1.4,10,6),iron,5,20,0,0,0,-Math.PI/2);add(g,new T.BoxGeometry(3,3,3),iron,0,20,0)});
-  tool('zaag',g=>{g.position.set(0,py-1,pz-6.4);g.rotation.set(0,0,.12);add(g,new T.BoxGeometry(30,8,.3),iron,0,0,0);add(g,new T.BoxGeometry(7,9,2.2),haft,17,1,0)});
+  const grain=new T.MeshStandardMaterial({map:tex(64,256,(g,w,h)=>{g.fillStyle='#8d6038';g.fillRect(0,0,w,h);for(let i=0;i<34;i++){g.strokeStyle=`rgba(${50+i%3*25},${30+i%4*10},14,.35)`;g.lineWidth=1+i%3;g.beginPath();const x=(i*13)%w;g.moveTo(x,0);g.bezierCurveTo(x+6,h*.3,x-6,h*.6,x+3,h);g.stroke()}}),roughness:.65}),
+   steel=new T.MeshStandardMaterial({color:0x8f969c,metalness:.85,roughness:.38}),edge=new T.MeshStandardMaterial({color:0xdfe3e6,metalness:.9,roughness:.18});
+  const bentHandle=(len,bend,r=.9)=>new T.TubeGeometry(new T.CatmullRomCurve3([[0,-len/2,0],[bend,-len/6,0],[-bend*.4,len/6,0],[0,len/2,0]].map(a=>new T.Vector3(...a))),24,r,10,false);
+  const axeHead=(()=>{const sh=new T.Shape();sh.moveTo(-2.4,2.3);sh.lineTo(2.6,2.6);sh.quadraticCurveTo(7.5,4.2,10,7);sh.lineTo(10.8,-7);sh.quadraticCurveTo(7.5,-4.2,2.6,-2.6);sh.lineTo(-2.4,-2.3);sh.lineTo(-3.6,0);sh.closePath();const g=new T.ExtrudeGeometry(sh,{depth:1.5,bevelEnabled:true,bevelThickness:.4,bevelSize:.35,bevelSegments:2,curveSegments:10});g.translate(0,0,-.75);return g})();
+  tool('bijl',g=>{g.position.set(-11.5,py+2,pz-4);g.rotation.set(.1,0,.5);add(g,bentHandle(40,1.1),grain,0,0,0);add(g,axeHead,steel,.6,18.4,0);add(g,new T.BoxGeometry(.7,13.4,.9),edge,10.9,18.4,0);add(g,new T.CylinderGeometry(1.05,1.05,1.4,10),new T.MeshStandardMaterial({color:0x3a2a1c,roughness:.8}),0,-18,0)});
+  tool('houweel',g=>{g.position.set(11.5,py+2,pz-4);g.rotation.set(.1,0,-.5);add(g,bentHandle(40,-1),grain,0,0,0);const arc=new T.CatmullRomCurve3([[-13,17.6,0],[-6,20.2,0],[0,21,0],[6,20.2,0],[12,17.8,0]].map(a=>new T.Vector3(...a)));add(g,new T.TubeGeometry(arc,24,1.1,8),steel,0,0,0);add(g,new T.ConeGeometry(1.1,3,8),edge,-14.2,17.1,0,0,0,Math.PI/2+.35);add(g,new T.BoxGeometry(5,1.6,2.6),edge,13.4,17.4,0,0,0,-.35);add(g,new T.BoxGeometry(3.4,3.6,3.2),steel,0,20.4,0)});
+  tool('zaag',g=>{g.position.set(0,py-1,pz-6.4);g.rotation.set(0,0,.12);const sh=new T.Shape();sh.moveTo(-15,3);sh.lineTo(14,4.4);sh.lineTo(14,-4);for(let x=14;x>-15;x-=1.2){sh.lineTo(x-.6,-4.9);sh.lineTo(x-1.2,-4)}sh.lineTo(-15,-1.5);sh.closePath();add(g,new T.ExtrudeGeometry(sh,{depth:.25,bevelEnabled:false}),steel,0,0,-.12);const hs=new T.Shape();hs.moveTo(0,-5);hs.lineTo(6,-4);hs.quadraticCurveTo(8,1,6,6);hs.lineTo(0,5.5);hs.closePath();const hole=new T.Path();hole.moveTo(1.5,-2);hole.lineTo(4.5,-1.6);hole.quadraticCurveTo(5.4,1,4.4,3.2);hole.lineTo(1.5,2.8);hole.closePath();hs.holes.push(hole);add(g,new T.ExtrudeGeometry(hs,{depth:2,bevelEnabled:true,bevelThickness:.3,bevelSize:.3,bevelSegments:2}),grain,14,0,-1)});
   tool('touw',g=>{g.position.set(13.8,py-8,pz+1);g.rotation.set(0,Math.PI/2,0);add(g,new T.TorusGeometry(6,1.3,8,22),new T.MeshStandardMaterial({color:0xb59a68,roughness:1}),0,0,0);add(g,new T.TorusGeometry(4.6,1.2,8,20),new T.MeshStandardMaterial({color:0xa88d5c,roughness:1}),0,0,1.3)});
   tool('kaart',g=>{g.position.set(-13.5,py-6,pz+1);add(g,new T.CylinderGeometry(2,2,20,10),new T.MeshStandardMaterial({color:0xdcc79a,roughness:.95}),0,0,0);add(g,new T.CylinderGeometry(2.2,2.2,2,10),haft,0,9,0)});
  }
