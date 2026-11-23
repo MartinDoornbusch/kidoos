@@ -32,9 +32,9 @@ function canPay(c){return ['hout','steen','planken'].every(k=>(s[k]||0)>=(c[k]||
 function pay(c){for(const k of ['hout','steen','planken'])s[k]-=c[k]||0}
 // Gereedschap verdien je met opdrachten bij de bewoners.
 const TOOLS={
- bijl:{name:'Bijl',owner:'bram',need:5,stage:0,use:'Met de bijl hak je hout bij de houtstapels. Elke goede slag levert één hout op.',intro:'Ik leen je mijn bijl, maar eerst wil ik zien dat je instructies goed begrijpt. Haal vijf opdrachten goed.'},
- houweel:{name:'Houweel',owner:'mara',need:5,stage:0,use:'Met het houweel hak je steen in de groeves. Elke goede slag levert één steen op.',intro:'Ik smeed een houweel voor je. Terwijl het ijzer gloeit, beantwoord jij vijf opdrachten goed.'},
- zaag:{name:'Zaag',owner:'bram',need:6,stage:1,use:'Met de zaag maak je op de brugwerf planken van hout. Elke goede zaagsnede levert één plank op.',intro:'Voor de bergbrug zijn planken nodig. Mijn beste zaag krijg je na zes goede opdrachten.'},
+ bijl:{name:'Bijl',owner:'bram',need:5,stage:0,use:'Met de bijl hak je bomen om en hout bij de houtstapels. Elke goede slag levert één hout op. Pak hem met toets 1 of tik hem aan in je gereedschapsbalk.',intro:'Ik leen je mijn bijl, maar eerst wil ik zien dat je instructies goed begrijpt. Haal vijf opdrachten goed.'},
+ houweel:{name:'Houweel',owner:'mara',need:5,stage:0,use:'Met het houweel hak je steen uit de rotsen en de groeves. Elke goede slag levert één steen op. Pak het met toets 2 of tik het aan in je gereedschapsbalk.',intro:'Ik smeed een houweel voor je. Terwijl het ijzer gloeit, beantwoord jij vijf opdrachten goed.'},
+ zaag:{name:'Zaag',owner:'bram',need:6,stage:1,use:'Met de zaag maak je op de brugwerf planken van hout. Elke goede zaagsnede levert één plank op. Je vindt hem onder toets 3 in je gereedschapsbalk.',intro:'Voor de bergbrug zijn planken nodig. Mijn beste zaag krijg je na zes goede opdrachten.'},
  touw:{name:'Touw',owner:'tomas',need:5,stage:1,use:'Het touw houdt de bergbrug bij elkaar. Zonder touw geen brug.',intro:'Ik vlecht stevig touw van de vezels uit mijn tuin. Help me met vijf opdrachten.'},
  hamer:{name:'Hamer en beitel',owner:'joost',need:6,stage:3,use:'Met hamer en beitel hak je stenen en tandwielen op maat. De molen op de Molenhoeve heeft ze nodig.',intro:'Een molen herstel je niet met blote handen. Haal zes opdrachten goed, dan krijg je mijn tweede hamer en beitel.'},
  lier:{name:'Lier',owner:'gerrit',need:6,stage:3,use:'Met de lier trek je zware lasten omhoog. De kraan in de Steengroeve draait er weer mee.',intro:'Met deze lier trek ik stammen uit het ravijn. Laat met zes goede antwoorden zien dat je hem verdient.'},
@@ -116,7 +116,7 @@ $('panel').addEventListener('close',()=>{if(race?.paused){race.start+=performanc
 function closePanel(){$('panel').close();updateHUD()}
 function buttons(){return '<div class="row"><button id="back">Terug naar het eiland</button></div>'}
 function back(){$('back').onclick=closePanel}
-function start(){if(!world){try{world=createWorld($('world'));window.addEventListener('resize',world.resize)}catch(error){$('start').textContent='Spelwereld laden mislukt';console.error(error);return false}}playing=true;if(world.walkers)world.walkers.onGreet=(name,line)=>{if(!$('panel').open)notify(name+': “'+line+'”')};restore();houseView();$('entry').hidden=true;$('hud').hidden=false;world.animate(0,s,p,view,false,1);updateHUD();notify(s.log.turn||s.hout?'Welkom terug, '+profile+'!':'Loop naar de gemarkeerde houtstapel.')}
+function start(){if(!world){try{world=createWorld($('world'));window.addEventListener('resize',world.resize)}catch(error){$('start').textContent='Spelwereld laden mislukt';console.error(error);return false}}playing=true;if(world.walkers)world.walkers.onGreet=(name,line)=>{if(!$('panel').open)notify(name+': “'+line+'”')};restore();houseView();if(s.hand===undefined)s.hand=HAND.find(k=>s.tools[k])||null;world.hold?.(s.tools[s.hand]?s.hand:null);$('entry').hidden=true;$('hud').hidden=false;world.animate(0,s,p,view,false,1);updateHUD();notify(s.log.turn||s.hout?'Welkom terug, '+profile+'!':'Loop naar de gemarkeerde houtstapel.')}
 document.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>{profile=b.dataset.profile;updateProfileMenu();world?.outfit(profile==="Floor"?"Nova":"Flint");document.querySelectorAll('[data-profile]').forEach(c=>c.classList.toggle('selected',c===b))});$('start').onclick=start;$('history').onclick=()=>{start();if(playing)historyMenu()};
 function needs(){const cp=cur(),t3=cp?.r;if(t3){const c=t3.progress.next.cost,planks=Math.max(0,(c.planken||0)-s.planken);return {hout:Math.max(0,(c.hout||0)+planks-s.hout),steen:Math.max(0,(c.steen||0)-s.steen),planks}}
  const c=stepCost();if(!c)return null;const planks=Math.max(0,c.planken-s.planken);
@@ -146,9 +146,18 @@ function replenish(){const m=mission();if(!(m||cur())||currentRoom)return;const 
   const o=here.filter(o=>pileLeft(o)===0).sort((a,b)=>dist(a)-dist(b))[0];if(!o)continue;s.harvest[o.i]=now+45000;delete s.yield[o.i];persist();
   notify(type==='hout'?'Er groeit nieuw hout aan bij een houtstapel. Nog even geduld.':'Er komt nieuwe steen vrij bij een steengroeve. Nog even geduld.')}}
 function coin(n=1){s.munten=(s.munten||0)+n;persist()}
-function toolList(){return Object.keys(TOOLS).filter(k=>s.tools[k]).map(k=>TOOLS[k].name.toLowerCase()).join(', ')}
+function toolList(){return Object.keys(TOOLS).filter(k=>s.tools[k]&&!['bijl','houweel','zaag'].includes(k)).map(k=>TOOLS[k].name.toLowerCase()).join(', ')}
+// (1.24) Inventory bar: the tools you can hold. 1 bijl (trees and woodpiles), 2 houweel (rocks and quarries), 3 zaag
+// (planks). The chosen tool sits in the explorer's hand; the right tool must be in hand before you can work with it.
+const HAND=['bijl','houweel','zaag'];let toolbarSig='';
+function holdTool(id,quiet){if(!id||!HAND.includes(id))return;if(!s.tools[id]){if(!quiet)notify('Je hebt nog geen '+TOOLS[id].name.toLowerCase()+'. '+houseOf(TOOLS[id].owner).name+' kan je helpen.');return}
+ s.hand=s.hand===id?null:id;world.hold(s.hand);persist();updateHUD();if(!quiet)notify(s.hand?TOOLS[id].name+' in je hand.':TOOLS[id].name+' weer in je rugzak.')}
+function toolbar(){const el=$('toolbar');if(!el)return;const owned=HAND.filter(k=>s.tools[k]),sig=owned.join()+'|'+s.hand+'|'+(currentRoom?1:0);if(sig===toolbarSig)return;toolbarSig=sig;world.hold(currentRoom?null:s.hand);
+ el.innerHTML=owned.map(k=>'<button data-tool="'+k+'" class="'+(s.hand===k?'held':'')+'" title="'+TOOLS[k].name+' pakken"><kbd>'+(HAND.indexOf(k)+1)+'</kbd>'+TOOLS[k].name+'</button>').join('');
+ el.hidden=!owned.length||!!currentRoom;$('hud').classList.toggle('withTools',!el.hidden);el.querySelectorAll('button').forEach(b=>b.onclick=()=>holdTool(b.dataset.tool))}
+const toolFor=n=>n.type==='hout'?'bijl':'houweel',pickHint=id=>'Pak je '+TOOLS[id].name.toLowerCase()+(matchMedia('(pointer:coarse)').matches?'':' · '+(HAND.indexOf(id)+1));
 function inventoryText(){return 'Munten '+(s.munten||0)+' · Hout '+s.hout+' · Steen '+s.steen+(s.planken||s.stage===1?' · Planken '+s.planken:'')+(s.appels?' · Appels '+s.appels:'')+(toolList()?' · '+toolList():'')}
-function updateHUD(){if(!playing)return;replenish();
+function updateHUD(){if(!playing)return;replenish();toolbar();
  $('build').hidden=!!currentRoom;
  if(currentRoom){
   const {house,exit,npc}=currentRoom,nearExit=dist(exit)<1.35&&p.y<1,nearNpc=dist(npc)<2.65&&p.y<1;
@@ -175,7 +184,7 @@ let m=mission();$('region').textContent=area().name;$('chapter').textContent=m?'
  const sources=[...world.nodes.filter(n=>dist(n)<3.4),...(world.trees||[]).filter(t=>dist(t)<2.1&&Math.abs(p.y-t.y)<2.2),...(world.rocks||[]).filter(r=>dist(r)<r.r+1.4&&Math.abs(p.y-r.y)<3)];
  let n=sources.filter(n=>pileLeft(n)>0).sort((a,b)=>dist(a)-dist(b)-(a.r||0)+(b.r||0))[0];
  if(n&&(!context||(r&&dist(n)<dist(r))))context={kind:'resource',n};
- $('act').textContent=context?.kind==='resource'?(context.n.type==='hout'?(s.tools.bijl?(context.n.kind==='tree'?'Boom omzagen':'Hout hakken'):'Bijl nodig'):(s.tools.houweel?(context.n.kind==='rock'?'Steen hakken uit de rots':'Steen hakken'):'Houweel nodig'))+' · E':context?.kind==='race'?'Start de windrace · E':context?'Werkplaats · E':''}
+ $('act').textContent=context?.kind==='resource'?(!s.tools[toolFor(context.n)]?TOOLS[toolFor(context.n)].name+' nodig · E':s.hand!==toolFor(context.n)?pickHint(toolFor(context.n)):(context.n.type==='hout'?(context.n.kind==='tree'?'Boom omhakken':'Hout hakken'):(context.n.kind==='rock'?'Steen hakken uit de rots':'Steen hakken'))+' · E'):context?.kind==='race'?'Start de windrace · E':context?'Werkplaats · E':''}
  if(l3On()&&!placement&&!race&&dist(L3.site)<4.4&&(!context||context.kind!=='resource'||dist(L3.site)<dist(context.n))){context={kind:'tower'};$('act').textContent='Bouwplaats wachttoren · E'}
  else if((s.level||1)>=4&&houseReady()&&!placement&&!race){const hi=houseInfo(),d=hi?hi.design:houseDraft(),near=Math.hypot(p.x-d.x,p.z-d.z)<6.5;
   if(near&&(!context||context.kind!=='resource')){context={kind:'house'};$('act').textContent=(!hi?'Ontwerp je huis':hi.progress.finished?'Inrichten':'Bouwplek mijn huis')+' · E'}}
@@ -229,9 +238,10 @@ function harvest(n){
  const tool=n.type==='hout'?'bijl':'houweel';
  if(!s.tools[tool]){const t=TOOLS[tool],h=houseOf(t.owner);
   show('<small>GEREEDSCHAP NODIG</small><h2>'+(tool==='bijl'?'Zonder bijl geen hout':'Zonder houweel geen steen')+'</h2><p>'+h.name+' in de '+h.place.toLowerCase()+' geeft je '+(tool==='bijl'?'een bijl':'een houweel')+' als je '+t.need+' opdrachten goed maakt. Je kompas wijst de weg.</p>'+buttons());back();return}
+ if(s.hand!==tool){s.hand=tool;world.hold(tool);persist();updateHUD();notify(TOOLS[tool].name+' in je hand. Nog een keer en je hakt.');return}
  function swing(){
   const left=pileLeft(n);
-  askOne(subject(),{kicker:(n.kind==='tree'?'BOOM OMZAGEN · NOG '+left+' ZAAGSNEDEN':(n.type==='hout'?'HOUTHAKKEN':'STEENHAKKEN')+' · NOG '+left+' IN '+(n.kind==='rock'?'DIT ROTSBLOK':'DEZE '+(n.type==='hout'?'STAPEL':'GROEVE'))),title:n.kind==='tree'?'Zaag de stam door':n.type==='hout'?'Raak de stam':'Raak de rots',lead:'Een goed antwoord is een raak slag.'},ok=>{
+  askOne(subject(),{kicker:(n.kind==='tree'?'BOOM OMHAKKEN · NOG '+left+' SLAGEN':(n.type==='hout'?'HOUTHAKKEN':'STEENHAKKEN')+' · NOG '+left+' IN '+(n.kind==='rock'?'DIT ROTSBLOK':'DEZE '+(n.type==='hout'?'STAPEL':'GROEVE'))),title:n.kind==='tree'?'Hak de stam door':n.type==='hout'?'Raak de stam':'Raak de rots',lead:'Een goed antwoord is een rake slag.'},ok=>{
    if(ok){s[n.type]++;s.yield[n.i]=left-1;if(left-1<=0){s.harvest[n.i]=Date.now()+(n.regrow||GONE);delete s.yield[n.i];if(n.kind==='tree'){world.fellSync?.(s,true);notify('De boom valt! Over een paar minuten groeit hier een nieuwe.')}else if(n.kind==='rock')notify('Dit rotsblok is even leeg gehakt.')}world.reach();world.burst(n.x,(n.y||0)+1.6,n.z,n.type==='hout'?0xffcf6a:0x9fe3ff)}
    persist();const more=pileLeft(n)>0,n2=needs();
    return {head:ok?'Raak! +1 '+n.type:'Mis! Deze slag levert niets op',note:ok&&!more?(n.type==='hout'?'De stapel is op.':'Deze groeve is leeg.'):'',
@@ -276,7 +286,7 @@ function askOne(kind,{kicker,title,lead},onGraded){
 // A tool assignment from a resident: collect enough right answers and the tool is yours.
 function toolQuest(id){const t=TOOLS[id],h=houseOf(t.owner),prog=()=>s.toolProgress[id]||0;
  askOne(subject(id),{kicker:h.place.toUpperCase()+' · OPDRACHT VAN '+h.name.toUpperCase(),title:t.name+' verdienen · '+prog()+' van '+t.need+' goed'},ok=>{
-  if(ok)s.toolProgress[id]=prog()+1;let got=false;if(prog()>=t.need&&!s.tools[id]){s.tools[id]=true;got=true;world.equip(s.tools)}persist();
+  if(ok)s.toolProgress[id]=prog()+1;let got=false;if(prog()>=t.need&&!s.tools[id]){s.tools[id]=true;got=true;world.equip(s.tools);if(HAND.includes(id)&&!s.hand){s.hand=id;world.hold(id)}}persist();
   if(got)return {head:'Je hebt '+(id==='touw'?'het touw':id==='kaart'?'de sterrenkaart':'de '+t.name.toLowerCase())+'!',note:t.use,buttons:[['Gesprek sluiten',closePanel,true]]};
   return {head:ok?'Goed! '+prog()+' van '+t.need:'Nog niet goed · '+prog()+' van '+t.need,buttons:[['Volgende opdracht',()=>toolQuest(id),true],['Later verder',closePanel]]}
  })}
@@ -308,7 +318,7 @@ function shop(note=''){
  document.querySelectorAll('[data-wear]').forEach(b=>b.onclick=()=>{const o=GOODS.find(x=>x.id===b.dataset.wear);s.scarf=o.scarf;world.scarf(o.scarf);persist();shop('Die staat je prachtig!')})
 }
 // Sawing: one log becomes one plank for every right answer.
-function sawPlanks(target,again){const m=mission();target=target??m?.[4]??0;again=again||workshop;
+function sawPlanks(target,again){const m=mission();target=target??m?.[4]??0;again=again||workshop;if(s.tools.zaag&&s.hand!=='zaag'){s.hand='zaag';world.hold('zaag')}
  if(!s.hout){notify('Hak eerst hout om planken van te zagen.');again();return}
  askOne(subject(),{kicker:'BRUGWERF · ZAGEN',title:'Zaag een plank · '+s.planken+' van '+target,lead:'Een goed antwoord is een rechte zaagsnede.'},ok=>{
   if(ok){s.hout--;s.planken++;world.reach()}persist();const more=s.planken<target&&s.hout>0;
@@ -518,7 +528,7 @@ const codeNames={KeyW:'w',KeyA:'a',KeyS:'s',KeyD:'d',KeyE:'e',KeyB:'b',KeyM:'m',
 const keyName=e=>codeNames[e.code]||(e.key||'').toLowerCase();
 // A key release that never reaches the page (context menu, Alt menu, tab switch) used to leave the pilot walking. Drop all input then.
 function releaseControls(){keys.clear();joyX=joyZ=0;$('joy').firstElementChild.style.transform=''}
-window.addEventListener('keydown',e=>{if(!playing||$('panel').open)return;if(e.ctrlKey||e.metaKey||e.altKey){releaseControls();return}let k=keyName(e);if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();keys.add(k);if(e.repeat)return;if(k===' ')jump();if(k==='e')act();if(k==='b')chooseBuild();if(k==='f')eat();if(k==='m')$('mapbtn').click();if(k==='g'&&admin.asked)adminOpen();if(k==='escape')clearPlacement()});
+window.addEventListener('keydown',e=>{if(!playing||$('panel').open)return;if(e.ctrlKey||e.metaKey||e.altKey){releaseControls();return}let k=keyName(e);if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();keys.add(k);if(e.repeat)return;if(k===' ')jump();if(k==='e')act();if(k==='1'||k==='2'||k==='3')holdTool(HAND[+k-1]);if(k==='b')chooseBuild();if(k==='f')eat();if(k==='m')$('mapbtn').click();if(k==='g'&&admin.asked)adminOpen();if(k==='escape')clearPlacement()});
 window.addEventListener('keyup',e=>{const k=keyName(e);keys.delete(k);keys.delete((e.key||'').toLowerCase());if(k===' '&&playing&&!$('panel').open)e.preventDefault();if(['Alt','Meta','Control','OS'].includes(e.key))releaseControls()});
 window.addEventListener('blur',()=>{releaseControls();persist()});window.addEventListener('pagehide',persist);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseControls()});

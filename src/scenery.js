@@ -122,9 +122,9 @@ function explorerGear(person,girl){
    p.needsUpdate=true;g.computeVertexNormals()}
  }
  // Tools earned from the residents ride on the backpack.
- const kit={};
+ const kit={},home={};
  {const handle=new T.CylinderGeometry(.9,1,44,8),iron=new T.MeshStandardMaterial({color:0x5d5e60,metalness:.75,roughness:.38}),haft=new T.MeshStandardMaterial({color:0x8a6239,roughness:.75});
-  const tool=(name,build)=>{const g=new T.Group();build(g);g.traverse(o=>{if(o.isMesh)o.castShadow=true});body.add(g);g.updateMatrixWorld(true);B.Spine2.attach(g);g.visible=false;kit[name]=g};
+  const tool=(name,build)=>{const g=new T.Group();build(g);g.traverse(o=>{if(o.isMesh)o.castShadow=true});body.add(g);g.updateMatrixWorld(true);B.Spine2.attach(g);g.visible=false;kit[name]=g;home[name]={pos:g.position.clone(),quat:g.quaternion.clone(),scale:g.scale.clone()}};
   const add=(g,geo,mat,x,y,z,rx=0,ry=0,rz=0)=>{const m=new T.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);g.add(m)};
   const grain=new T.MeshStandardMaterial({map:tex(64,256,(g,w,h)=>{g.fillStyle='#8d6038';g.fillRect(0,0,w,h);for(let i=0;i<34;i++){g.strokeStyle=`rgba(${50+i%3*25},${30+i%4*10},14,.35)`;g.lineWidth=1+i%3;g.beginPath();const x=(i*13)%w;g.moveTo(x,0);g.bezierCurveTo(x+6,h*.3,x-6,h*.6,x+3,h);g.stroke()}}),roughness:.65}),
    steel=new T.MeshStandardMaterial({color:0x8f969c,metalness:.85,roughness:.38}),edge=new T.MeshStandardMaterial({color:0xdfe3e6,metalness:.9,roughness:.18});
@@ -137,15 +137,23 @@ function explorerGear(person,girl){
   tool('kaart',g=>{g.position.set(-13.5,py-6,pz+1);add(g,new T.CylinderGeometry(2,2,20,10),new T.MeshStandardMaterial({color:0xdcc79a,roughness:.95}),0,0,0);add(g,new T.CylinderGeometry(2.2,2.2,2,10),haft,0,9,0)});
  }
  function equip(tools){for(const [k,g] of Object.entries(kit))g.visible=!!tools?.[k]}
+ // (1.24) The chosen tool leaves the pack and sits in the right hand: every frame it follows the hand bone, held upright
+ // and tipped forward (axe and pick) or with the blade forward (saw). Putting it away returns it to its place on the pack.
+ const HOLD={bijl:[1.1,-Math.PI/2,0,[0,-15.5,0]],houweel:[1.1,-Math.PI/2,0,[0,-15.5,0]],zaag:[.3,Math.PI/2,0,[17,0,1]]},PALM=new T.Vector3(7,0,0);let held=null;const hv=new T.Vector3(),he=new T.Euler(),ho=new T.Vector3();
+ function hold(name){name=name&&kit[name]&&HOLD[name]?name:null;if(held===name)return;
+  if(held){const g=kit[held],h=home[held];B.Spine2.add(g);g.position.copy(h.pos);g.quaternion.copy(h.quat);g.scale.copy(h.scale)}
+  held=name;if(held){const g=kit[held];body.add(g);g.scale.set(1,1,1);place()}}
+ function place(){if(!held||!B.R_Hand)return;const g=kit[held],c=HOLD[held];B.R_Hand.updateWorldMatrix(true,false);body.updateWorldMatrix(true,false);hv.copy(PALM).applyMatrix4(B.R_Hand.matrixWorld);body.worldToLocal(hv);
+  he.set(c[0],c[1],c[2],'XYZ');g.quaternion.setFromEuler(he);ho.set(...c[3]).applyQuaternion(g.quaternion);g.position.copy(hv).sub(ho)}
  function tint(c){scarf.color.set(c??0xc4862f)}
- return {made,tails,wave,equip,tint}
+ return {made,tails,wave:(t,dt,sp)=>{wave(t,dt,sp);place()},equip,tint,hold}
 }
 function expeditionPilot(scene,rigged=true){
- const root=new THREE.Group();scene.add(root);const models={};let selected,heading=0,still=0,lastX=null,lastZ=0,speed=0,idleTimer=0,swing=-1,kit={},scarfColor=null;
+ const root=new THREE.Group();scene.add(root);const models={};let selected,heading=0,still=0,lastX=null,lastZ=0,speed=0,idleTimer=0,swing=-1,kit={},scarfColor=null,held=null;
  if(!rigged)return legacyPilot(scene,root);
  function outfit(name){
   const key=name==='Nova'?'floor':'niek';
-  if(!models[key]){const m=models[key]=Rig.person(root,key,{gender:key==='floor'?'f':'m',height:2.57,skin:key});m.ready.then(()=>{m.gear=explorerGear(m,key==='floor');m.gear.equip(kit);m.gear.tint(scarfColor)})}
+  if(!models[key]){const m=models[key]=Rig.person(root,key,{gender:key==='floor'?'f':'m',height:2.57,skin:key});m.ready.then(()=>{m.gear=explorerGear(m,key==='floor');m.gear.equip(kit);m.gear.tint(scarfColor);m.gear.hold(held)})}
   selected=models[key];for(const model of Object.values(models))model.root.visible=model===selected;
   selected.ready.catch(()=>{document.getElementById('toast').textContent='Personage laden mislukt. Vernieuw de pagina.'})
  }
@@ -166,7 +174,7 @@ function expeditionPilot(scene,rigged=true){
   }
   m.update(dt);m.gear?.wave(t,dt,speed+.6)
  }
- return {root,outfit,pose,scarf(c){scarfColor=c;for(const m of Object.values(models))m.gear?.tint(c)},equip(tools){kit=tools||{};for(const m of Object.values(models))m.gear?.equip(kit)},reach(){if(!selected?.mixer)return;swing=selected.once('take','idle',{rate:1.6,fade:.2})*.6},rig:()=>selected}
+ return {root,outfit,pose,scarf(c){scarfColor=c;for(const m of Object.values(models))m.gear?.tint(c)},equip(tools){kit=tools||{};for(const m of Object.values(models))m.gear?.equip(kit)},hold(n){held=n||null;for(const m of Object.values(models))m.gear?.hold(held)},reach(){if(!selected?.mixer)return;swing=selected.once('take','idle',{rate:1.6,fade:.2})*.6},rig:()=>selected}
 }
 // Fallback for the software renderer: baked pose frames without a skeleton.
 function legacyPilot(scene,root){
@@ -177,5 +185,5 @@ function legacyPilot(scene,root){
   if(!selected)return;const phase=(p.walk||0)*4/Math.PI,index=Math.floor(phase)%8,w=Math.min(1,p.speed||0),m=phase%1;
   if(p.glide||p.on===false)selected.animate(9,9,0,p.glide?1:.55);else if(w>.02)selected.blend([[1+index,w*(1-m)],[1+(index+1)%8,w*m]]);else selected.blend([])
  }
- return {root,outfit,pose,reach(){},equip(){},scarf(){}}
+ return {root,outfit,pose,reach(){},equip(){},hold(){},scarf(){}}
 }
