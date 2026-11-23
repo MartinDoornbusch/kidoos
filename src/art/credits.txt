@@ -117,3 +117,7 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
 - Geen nieuwe externe assets. De dorpshuizen gebruiken de al vermelde Poly Haven-texturen castle_wall_slates (stenen
   plint, smederij, steenhouwerij en landhuis) en clay_roof_tiles_02 (daken in pannenrijen). Pleister en eikenhout zijn
   zelf gemaakte texturen (eikenhout op basis van de bestaande board.jpg).
+
+1.21.1
+- Geen nieuwe assets. Kersen- en appelbomen zijn opnieuw opgebouwd uit een stam met schors (bestaande ridged-bark.jpg),
+  vertakte gesteltakken en kroondelen aan de takeinden.

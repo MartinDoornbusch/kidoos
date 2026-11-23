@@ -186,10 +186,27 @@ function createWorld(canvas) {
  const pines=[],pineTrunk=cyl.clone(),FIR=1.3;
  function pine(x,z,h,y=0){const L=y+liftAt(x,z);canopies.push({x,z,y:L,h:h*FIR,r:h*FIR*.3});const v=Math.abs(Math.round(x*3+z*7))%3;pines.push({x,y:L,z,h,v,ry:(x+z)*2.4});shape(pineTrunk,0x4a382b,x,y+h*.14,z,h*.032,h*.3,h*.032);shape(conifers[v],[0x5a9152,0x4f8549,0x66995a][v],x,y,z,h*.74,h,h*.74,(x+z)*2.4)}
  // Blossom tree: a dark trunk with two limbs and a crown of petal clusters around a soft core.
- function cherry(x,z,h){canopies.push({x,z,y:h*.45+liftAt(x,z),h:h*.6,r:h*.5});const L=liftAt(x,z),tone=[0xf4bccb,0xf8d3de,0xeaa7bc,0xfbe4ea];
-  shape(cyl,0x4e3a2e,x,h*.22,z,.13,h*.44,.13,0,.05);liftOff=true;cord(x,L+h*.38,z,x+h*.16,L+h*.58,z+h*.06,.06,0x4e3a2e);cord(x,L+h*.36,z,x-h*.12,L+h*.55,z-h*.1,.06,0x4e3a2e);liftOff=false;
-  for(let k=0;k<9;k++){const a=k*.72+x*.7,d=k<7?h*.19:h*.06;shape(bushGeo,tone[k%4],x+Math.cos(a)*d,h*.5+(k%3)*h*.06+(k>=7?h*.12:0),z+Math.sin(a)*d,h*.17,h*.15,h*.17,a)}
-  shape(bushGeo,tone[1],x,h*.7,z,h*.22,h*.18,h*.22,z);for(let i=0;i<6;i++)rnd()}
+ // Deciduous trees (1.21.1, audit PR #10): a tapered bark trunk that forks into four or five limbs, each with a side
+ // branch, and a crown of leaf or blossom clusters at the branch ends: wider than tall, open in places and different
+ // for every tree (a hash of its position, so the shared random sequence is untouched).
+ const barkTrunk=new T.CylinderGeometry(.72,1,1,9);barkTrunk.userData={surface:bark};
+ function limbTree(x,z,h,tones,spread,cluster){
+  const hs=k=>{const v=Math.sin((x*12.9898+z*78.233)+k*37.719)*43758.5453;return v-Math.floor(v)};
+  const L=liftAt(x,z),fork=h*(.33+hs(1)*.08),n=4+(hs(4)>.45?1:0),ends=[];
+  shape(barkTrunk,0x7a6152,x,fork/2+.04,z,.19,fork+.12,.19,hs(3)*6,(hs(2)-.5)*.1);
+  liftOff=true;
+  for(let i=0;i<n;i++){const a=i/n*6.283+hs(10+i)*1.2,len=h*(.26+hs(20+i)*.16)*spread,up=h*(.2+hs(30+i)*.2),ex=x+Math.cos(a)*len,ez=z+Math.sin(a)*len,ey=L+fork+up;
+   cord(x,L+fork-.08,z,ex,ey,ez,.085-.008*i,0x6b5446,barkTrunk);
+   const mx=x+(ex-x)*.55,mz=z+(ez-z)*.55,my=L+fork+up*.55,b=a+(hs(40+i)>.5?1:-1)*(.5+hs(50+i)*.6),bl=len*.5,bx=mx+Math.cos(b)*bl,bz=mz+Math.sin(b)*bl,by=my+h*(.08+hs(60+i)*.1);
+   cord(mx,my,mz,bx,by,bz,.045,0x6b5446,barkTrunk);ends.push([ex,ey-L,ez,1,a],[bx,by-L,bz,.75,b])}
+  liftOff=false;
+  ends.forEach(([ex,ey,ez,k,a],i)=>{const s0=h*cluster*k*(.85+hs(70+i)*.35);
+   shape(bushGeo,tones[i%tones.length],ex,ey-s0*.15,ez,s0,s0*.72,s0,a*2);
+   const ox=Math.cos(a)*s0*.6,oz=Math.sin(a)*s0*.6;shape(bushGeo,tones[(i+1)%tones.length],ex+ox,ey+s0*.18,ez+oz,s0*.72,s0*.55,s0*.72,a*3)});
+  shape(bushGeo,tones[0],x+(hs(90)-.5)*h*.1,fork+h*.42,z+(hs(91)-.5)*h*.1,h*cluster*.9,h*cluster*.6,h*cluster*.9,hs(92)*6);
+  return ends}
+ function cherry(x,z,h){canopies.push({x,z,y:h*.45+liftAt(x,z),h:h*.6,r:h*.5});
+  limbTree(x,z,h,[0xf4bccb,0xf8d3de,0xeaa7bc,0xfbe4ea],1.08,.16);for(let i=0;i<6;i++)rnd()}
  const wood=0x92583f,dark=0x3f4441,cream=0xdfcda6,teal=0x526558,red=0x925c40;
  function surfaced(geometry,file) {
   geometry.userData={};geometry.userData.surface=new T.MeshStandardMaterial({map:loadSurface(file+'.jpg'),roughness:.96});
@@ -1012,8 +1029,8 @@ void main(){float y=vUv.y;
   const wheatGeo=plantGeo((pos,idx)=>{for(let k=0;k<9;k++){const a=k*2.4,r0=.03+.09*((k*7)%5)/5,x=Math.cos(a)*r0,z=Math.sin(a)*r0,h=.72+.12*((k*3)%4)/3,lean=.05*Math.cos(a*3);
     for(const [ox,oz] of [[.006,0],[0,.006]]){const b=pos.length/3;pos.push(x-ox,0,z-oz,x+ox,0,z+oz,x+lean+ox,h,z+oz,x+lean-ox,h,z-oz);idx.push(b,b+1,b+2,b,b+2,b+3)}
     leafSet(pos,idx,x+lean,h-.03,z,a,1.32,.14,.04)}},new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.8}));
-  function appleTree(x,z,h){appleTrees.push({x,z,h,y:liftAt(x,z)});shape(cyl,0x5a4230,x,h*.24,z,.15,h*.48,.15,0,.04);for(const [dx,dz,top] of [[.8,.3,.66],[-.6,-.55,.62],[.1,-.7,.72],[-.3,.6,.7]])cord(x,h*.42,z,x+dx,h*top,z+dz,.065,0x5a4230);
-   for(let k=0;k<10;k++){const a=k*.68+x,r=k<7?.8+.15*Math.sin(k*2.3):.3,yy=h*(.55+(k%3)*.08)+(k>=7?.4:0);shape(bushGeo,[0x4f7d32,0x5b8b3b,0x3f6e2c][k%3],x+Math.cos(a)*r,yy,z+Math.sin(a)*r,.78,.7,.78,a*2)}
+  // fruit trees: the same limb structure, low and spreading, with a green crown (1.21.1)
+  function appleTree(x,z,h){appleTrees.push({x,z,h,y:liftAt(x,z)});limbTree(x,z,h,[0x4f7d32,0x5b8b3b,0x3f6e2c],.95,.2);
    for(let k=0;k<12;k++){const a=k*2.4+z,e=.1+(k%4)*.2,r=1.25*Math.cos(e);shape(appleGeo,k%3?0xb3262a:0xc9572c,x+Math.cos(a)*r,h*.62+Math.sin(e)*.8,z+Math.sin(a)*r,.07,.07,.07)}}
   function field(x0,x1,z0,z1,crop,stone=false,gate=0){const cx=(x0+x1)/2,cz=(z0+z1)/2,gx=cx+gate;shape(cube,0x6b4a2e,cx,.04,cz,x1-x0,.08,z1-z0);
    for(let z=z0+.5;z<z1-.3;z+=.8){shape(cube,0x5e4128,cx,.12,z,x1-x0-.4,.16,.42);for(let x=x0+.45;x<x1-.3;x+=crop?.42:.7){const j=Math.sin(x*12.9+z*7.3);crop?shape(wheatGeo,j>0?0xd9b862:0xc9a552,x+j*.05,.16,z,1,.9+.12*j,1,j*3):(shape(leafGeo,j>0?0x5d8f4c:0x6b9a52,x,.14,z,1.7,1.05,1.7,j*3),shape(ball,0x9cc37a,x,.24,z,.1,.09,.1))}}
