@@ -112,3 +112,8 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
 
 1.20.0
 - Geen nieuwe externe assets. De werkbank gebruikt de hamer uit "Asset Pack - Blacksmith Equipment" (Mike Farrant, CC BY 4.0, zie 1.18.0).
+
+1.21.0
+- Geen nieuwe externe assets. De dorpshuizen gebruiken de al vermelde Poly Haven-texturen castle_wall_slates (stenen
+  plint, smederij, steenhouwerij en landhuis) en clay_roof_tiles_02 (daken in pannenrijen). Pleister en eikenhout zijn
+  zelf gemaakte texturen (eikenhout op basis van de bestaande board.jpg).
