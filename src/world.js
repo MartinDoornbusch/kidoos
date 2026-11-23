@@ -858,7 +858,9 @@ void main(){float u=vUv.x,v=vUv.y;
  });
  for(let i=0;i<8;i++){let x=6+i%3*1.16,z=12+Math.floor(i/3)*1.21;solids.add({x,z,w:.555,d:.555,base:0,top:1.08});shape(cube,0xbc8352,x,.54,z,1.07,1.04,1.08);for(let side of [-1,1])shape(cube,0x745344,x+side*.39,.54,z,.13,1.1,1.11)}
  for(let z of [10,-6,-17,-50,-71,-101,-118]){let x=z%2?3.8:-3.8;solids.add({x,z,r:.22,base:0,top:3.22});lamp(x,z,0,null,x>0?-1:1)}
- pine(8,4,5);solids.add({x:8,z:4,r:.43,base:0,top:5});
+ // (1.24.1) this fir stood with its crown in the corner of Mara's smithy: up close the corner stones stuck out of the
+ // needles like a stack of loose blocks. Moved to open grass west of the smithy (same tree, same id t11).
+ pine(5.6,6.8,5);solids.add({x:5.6,z:6.8,r:.43,base:0,top:5});
  // ---- Highlands: an eastern lobe of Windhaven with a mountain, a stream, a waterfall and a cable car.
  // Own random stream, so every earlier placement stays exactly where it was.
  const lobe={x:27,z:-5,r:15},peak={x:31,z:-6,R:10.5,H:9.5};
@@ -1990,7 +1992,7 @@ void main(){float u=vUv.x,v=vUv.y;
   bridgeGroups.forEach(b=>{const full=s.stage>=b.stage,n=b.stage===s.stage+1?built:0;b.parts.forEach((list,i)=>list.forEach(g=>g.visible=full||n>i))});
   // the Molenhoeve mill: rubble at its foot until the foot is mended, then the stocks and lattice, the sails last
   if(farmRotor){const whole=s.stage>=4,n=s.stage===3?built:0;farmRotor.visible=whole||n>=2;farmRotor.traverse(o=>{if(o.name==='sail')o.visible=whole});if(millDebris)millDebris.visible=!whole&&n<1}}beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(lightTower)[].concat(lightTower.material).forEach(m=>{if(m.emissiveMap)m.emissiveIntensity=s.stage>=3?2.6:.15});if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
- let camFree=null,camY=null;
+ let camFree=null,camY=null,camLift=null;
  function ground(x,z,s,y=100){if(inside)return inside.floorAt(x-inside.x,z,y);const L=liftAt(x,z);let h=islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.35)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r-.35?L+mountainH(x,z):-100;
  for(const b of bridges){if(b.stage>s.stage)continue;const o=onBridge(b,x,z,2.3);if(o&&o.v<b.hw-.02)h=Math.max(h,o.y+.19)}
  if(tower)h=Math.max(h,tower.stairs(x,z,s,y));
@@ -2038,15 +2040,34 @@ void main(){float u=vUv.x,v=vUv.y;
    const want=eye.clone().sub(target),wd=want.length();want.normalize();
    const near=canopies.filter(o=>Math.abs(o.x-target.x)<16&&Math.abs(o.z-target.z)<16);
    const terrain=(x,z)=>{const L=liftAt(x,z);return islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r+.6)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r+.6?L+mountainH(x,z):-100};
-   const hit=q=>q.y<ground(q.x,q.z,s,q.y+.5)+.5||q.y<Math.max(terrain(q.x+.5,q.z),terrain(q.x-.5,q.z),terrain(q.x,q.z+.5),terrain(q.x,q.z-.5))+.45||blocked(q.x,q.z,s,q.y-.35,.42,.7)||
+   // (1.24.1) margin to a mountain measured square to the slope (about 0.38 m), not as a fixed height above the
+   // highest point within half a metre: on a steep face that old margin was two metres and left the camera no room
+   const slopeNear=q=>{const h0=terrain(q.x,q.z),hs=[terrain(q.x+.35,q.z),terrain(q.x-.35,q.z),terrain(q.x,q.z+.35),terrain(q.x,q.z-.35)];
+    if(h0<-50)return hs.some(h=>h>-50&&q.y<h+.45);const v=hs.map(h=>h<-50?h0:h),k=Math.hypot(v[0]-v[1],v[2]-v[3])/.7;return (q.y-h0)/Math.sqrt(1+k*k)<.38};
+   const hit=q=>q.y<ground(q.x,q.z,s,q.y+.5)+.5||slopeNear(q)||blocked(q.x,q.z,s,q.y-.35,.42,.7)||
     rotorDiscs.some(o=>Math.abs(q.z-o.z)<.9&&Math.hypot(q.x-o.x,q.y-o.y)<o.r+.3)||near.some(o=>{const k=(q.y-o.y)/o.h;return k>.12&&k<1&&Math.hypot(q.x-o.x,q.z-o.z)<o.r*(1-k)+.4});
-   let free=wd;for(let d=.3;d<=wd;d+=.17){if(hit(target.clone().addScaledVector(want,d))){free=Math.max(1.1,d-.4);break}}
+   // (1.24.1) Steep slope, rock or wall right behind you: the camera no longer squeezes into it (it used to keep at
+   // least 1.1 m, even inside a mountain). It rises over your head, up to nearly straight above, until it finds
+   // room, and looks down at you from there. It never stops past the first obstacle along its line, it pulls in at
+   // once and only glides back out slowly, and if its glide would still cut through a slope it jumps to the free spot.
+   // hit() keeps a safety margin around the lens; solid() is the real surface. Right against a cliff the margin starts
+   // at your head, so there the camera may come into the margin (never past the surface) and you see from your head.
+   const solid=q=>q.y<ground(q.x,q.z,s,q.y+.5)||q.y<terrain(q.x,q.z)+.06||blocked(q.x,q.z,s,q.y-.1,.12,.2);
+   const march=dir=>{for(let d=.3;d<=wd;d+=.17)if(hit(target.clone().addScaledVector(dir,d))){if(d-.4>=.9)return d-.4;let e=.05;for(;e<=wd;e+=.05)if(solid(target.clone().addScaledVector(dir,e)))break;return Math.max(.12,Math.min(Math.max(1.1,d-.4),e-.25))}return wd};
+   const hz=Math.hypot(want.x,want.z)||1e-6,el=Math.atan2(want.y,hz),room=Math.min(wd,1.9),tilt=e=>{const c=Math.cos(e);return new T.Vector3(want.x/hz*c,Math.sin(e),want.z/hz*c)};
+   let free=march(want),lift=0;
+   if(free<room){let best=free;for(let e=el+.15;e<1.5;e+=.15){const f=march(tilt(e));if(f>best+.2){best=f;lift=e-el}if(f>=room)break}}
+   camLift=camLift==null||dt>=1?lift:camLift+(lift-camLift)*(1-Math.exp(-dt*(lift>camLift?16:2.2)));
+   // the higher it rises, the closer it stays, so you look down at yourself rather than at the island from the sky
+   if(camLift>.01){want.copy(tilt(Math.min(1.5,el+camLift)));free=Math.min(march(want),wd*(1-.45*Math.min(1,camLift)))}
    camFree=camFree==null||dt>=1?free:camFree+(free-camFree)*(1-Math.exp(-dt*(free<camFree?22:2.5)));
-   const goal=target.clone().addScaledVector(want,Math.min(wd,camFree));
-   if(camFree<3){const up=goal.clone();up.y=Math.max(up.y,target.y+(3-camFree)*.9+.4);if(!hit(up))goal.copy(up)}
+   const goal=target.clone().addScaledVector(want,Math.min(wd,camFree,free));
+   if(camLift<.01&&camFree<3){const up=goal.clone();up.y=Math.max(up.y,target.y+(3-camFree)*.9+.4);if(!hit(up))goal.copy(up)}
    cam.position.lerp(goal,dt>=1?1:1-Math.exp(-dt*10));
    const lim=goal.distanceTo(target),off=cam.position.clone().sub(target),od=off.length();if(od>lim+.05)cam.position.copy(target).addScaledVector(off.normalize(),lim);
-  }else cam.position.lerp(eye,dt>=1?1:1-Math.exp(-dt*10));
+   if(solid(cam.position))cam.position.copy(goal);
+   hero.root.visible=cam.position.distanceTo(target)>.95;
+  }else{cam.position.lerp(eye,dt>=1?1:1-Math.exp(-dt*10));hero.root.visible=true}
   cam.lookAt(target);if(!start)fellSync(s);firLod(cam.position);
   if(inside&&(portalTick++%(inside.door.open>.02?3:6)===0||dt>=1))renderPortal();
   if(context){sun.position.set(portrait.x-36,portrait.y+34,portrait.z+22);sun.target.position.set(portrait.x,portrait.y,portrait.z)}
@@ -2113,5 +2134,5 @@ void main(){float u=vUv.x,v=vUv.y;
   moss.forEach((list,k)=>scanInstances('rmoss_'+(k+1),list));
   window.__cliffCounts={hi:hi.length,mid:mid.length,lo:lo.length,moss:moss.reduce((n,l)=>n+l.length,0)}}
  if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));Models.load('sf_bookshelf').then(r=>r.material.color.setHex(0xa8876a)).catch(()=>{});dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb6b0a6,1.1,triplanar(new T.MeshStandardMaterial({map:Models.texture('cliff_diff.jpg',true),normalMap:Models.texture('cliff_nor.jpg'),normalScale:new T.Vector2(1.35,1.35),roughness:.93,color:new T.Color(1.5,1.47,1.45)}),{scale:1/2.2}));dressCrags();dressStumps();plantFirs()}
- return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),hold:n=>hero.hold?.(n),rooms,enterRoom,outfit:hero.outfit,rig:()=>hero.rig?.(),appleTrees,trees:pines.map((t,i)=>({i:'t'+i,type:'hout',kind:'tree',x:t.x,z:t.z,y:t.y,max:2,regrow:300000})),rocks:rocks.map((r,i)=>({i:'r'+i,type:'steen',kind:'rock',x:r.x,z:r.z,y:r.y,r:r.r,max:2,regrow:180000})),fellSync,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,housePlots,siteCheck,houseGhost:d=>{houseGhostDesign=d||null;houseSync(houseLastS,houseGhostDesign)},houseLocal:(x,z)=>houseNow?houseLocal(x,z):null,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
+ return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),hold:n=>hero.hold?.(n),heroVisible:()=>hero.root.visible,rooms,enterRoom,outfit:hero.outfit,rig:()=>hero.rig?.(),appleTrees,trees:pines.map((t,i)=>({i:'t'+i,type:'hout',kind:'tree',x:t.x,z:t.z,y:t.y,max:2,regrow:300000})),rocks:rocks.map((r,i)=>({i:'r'+i,type:'steen',kind:'rock',x:r.x,z:r.z,y:r.y,r:r.r,max:2,regrow:180000})),fellSync,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,housePlots,siteCheck,houseGhost:d=>{houseGhostDesign=d||null;houseSync(houseLastS,houseGhostDesign)},houseLocal:(x,z)=>houseNow?houseLocal(x,z):null,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
 }
