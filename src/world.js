@@ -41,6 +41,10 @@ function createWorld(canvas) {
  const mat=new T.MeshStandardMaterial({flatShading:false,roughness:.86}),mats=new Map(),batches=new Map();
  let seed=718;function rnd(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
  const torrents=[];const rotors=[],clouds=[],solids=createSolids(),falls=[],ports=[],islands=[{x:0,z:0,r:25,name:'Windhaven'},{x:0,z:-61,r:23,name:'Bloesemvallei'},{x:0,z:-120,r:24,name:'Sterrenwacht'}];
+ // (1.22) every fir can be felled and every rock quarried. A fir's trunk and crown colliders are tagged with its id
+ // (collision skips them while s.harvest says it is felled); rocks are listed with their size.
+ let lastPine=null;const rocks=[];{const add=solids.add.bind(solids);solids.add=o=>{if(lastPine&&Math.abs(o.x-lastPine.x)<1e-6&&Math.abs(o.z-lastPine.z)<1e-6)o.harvest=lastPine.id;return add(o)}}
+ const rockAt=(x,z,r)=>rocks.push({x,z,r,y:liftAt(x,z)});
  // Islands float at different heights: the Bloesemvallei above Windhaven, the Sterrenwacht higher still.
  // Everything placed on an island is raised with it; the bridges climb between them.
  const LIFT=[0,4,9];islands.forEach((I,k)=>{I.lift=LIFT[k];I.open=k});
@@ -64,7 +68,8 @@ function createWorld(canvas) {
   {id:'sterrenwacht-sterrenveld',name:'Sterrenwacht, op het sterrenveld',x:-10.5,z:-109.5,width:11,depth:11,rotation:0}];
  const trails=[],nearTrail=(x,z,m)=>trails.some(([a,b,r])=>Math.hypot(x-a,z-b)<r+m),connectors=[];
  for(const b of bridges.slice(2)){const I=b.from,pts=[];let x=b.ax,z=b.az;const ux=(I.x-x),uz=(I.z-z),l=Math.hypot(ux,uz);
-  while(Math.abs(x)>2.4&&pts.length<40){pts.push([x,z]);trails.push([x,z,1.35]);x+=ux/l;z+=uz/l}pts.push([x,z]);connectors.push({pts,y:I.lift,k:I.z>-30?0:I.z>-90?1:2})}
+  // (1.22) the trail runs on under the main road, so it never ends in a strip of grass at the road's edge
+  while(Math.abs(x)>1.0&&pts.length<42){pts.push([x,z]);trails.push([x,z,1.35]);x+=ux/l;z+=uz/l}pts.push([x,z]);connectors.push({pts,y:I.lift,k:I.z>-30?0:I.z>-90?1:2})}
  {const raw=solids.add;solids.add=o=>{const L=liftAt(o.x,o.z);raw(L?{...o,base:o.base+L,top:o.top+L}:o)}}
  let liftOff=false,rotOrder='XYZ';
  function group(x,y,z,p=scene){let g=new T.Group();g.position.set(x,y+(p===scene?liftAt(x,z):0),z);p.add(g);return g}
@@ -166,6 +171,17 @@ function createWorld(canvas) {
   let q=Math.floor(s*1000)+7;const R=()=>(q=(q*16807)%2147483647)/2147483647;liftOff=true;
   for(let i=0,n2=Math.round(r*1.1);i<n2;i++){const a=R()*6.283,t=.12+R()*.7,rr=Math.max(.05,(1-Math.pow(t,1.35))*.9),yy=-1-t*(depth*1.22-1),sz=.45+R()*Math.min(1.5,r*.075);
    shape(hangGeo,0xffffff,x+Math.cos(a)*r*rr*.88,h+yy-sz*.4,z+Math.sin(a)*r*rr*.88,sz,sz*(1.3+R()*.8),sz,a,R()*.3,R()*.3)}
+  // 1.22 (PR #16): two to four big hanging masses away from the centre give every island its own silhouette instead
+  // of one central tip, roots dangle from the soil band, and a few loose rocks float beside the big islands (away from
+  // the bridges and well below the walking level). Same per-island random stream, appended, so nothing else moves.
+  if(r>=6){const big=r>=18?3+Math.round(R()):2;for(let i=0;i<big;i++){const a=R()*6.283,t=.22+R()*.33,rr=Math.max(.12,(1-Math.pow(t,1.35))*.6),yy=-1-t*(depth*1.22-1),sz=r*(.1+R()*.05);
+    shape(hangGeo,0xffffff,x+Math.cos(a)*r*rr,h+yy-sz*.9,z+Math.sin(a)*r*rr,sz,sz*(2.1+R()*.9),sz*(.85+R()*.3),a,R()*.25,R()*.25);
+    shape(hangGeo,0xffffff,x+Math.cos(a)*r*rr*1.03,h+yy-sz*2.7,z+Math.sin(a)*r*rr*1.03,sz*.42,sz*1.35,sz*.42,a*2,R()*.3,0)}}
+  for(let i=0,nr=Math.round(r*.9);i<nr;i++){const a=R()*6.283,len=.8+R()*1.9,w=.022+R()*.02,rx=x+Math.cos(a)*r*1.005,rz=z+Math.sin(a)*r*1.005;cord(rx,h-.3,rz,rx+Math.cos(a)*.3,h-.3-len,rz+Math.sin(a)*.3,w,0x4a3a2c)}
+  if(r>=18)for(let i=0;i<3;i++){const a=R()*6.283,d=r+4+R()*6,sz=.6+R()*1.0,px=x+Math.cos(a)*d,pz=z+Math.sin(a)*d,py=h-5-R()*6,ra=R(),rb=R();
+   if(bridges.some(b=>{const o=onBridge(b,px,pz,4);return o&&o.v<7}))continue;
+   shape(hangGeo,0xffffff,px,py,pz,sz*1.2,sz*1.7,sz,a,ra,rb);shape(hangGeo,0xffffff,px,py-sz*1.4,pz,sz*.5,sz*1.1,sz*.5,a,0,0);
+   solids.add({x:px,z:pz,r:sz*1.1,base:py-sz*2.2,top:py+sz*1.6})}
   liftOff=false;
  }
  const plantCards=new Map();
@@ -184,7 +200,7 @@ function createWorld(canvas) {
  const canopies=[];
  // Pines: the leaf-card trees are built as before and hidden once the scanned firs have loaded (see plantFirs).
  const pines=[],pineTrunk=cyl.clone(),FIR=1.3;
- function pine(x,z,h,y=0){const L=y+liftAt(x,z);canopies.push({x,z,y:L,h:h*FIR,r:h*FIR*.3});const v=Math.abs(Math.round(x*3+z*7))%3;pines.push({x,y:L,z,h,v,ry:(x+z)*2.4});shape(pineTrunk,0x4a382b,x,y+h*.14,z,h*.032,h*.3,h*.032);shape(conifers[v],[0x5a9152,0x4f8549,0x66995a][v],x,y,z,h*.74,h,h*.74,(x+z)*2.4)}
+ function pine(x,z,h,y=0){const L=y+liftAt(x,z);canopies.push({x,z,y:L,h:h*FIR,r:h*FIR*.3});const v=Math.abs(Math.round(x*3+z*7))%3;pines.push({x,y:L,z,h,v,ry:(x+z)*2.4});lastPine={x,z,id:'t'+(pines.length-1)};shape(pineTrunk,0x4a382b,x,y+h*.14,z,h*.032,h*.3,h*.032);shape(conifers[v],[0x5a9152,0x4f8549,0x66995a][v],x,y,z,h*.74,h,h*.74,(x+z)*2.4)}
  // Blossom tree: a dark trunk with two limbs and a crown of petal clusters around a soft core.
  // Deciduous trees (1.21.1, audit PR #10): a tapered bark trunk that forks into four or five limbs, each with a side
  // branch, and a crown of leaf or blossom clusters at the branch ends: wider than tall, open in places and different
@@ -205,7 +221,7 @@ function createWorld(canvas) {
    const ox=Math.cos(a)*s0*.6,oz=Math.sin(a)*s0*.6;shape(bushGeo,tones[(i+1)%tones.length],ex+ox,ey+s0*.18,ez+oz,s0*.72,s0*.55,s0*.72,a*3)});
   shape(bushGeo,tones[0],x+(hs(90)-.5)*h*.1,fork+h*.42,z+(hs(91)-.5)*h*.1,h*cluster*.9,h*cluster*.6,h*cluster*.9,hs(92)*6);
   return ends}
- function cherry(x,z,h){canopies.push({x,z,y:h*.45+liftAt(x,z),h:h*.6,r:h*.5});
+ function cherry(x,z,h){lastPine=null;canopies.push({x,z,y:h*.45+liftAt(x,z),h:h*.6,r:h*.5});
   limbTree(x,z,h,[0xf4bccb,0xf8d3de,0xeaa7bc,0xfbe4ea],1.08,.16);for(let i=0;i<6;i++)rnd()}
  const wood=0x92583f,dark=0x3f4441,cream=0xdfcda6,teal=0x526558,red=0x925c40;
  function surfaced(geometry,file) {
@@ -458,6 +474,27 @@ function createWorld(canvas) {
   for(const [bx,bz] of [[x+2.1,front+.9],[x+2.15,front+1.6]]){shape(cyl,0x7a5232,bx,.42,bz,.3,.84,.3);for(const yy of [.18,.66])shape(cyl,0x3b3a36,bx,yy,bz,.315,.05,.315);solids.add({x:bx,z:bz,r:.33,base:0,top:.86})}
   fruit.sack(scene,x+1.2,0,front+1.9,.75);fruit.sack(scene,x+1.7,0,front+1.85,.68);
  }
+ // ---- Trade signs (1.22, house audit PR #9): every resident's house shows its trade. A wrought-iron bracket with a
+ // brace sticks out of the wall and the painted board hangs from two short chains, readable from both sides.
+ const SIGN_ICON={
+  kaart:g=>{g.translate(128,62);for(let i=0;i<8;i++){g.rotate(Math.PI/4);g.fillStyle=i%2?'#c9a25a':'#f0d690';g.beginPath();g.moveTo(0,-(i%2?24:40));g.lineTo(6,0);g.lineTo(-6,0);g.fill()}g.strokeStyle='#f0d690';g.lineWidth=3;g.beginPath();g.arc(0,0,30,0,7);g.stroke()},
+  zaag:g=>{g.fillStyle='#cfd4d6';g.beginPath();g.moveTo(70,46);g.lineTo(186,46);g.lineTo(186,62);g.lineTo(86,74);g.closePath();g.fill();g.fillStyle='#7a5230';for(let i=0;i<12;i++){g.beginPath();g.moveTo(88+i*8,74-i*.9);g.lineTo(92+i*8,80-i*.9);g.lineTo(96+i*8,73-i*.9);g.fill()}g.fillStyle='#a8743e';g.fillRect(186,38,28,32);g.fillStyle='#5a3b22';g.fillRect(194,46,12,16)},
+  smid:g=>{g.fillStyle='#2d2d30';g.beginPath();g.moveTo(66,52);g.lineTo(190,52);g.quadraticCurveTo(170,70,150,72);g.lineTo(150,88);g.lineTo(168,98);g.lineTo(88,98);g.lineTo(106,88);g.lineTo(106,72);g.quadraticCurveTo(80,68,66,52);g.fill();g.fillStyle='#a8743e';g.save();g.translate(150,34);g.rotate(-.5);g.fillRect(-4,0,8,44);g.fillStyle='#55585c';g.fillRect(-16,-8,32,14);g.restore()},
+  plant:g=>{g.strokeStyle='#7db45a';g.lineWidth=6;g.beginPath();g.moveTo(128,100);g.lineTo(128,40);g.stroke();g.fillStyle='#8cc46a';for(const [x,y,r] of [[108,60,-.6],[148,52,.6],[110,82,-.5],[146,76,.5]]){g.save();g.translate(x,y);g.rotate(r);g.beginPath();g.ellipse(0,0,18,8,0,0,7);g.fill();g.restore()}g.fillStyle='#e2475b';g.beginPath();g.arc(128,34,11,0,7);g.fill();g.fillStyle='#8a5a34';g.fillRect(106,96,44,14)},
+  boer:g=>{g.strokeStyle='#e6c35c';g.lineWidth=4;for(let i=-3;i<=3;i++){g.beginPath();g.moveTo(128,104);g.quadraticCurveTo(128+i*4,70,128+i*12,30);g.stroke();g.fillStyle='#f0d27a';g.beginPath();g.ellipse(128+i*12,30,5,11,i*.25,0,7);g.fill()}g.fillStyle='#8a5a34';g.fillRect(114,70,28,7)},
+  steen:g=>{g.fillStyle='#d9d2c4';g.fillRect(70,58,72,44);g.fillStyle='#bfb6a6';g.fillRect(70,58,72,10);g.save();g.translate(176,46);g.rotate(.7);g.fillStyle='#a8743e';g.fillRect(-5,-6,10,40);g.fillStyle='#9aa0a4';g.fillRect(-4,-36,8,32);g.restore()},
+  bijl:g=>{g.save();g.translate(128,64);g.rotate(-.6);g.fillStyle='#a8743e';g.fillRect(-5,-44,10,92);g.fillStyle='#b8bdc0';g.beginPath();g.moveTo(5,-44);g.lineTo(40,-52);g.quadraticCurveTo(48,-30,40,-8);g.lineTo(5,-20);g.fill();g.restore()}};
+ const signFaces=new Map();
+ function signFace(label,icon){const k=label+icon;if(signFaces.has(k))return signFaces.get(k);
+  const m=new T.MeshStandardMaterial({roughness:.8,map:canvasTex(256,160,g=>{g.fillStyle='#4e331e';g.fillRect(0,0,256,160);g.globalAlpha=.18;for(let i=0;i<14;i++){g.fillStyle=i%2?'#2a1a0e':'#7a5232';g.fillRect(0,i*12+((i*7)%5),256,3)}g.globalAlpha=1;
+   g.strokeStyle='#c8a25a';g.lineWidth=6;g.strokeRect(7,7,242,146);g.save();SIGN_ICON[icon](g);g.restore();g.fillStyle='#f0d690';g.font='bold 25px Georgia, serif';g.textAlign='center';g.textBaseline='middle';g.fillText(label,128,134)})});
+  signFaces.set(k,m);return m}
+ function tradeSign(x,y,z,ry,label,icon){const g=group(x,y,z);g.rotation.y=ry;const ironM=mats.get(0x2a2622)||new T.MeshStandardMaterial({color:0x2a2622,roughness:.5,metalness:.6});
+  const part=(geo,m,px,py,pz,sx,sy,sz,rx=0)=>{const o=new T.Mesh(geo,m);o.position.set(px,py,pz);o.scale.set(sx,sy,sz);o.rotation.x=rx;o.castShadow=true;g.add(o);return o};
+  part(cube,ironM,0,.5,.6,.05,.05,1.2);part(cube,ironM,0,.18,.32,.04,.04,.82,-.83);part(cube,ironM,0,.5,.02,.16,.24,.06);part(ball,ironM,0,.5,1.22,.05,.05,.05);
+  for(const dz of [.32,.88])part(rope,ironM,0,.36,dz,.012,.28,.012);
+  const face=signFace(label,icon),edge=new T.MeshStandardMaterial({color:0x3a2616,roughness:.8});
+  const board=new T.Mesh(cube,[face,face,edge,edge,edge,edge]);board.position.set(0,-.05,.6);board.scale.set(.05,.56,.9);board.castShadow=true;g.add(board);return g}
  // Two-storey manor: stone ground floor, a jettied half-timbered upper floor, a side wing and a porch.
  function manor(x,z){
   const w=8.5,d=6.4,y0=.5,h1=3.9,h2=3.4,yTop=y0+h1+h2,rise=3.3,front=z+d/2,tone=0x5a4a6a;
@@ -492,6 +529,15 @@ function createWorld(canvas) {
  lens.userData.surface=new T.MeshStandardMaterial({color:0xefc991,emissive:0xffa44a,emissiveIntensity:2.4,roughness:.22,metalness:.12});
  const bronze=0x554538, patina=0x40504b, brass=0xb69765;
  const hoop=new T.TorusGeometry(1,.13,7,18);
+ // Props from the audit (PR #6), 1.22: shapes you recognise instead of blocks.
+ const propMetal=new T.MeshStandardMaterial({color:0xc6cacc,metalness:.75,roughness:.32});
+ const milkCan=lathe([[0,0],[.15,0],[.16,.02],[.16,.42],[.155,.46],[.12,.54],[.085,.6],[.08,.66],[.1,.68],[.1,.71],[.05,.73],[0,.74]],20);milkCan.userData={surface:propMetal};
+ const churnBody=new T.CylinderGeometry(.2,.27,1,18);churnBody.userData={surface:planks.userData.surface};
+ const ovenDome=new T.SphereGeometry(1,22,10,0,Math.PI*2,0,Math.PI/2);ovenDome.userData={surface:masonry.userData.surface};
+ const halfDisc=new T.CircleGeometry(1,18,0,Math.PI);halfDisc.userData={surface:new T.MeshBasicMaterial({color:0x140c07})};
+ const sawBlade=(()=>{const sh=new T.Shape();sh.moveTo(0,.08);sh.lineTo(0,.26);sh.lineTo(.66,.17);for(let i=0;i<=16;i++){const x=.66-i*.041;sh.lineTo(x,i%2?.03:0)}sh.lineTo(0,.08);
+  const g=new T.ExtrudeGeometry(sh,{depth:.008,bevelEnabled:false});g.userData={surface:propMetal};return g})();
+ const teleTube=new T.CylinderGeometry(.38,.32,1,28);
  function bracket(points,r){return new T.TubeGeometry(new T.CatmullRomCurve3(points.map(([x,y])=>new T.Vector3(x,y,0))),20,r,7,false)}
  const crook=bracket([[0,2.45],[.05,2.77],[.22,2.98],[.43,3.05],[.60,2.94],[.61,2.79],[.56,2.74]],.045);
  const scroll=bracket([[0,2.38],[.17,2.49],[.33,2.63],[.36,2.76],[.28,2.80],[.238,2.74],[.276,2.71]],.029);
@@ -518,6 +564,10 @@ function createWorld(canvas) {
   else{drawn();if(!parent)solids.add({x:x+.56*side,z,r:.26,base:y+1.9,top:y+2.9})}
  }
  const millRoof=surfaced(new T.ConeGeometry(1,1,16),"slate");
+ const millCap=new T.CylinderGeometry(1,1,1,18,1,false,-Math.PI/2,Math.PI);millCap.userData={surface:millRoof.userData.surface};
+ let millStoneMat=null;function millStone(){if(millStoneMat)return millStoneMat;if(!(scanReady&&typeof Models!=='undefined'))return millStoneMat=masonry.userData.surface;
+  const [map,nor]=[Models.texture('wallslate_diff.jpg',true).clone(),Models.texture('wallslate_nor.jpg').clone()];for(const t of [map,nor]){t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(5.5,3.4);t.needsUpdate=true}
+  return millStoneMat=new T.MeshStandardMaterial({map,normalMap:nor,normalScale:new T.Vector2(1.3,1.3),roughness:.93})}
  const sailcloth=new T.PlaneGeometry(.65,2.77,4,10);
  const clothPos=sailcloth.attributes.position;
  for(let i=0;i<clothPos.count;i++){const u=(clothPos.getX(i)+.325)/.65,v=(clothPos.getY(i)+1.385)/2.77;
@@ -525,8 +575,20 @@ function createWorld(canvas) {
  sailcloth.computeVertexNormals();sailcloth.userData.surface=new T.MeshStandardMaterial({map:loadSurface('canvas.jpg'),color:0xeaddc7,side:T.DoubleSide,roughness:1});
  function mill(x,z,smock=false){
   const tower=new T.CylinderGeometry(smock?1.37:1.5,2.6,7.8,smock?8:32);
-  tower.userData.surface=smock?timberMat:masonry.userData.surface;
-  shape(tower,0xf0e0c8,x,3.9,z,1,1,1);shape(millRoof,0xffffff,x,8.8,z,2.65,2.6,2.65);
+  tower.userData.surface=smock?timberMat:millStone();
+  shape(tower,smock?0xf0e0c8:0xe8e0d2,x,3.9,z,1,1,1);
+  // Since 1.22 (PR #13): a Dutch cap shaped like an upturned boat hull along the axle instead of a cone, a beard board
+  // under the axle, a tail with struts down to a capstan wheel to turn the cap into the wind, a door and small windows.
+  {const top=7.8,rc=smock?1.62:1.78,len=3.7,cz=z+.25;shape(millCap,0xffffff,x,top+.02,cz,rc,len,rc*.92,0,0,-Math.PI/2);
+   shape(beam,oak,x,top+.08,cz,rc*2+.1,.16,len+.08);shape(planks,0x7a5a3c,x,top-.25,z+2.18,1.5,.75,.08);shape(ridge,0x6e6458,x,top+rc*.9+.04,cz,.09,len+.1,.09,0,0,Math.PI/2);
+   const tailY=smock?3.75:.95,tailZ=z-(smock?2.95:4.6);liftOff=true;const L0=liftAt(x,z);
+   cord(x,L0+top+.15,z-1.55,x,L0+tailY+.35,tailZ,.11,oak);for(const sx of [-1,1])cord(x+sx*1.05,L0+top-.1,z-1.1,x,L0+tailY+1.2,tailZ+.5,.06,oak);
+   cord(x,L0+top-1.2,z-1.45,x,L0+tailY+.9,tailZ+.25,.05,oak);liftOff=false;
+   shape(wheel,oak,x,tailY+.2,tailZ-.18,.62,.62,1.2);for(let k=0;k<3;k++)shape(beam,oak,x,tailY+.2,tailZ-.18,1.2,.06,.06,0,k*Math.PI/3);
+   if(!smock){solids.add({x,z:tailZ-.18,r:.55,base:0,top:1.6});
+    // door on the west side and three small windows climbing the tower
+    const P=frame(x-2.42,0,z,-Math.PI/2);P(cube,0x1d1712,0,1.45,.05,1.2,2.9,.06);P(planks,0x6e4a30,0,1.42,.08,1.05,2.8,.05);P(masonry,0xcfc1a8,0,.12,.45,1.5,.24,.8);
+    for(const [a,y] of [[2.2,2.6],[-2.0,4.4],[.9,6.0]]){const r=2.6-y*.141+.02;shape(glass,0xffffff,x+Math.sin(a)*r,y,z+Math.cos(a)*r,.36,.55,.05,a);shape(beam,oak,x+Math.sin(a)*(r+.02),y-.33,z+Math.cos(a)*(r+.02),.5,.07,.12,a)}}}
   if(smock){for(let i=0;i<8;i++){const a=i*Math.PI/4,b=a+Math.PI/4;
    cord(x+2.59*Math.sin(a),.1,z+2.59*Math.cos(a),x+1.40*Math.sin(a),7.72,z+1.40*Math.cos(a),.10,wood);
    cord(x+2.5*Math.sin(a),.48,z+2.5*Math.cos(a),x+2.05*Math.sin(b),3.48,z+2.05*Math.cos(b),.069,cream)}
@@ -636,6 +698,36 @@ void main(){float y=vUv.y;
 #include <fog_fragment>
 }`},cascadeUniforms)}
  const water=cascadeMaterial();water.uniforms.time=cascadeUniforms.time;
+ // Brooks (1.22, water audit PR #8): two layers of flowing streaks at different speeds, a deeper teal in the middle
+ // channel, foam that clings to the banks and riffles, a white tongue where the water tips over the lip, and edges
+ // that fade into the wet bank instead of ending on a hard line. len is the brook's length in v units.
+ function brookMaterial(len){return new T.ShaderMaterial({transparent:true,depthWrite:false,fog:true,
+  uniforms:T.UniformsUtils.merge([T.UniformsLib.fog,{len:{value:len}}]),
+  vertexShader:`#include <common>
+#include <fog_pars_vertex>
+varying vec2 vUv;varying vec3 vN;void main(){vUv=uv;vN=normalize(normalMatrix*normal);vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;
+#include <fog_vertex>
+}`,
+  fragmentShader:`#include <common>
+#include <fog_pars_fragment>
+uniform float time;uniform float len;varying vec2 vUv;varying vec3 vN;
+float hh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float nz(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hh(i),hh(i+vec2(1,0)),f.x),mix(hh(i+vec2(0,1)),hh(i+vec2(1,1)),f.x),f.y);}
+void main(){float u=vUv.x,v=vUv.y;
+ float a1=nz(vec2(u*5.,v*2.2-time*1.1)),a2=nz(vec2(u*13.+3.,v*6.-time*2.3)),a3=nz(vec2(u*31.,v*14.-time*3.4));
+ float mid=1.-abs(u-.5)*2.;
+ vec3 deep=vec3(.03,.1,.11),shallow=vec3(.13,.22,.21);
+ vec3 col=mix(shallow,deep,smoothstep(.15,.85,mid)*.85);
+ col+=vec3(.32,.38,.38)*smoothstep(.62,.95,a1*.55+a2*.45)*.3;
+ float bank=smoothstep(.3,.04,u)+smoothstep(.7,.96,u);
+ float riffle=smoothstep(.78,.95,a2)*smoothstep(.5,.9,a3);
+ float lip=smoothstep(len-.55,len,v);
+ float foam=clamp(bank*smoothstep(.42,.82,a3*.5+a1*.5)+riffle*.7+lip*smoothstep(.25,.6,a2),0.,1.);
+ col=mix(col,vec3(.74,.8,.8),foam);
+ float edge=smoothstep(0.,.14,u)*smoothstep(1.,.86,u);
+ gl_FragColor=vec4(col,(.5+.24*mid)*edge+foam*.4*edge);
+#include <fog_fragment>
+}`})}
  // A waterfall sheet that behaves like water leaving a lip: it shoots out a little, then falls in a parabola, widens as
  // it drops and ripples sideways. Centred like the old flat planes (top at +H/2), local +z points away from the cliff.
  function fallGeo(wd,H,seed=0){const N=26,M=6,v=[],uv=[],f=[];
@@ -645,6 +737,25 @@ void main(){float y=vUv.y;
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(f);g.computeVertexNormals();return g}
  // drifting mist where the water disappears into the clouds
  const mistTex=loadSurface('mist.png'),mists=[];
+ // dark, wet stones along both banks of a brook, every couple of metres, alternating sides (no shared randomness)
+ function wetStones(B,hAt,w){for(let k=0;k<B.length-1;k++)for(const f of [.3,.75]){const x0=B[k][0]+(B[k+1][0]-B[k][0])*f,z0=B[k][1]+(B[k+1][1]-B[k][1])*f,dx=B[k+1][0]-B[k][0],dz=B[k+1][1]-B[k][1],l=Math.hypot(dx,dz)||1,
+   side=(k+(f>.5?1:0))%2?1:-1,o=w+.35+.25*Math.abs(Math.sin(k*3.1+f*7)),x=x0-dz/l*o*side,z=z0+dx/l*o*side,sc=.22+.16*Math.abs(Math.sin(k*1.7+f*5));
+   shape(stoneGeo,0x6f6b62,x,hAt(x,z)+sc*.18,z,sc,sc*.62,sc*.85,k*2.3+f)}}
+ // (1.22) The brook bed: a band of wet, dark gravel under the water that is a little wider than the stream and fades
+ // into the grass at its edges, so the water lies in a bed instead of on top of the lawn.
+ // the sideways direction across a brook, averaged over about a metre either side so the ribbon turns a corner smoothly
+ // instead of folding over itself (two layers of water showed as a bright seam across the stream)
+ function brookN(B,f){const at=g=>{g=Math.max(0,Math.min(B.length-1,g));const k=Math.min(B.length-2,Math.floor(g)),u=g-k;return [B[k][0]+(B[k+1][0]-B[k][0])*u,B[k][1]+(B[k+1][1]-B[k][1])*u]};
+  const a=at(f-.35),b=at(f+.35),dx=b[0]-a[0],dz=b[1]-a[1],l=Math.hypot(dx,dz)||1;return [-dz/l,dx/l]}
+ let bedMat=null;
+ function brookBed(B,hAt,wdAt,steps){if(!bedMat){bedMat=new T.MeshStandardMaterial({map:loadSurface('p_rockygravel.jpg'),color:0xa1988a,roughness:.4,metalness:0,vertexColors:true,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2});bedMat.map.wrapS=bedMat.map.wrapT=T.RepeatWrapping}
+  const pos=[],uv=[],col=[],idx=[];
+  for(let i=0;i<=steps;i++){const f=i/steps*(B.length-1),k=Math.min(B.length-2,Math.floor(f)),u=f-k,x=B[k][0]+(B[k+1][0]-B[k][0])*u,z=B[k][1]+(B[k+1][1]-B[k][1])*u;
+   const [nx,nz]=brookN(B,f),wd=wdAt(i/steps),fade=Math.min(1,i/3,(steps-i)/2+.35);
+   for(const [s,a] of [[-2.05,0],[-1.15,1],[1.15,1],[2.05,0]]){const px=x+nx*wd*s,pz=z+nz*wd*s;pos.push(px,Math.max(hAt(px,pz),hAt(x,z))+.062,pz);uv.push(px/2.2,pz/2.2);col.push(1,1,1,a*fade*.92)}
+   if(i){const n=i*4;for(let c=0;c<3;c++)idx.push(n-4+c,n-3+c,n+c,n+c,n-3+c,n+1+c)}}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('color',new T.Float32BufferAttribute(col,4));g.setIndex(idx);g.computeVertexNormals();
+  const m=new T.Mesh(g,bedMat);m.renderOrder=1;m.receiveShadow=true;scene.add(m);return m}
  function mist(x,y,z,s){for(let k=0;k<3;k++){const m=new T.Sprite(new T.SpriteMaterial({map:mistTex,transparent:true,opacity:.5,depthWrite:false,color:0xf2f6f8}));m.position.set(x+(k-1)*s*.25,y+k*s*.12,z);m.scale.set(s,s*.6,1);scene.add(m);mists.push([m,s,k*2.1])}}
  const land=[0x9cca75,0xa1c884,0xb0d5ca];
  const reserved=[{x:13,z:-6.6,r:5.2},{x:-12,z:-52.6,r:8.2},{x:0,z:-130,r:6.2},{x:-12,z:-115,r:2.2},{x:-3.6,z:-125,r:1.6}],taken=(x,z,m)=>reserved.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+m)||nearTrail(x,z,m+.3);
@@ -659,8 +770,10 @@ void main(){float y=vUv.y;
    for(let f=0;f<2;f++){let fx=px+(f?1:-1)*(2.65+rnd()*.8),fz=z+j;if(!nearPaving(fx,fz,k,.25)&&f===0 && Math.abs(Math.sin(j))>.65)grove("meadow",fx,fz,.31,0,.52)}}
   const roadLine=[];
   for(let n=0;n<=48;n++){let t=n/48,zz=(2*t-1)*(r-1),center=1.2*Math.sin(zz*.18+k);roadLine.push([center,z+zz,2.13+.12*Math.sin(n*1.42)])}
-  pathStrip(roadLine,.045+LIFT[k],mainPathKind[k]);
-  for(const home of villageHomes.filter(h=>h.k===k)){if(scanReady){const c=new T.CatmullRomCurve3(branchPoints(home).map(([a,b])=>new T.Vector3(a,0,b)),false,'centripetal');pathStrip(c.getSpacedPoints(Math.max(8,Math.ceil(c.getLength()/.6))).map(q=>[q.x,q.z,.88]),.055+LIFT[k],lanePathKind[k]);continue}
+  // (1.22) the main road lies a little above the lanes and trails: their start is hidden under the cobbles, and in
+  // the road's frayed edge you see the lane instead of grass
+  pathStrip(roadLine,.072+LIFT[k],mainPathKind[k]);
+  for(const home of villageHomes.filter(h=>h.k===k)){if(scanReady){const c=new T.CatmullRomCurve3(branchPoints(home).map(([a,b])=>new T.Vector3(a,0,b)),false,'centripetal');{const pts=c.getSpacedPoints(Math.max(8,Math.ceil(c.getLength()/.6)));let run=0;pathStrip(pts.map((q,n)=>{if(n)run+=q.distanceTo(pts[n-1]);const back=c.getLength()-run;return [q.x,q.z,.88+.9*Math.min(1,Math.max(0,1-(run-2.1)/2.2))+.22*Math.max(0,1-back/1.2)]}),.055+LIFT[k],lanePathKind[k])};continue}
    const line=branchPoints(home),vertices=[],texcoords=[],faces=[];
    for(let i=0;i<line.length;i++){
     const prev=line[Math.max(0,i-1)],next=line[Math.min(line.length-1,i+1)];
@@ -713,7 +826,7 @@ void main(){float y=vUv.y;
   function placeCrag(x,z,sc,sy,L,r1,r2,r3){let lo=mountainH(x,z);for(let i=0;i<10;i++){const a=i/10*Math.PI*2;for(const f of [.55,1.05])lo=Math.min(lo,mountainH(x+Math.cos(a)*sc*f,z+Math.sin(a)*sc*.9*f))}
    const gx=mountainH(x+.4,z)-mountainH(x-.4,z),gz=mountainH(x,z+.4)-mountainH(x,z-.4),m=new T.Mesh(cragGeo,cragMat);
    cragMeshes.push(m);m.position.set(x,L+lo+sy*.1,z);m.scale.set(sc,sy,sc*.9);m.rotation.set(Math.atan(gz/.8)*.45+r1*.3-.15,r2*6,-Math.atan(gx/.8)*.45+r3*.3-.15,'YXZ');m.castShadow=m.receiveShadow=true;scene.add(m);
-   solids.add({x,z,r:sc*.8,base:L+lo-1,top:L+lo+sy*.95})}
+   solids.add({x,z,r:sc*.8,base:L+lo-1,top:L+lo+sy*.95});rockAt(x,z,sc*.8)}
   let cs=733;const cr=()=>(cs=(cs*16807)%2147483647)/2147483647;
   for(let k=0,made=0;k<220&&made<16;k++){const a=cr()*6.28,rr=1.5+cr()*(peak.R-2),x=peak.x+Math.cos(a)*rr,z=peak.z+Math.sin(a)*rr,h=mountainH(x,z),sl=Math.hypot(mountainH(x+.3,z)-h,mountainH(x,z+.3)-h)/.3;
    if(sl<.85||brookDist(x,z)<1.6||Math.hypot(x-peak.x-.2,z-peak.z+1.6)<3.6)continue;made++;const sc=.9+cr()*1.6;
@@ -723,16 +836,17 @@ void main(){float y=vUv.y;
   for(let k=0;k<26;k++){const a=hr()*6.28,rr=2.5+hr()*(lobe.r-3.5),x=lobe.x+Math.cos(a)*rr,z=lobe.z+Math.sin(a)*rr,h=mountainH(x,z);
    if(brookDist(x,z)<1.4||Math.hypot(x-peak.x,z-peak.z)<2.2||Math.hypot(x-25,z+1)<3||x<26&&Math.hypot(x,z)<24)continue;
    if(k%3){const t=3.5+hr()*3,lo=Math.min(h,...[0,1.57,3.14,4.71].map(a=>mountainH(x+Math.cos(a)*.32,z+Math.sin(a)*.32)));pine(x,z,t,lo-.12);solids.add({x,z,r:.43,base:h-.2,top:h+t});solids.add({x,z,r:t*.23,base:h+t*.4,top:h+t})}
-   else{shape(stoneGeo,0x9d9b84,x,h+.2,z,.9,.6,.8,a);solids.add({x,z,r:.7,base:h-.3,top:h+.75})}}
+   else{shape(stoneGeo,0x9d9b84,x,h+.2,z,.9,.6,.8,a);solids.add({x,z,r:.7,base:h-.3,top:h+.75});rockAt(x,z,.7)}}
   // the brook: a ribbon that follows the ground and runs off the edge as a waterfall
   const flow=new T.MeshStandardMaterial({map:loadSurface('cascade.png'),color:0x8cc4d6,transparent:true,opacity:.85,roughness:.1,metalness:.1,depthWrite:false});flow.map.wrapS=flow.map.wrapT=T.RepeatWrapping;flow.map.repeat.set(1,6);
   const bp=[],bu=[],bi=[];let run=0;const steps=60;
   for(let i=0;i<=steps;i++){const f=i/steps*(brook.length-1),k=Math.min(brook.length-2,Math.floor(f)),u=f-k,x=brook[k][0]+(brook[k+1][0]-brook[k][0])*u,z=brook[k][1]+(brook[k+1][1]-brook[k][1])*u;
-   const dx=brook[k+1][0]-brook[k][0],dz=brook[k+1][1]-brook[k][1],l=Math.hypot(dx,dz),nx=-dz/l,nz=dx/l,wd=.32+.35*i/steps;if(i)run+=Math.hypot(x-bp[bp.length-6],z-bp[bp.length-4]);
+   const [nx,nz]=brookN(brook,f),wd=(.32+.35*i/steps)*1.35;if(i)run+=Math.hypot(x-bp[bp.length-6],z-bp[bp.length-4]);
    for(const s of [-1,1]){const px=x+nx*wd*s,pz=z+nz*wd*s;bp.push(px,Math.max(mountainH(px,pz),mountainH(x,z))+.07,pz);bu.push((s+1)/2,run/3)}
    if(i){const n=i*2;bi.push(n-2,n-1,n,n,n-1,n+1)}}
   const bg=new T.BufferGeometry();bg.setAttribute('position',new T.Float32BufferAttribute(bp,3));bg.setAttribute('uv',new T.Float32BufferAttribute(bu,2));bg.setIndex(bi);bg.computeVertexNormals();
-  const stream=new T.Mesh(bg,flow);stream.renderOrder=2;scene.add(stream);
+  const stream=new T.Mesh(bg,brookMaterial(run/3));stream.material.uniforms.time=cascadeUniforms.time;stream.renderOrder=2;scene.add(stream);
+  wetStones(brook,(x,z)=>mountainH(x,z),.35);brookBed(brook,(x,z)=>mountainH(x,z),t=>(.32+.35*t)*1.35,60);
   const [ex,ez]=brook[brook.length-1],fallMat=new T.MeshBasicMaterial({map:loadSurface('cascade.png'),transparent:true,depthWrite:false,side:T.DoubleSide});fallMat.map.wrapT=T.RepeatWrapping;fallMat.map.repeat.set(1,3);
   for(const [wd,off,op,sd] of [[2.4,0,.95,0],[3.4,.3,.45,2],[1.3,.12,.75,4]]){const fall=new T.Mesh(fallGeo(wd,26,sd),cascadeMaterial(0xd5ecf3,op));fall.material.uniforms.time=cascadeUniforms.time;fall.position.set(ex+.35+off,-12.9,ez+.2);fall.rotation.y=Math.PI/2-.12;fall.renderOrder=3;scene.add(fall)}
   mist(ex+1.2,-24,ez,9);mist(ex+.8,.4,ez+.2,2.2);
@@ -756,11 +870,12 @@ void main(){float y=vUv.y;
    if(brookDist(x,z,P)<1.4||h>P.H*.55||Math.hypot(x-I.x,z-I.z)>I.r-2)continue;made++;const t=3.5+cr()*3,lo=Math.min(h,...[0,1.57,3.14,4.71].map(a=>mountainH(x+Math.cos(a)*.32,z+Math.sin(a)*.32)));pine(x,z,t,lo-.12);solids.add({x,z,r:.43,base:h-.2,top:h+t});solids.add({x,z,r:t*.23,base:h+t*.4,top:h+t})}
   const B=P.brook,bp=[],bu=[],bi=[];let run=0;const steps=48;
   for(let i=0;i<=steps;i++){const f=i/steps*(B.length-1),k=Math.min(B.length-2,Math.floor(f)),u=f-k,x=B[k][0]+(B[k+1][0]-B[k][0])*u,z=B[k][1]+(B[k+1][1]-B[k][1])*u;
-   const dx=B[k+1][0]-B[k][0],dz=B[k+1][1]-B[k][1],l=Math.hypot(dx,dz),nx=-dz/l,nz=dx/l,wd=.3+.38*i/steps;if(i)run+=Math.hypot(x-bp[bp.length-6],z-bp[bp.length-4]);
+   const [nx,nz]=brookN(B,f),wd=(.3+.38*i/steps)*1.35;if(i)run+=Math.hypot(x-bp[bp.length-6],z-bp[bp.length-4]);
    for(const s of [-1,1]){const px=x+nx*wd*s,pz=z+nz*wd*s;bp.push(px,L+Math.max(mountainH(px,pz),mountainH(x,z))+.07,pz);bu.push((s+1)/2,run/3)}
    if(i){const n=i*2;bi.push(n-2,n-1,n,n,n-1,n+1)}}
   const bg=new T.BufferGeometry();bg.setAttribute('position',new T.Float32BufferAttribute(bp,3));bg.setAttribute('uv',new T.Float32BufferAttribute(bu,2));bg.setIndex(bi);bg.computeVertexNormals();
-  const stream=new T.Mesh(bg,HL.flow);stream.renderOrder=2;scene.add(stream);torrents.push(stream);
+  const stream=new T.Mesh(bg,brookMaterial(run/3));stream.material.uniforms.time=cascadeUniforms.time;stream.renderOrder=2;scene.add(stream);torrents.push(stream);
+  liftOff=true;wetStones(B,(x,z)=>L+mountainH(x,z),.38);liftOff=false;brookBed(B,(x,z)=>L+mountainH(x,z),t=>(.3+.38*t)*1.35,48);
   const [ex,ez]=B[B.length-1],ang=Math.atan2(ex-I.x,ez-I.z),ox=Math.sin(ang),oz=Math.cos(ang),fallH=I.r*.8+10;
   for(const [wd,off,op,sd] of [[2.2,.25,.95,1],[3.2,.5,.45,3],[1.2,.35,.75,5]]){const fall=new T.Mesh(fallGeo(wd,fallH,sd),cascadeMaterial(0xd5ecf3,op));fall.material.uniforms.time=cascadeUniforms.time;fall.position.set(ex+ox*off,L-fallH/2+.12,ez+oz*off);fall.rotation.y=ang;fall.renderOrder=3;scene.add(fall)}
   mist(ex+ox*1.2,L-fallH+2,ez+oz*1.2,8);mist(ex+ox*.6,L+.4,ez+oz*.6,2);
@@ -833,8 +948,9 @@ void main(){float y=vUv.y;
   add(B,metal,0,-.42,0,.12,.36,.12);add(B,metal,0,-.3,0,.1,.1,.9);for(const z of [-.4,.4])add(new T.TorusGeometry(.16,.05,6,12),metal,0,0,z,1,1,1,0,Math.PI/2,0);
   add(B,metal,0,-.15,0,.16,.32,1.0)}
  gondola.userData.f=0;
- hut(-10,5,5,0,true);workshop(-15,-3,4,false);workshop(11,7,4.7,true);mill(-9,-11);pennants(0,4,10);airship(14,32,-15);
- hut(12,-60,5,1,true);pennants(0,-58,9);mill(-12,-68,true);
+ hut(-10,5,5,0,true);workshop(-15,-3,4,false);workshop(11,7,4.7,true);tradeSign(-12.38,3.55,7.17,0,'KAARTEN','kaart');tradeSign(-13.12,3.0,-1.24,0,'TIMMERMAN','zaag');tradeSign(13.27,2.95,9.06,0,'SMID','smid');{// Bram's canopy: a plank roof on two posts over the workbench and the door, sloping away from the wall
+  const fx=-15.1,fz=-1.26;shape(planks,0x9c7a58,fx,3.0,fz+.95,3.2,.07,2.0,0,0,.24);shape(beam,oak,fx,2.62,fz+1.85,3.3,.16,.16);for(const s2 of [-1,1]){shape(beam,oak,fx+s2*1.48,1.31,fz+1.85,.16,2.62,.16);shape(beam,oak,fx+s2*1.48,2.78,fz+1.25,.1,.1,1.3,0,0,-.62);solids.add({x:fx+s2*1.48,z:fz+1.85,r:.13,base:0,top:2.7})}}mill(-9,-11);pennants(0,4,10);airship(14,32,-15);
+ hut(12,-60,5,1,true);tradeSign(9.62,3.55,-57.83,0,'KWEKER','plant');pennants(0,-58,9);mill(-12,-68,true);
  tradingPost(13,-6.36);manor(-13,-52.94);
  for(let i=0;i<30;i++){let s=i%2?1:-1,x=s*(48+rnd()*88),z=32-rnd()*205,r=4+rnd()*12,h=-6+rnd()*15;while(extraIslands.some(E=>Math.hypot(x-E.x,z-E.z)<E.r+r+9))x+=s*24;island(x,z,r,land[i%3],r*.85,h);for(let j=0;j<3;j++)pine(x+rnd()*r*.6,z+rnd()*r*.55,3+rnd()*4,h)}
  let farmRotor=null,craneHook=null,signalFire=null,millDebris=null;const appleTrees=[];
@@ -849,7 +965,7 @@ void main(){float y=vUv.y;
   for(const pl of housePlots)keepOut(pl.x,pl.z,Math.hypot(pl.width,pl.depth)/2+.4);
   function scatter(I,n,make){let made=0,tries=0;while(made<n&&tries++<n*30){const a=R()*6.283,d=Math.sqrt(R())*(I.r-1.5),x=I.x+Math.cos(a)*d,z=I.z+Math.sin(a)*d;if(make(x,z,a))made++}}
   const tree=(I,h0,h1,blossom)=>scatter(I,1,(x,z)=>{const h=pick2(h0,h1);if(!free(I,x,z,blossom?2.2:1.3))return false;blossom?cherry(x,z,h):pine(x,z,h);solids.add({x,z,r:.43,base:0,top:h});solids.add({x,z,r:blossom?2.4:h*.23,base:h*.4,top:h});keepOut(x,z,blossom?2.2:1.1);return true});
-  const boulder=(I,col,s0,s1)=>scatter(I,1,(x,z,a)=>{const s=pick2(s0,s1);if(!free(I,x,z,s*.8))return false;shape(stoneGeo,col,x,s*.3,z,s,s*.72,s*.94,a*3);solids.add({x,z,r:s*.8,base:0,top:s*.95});keepOut(x,z,s);return true});
+  const boulder=(I,col,s0,s1)=>scatter(I,1,(x,z,a)=>{const s=pick2(s0,s1);if(!free(I,x,z,s*.8))return false;shape(stoneGeo,col,x,s*.3,z,s,s*.72,s*.94,a*3);rockAt(x,z,s*.8);solids.add({x,z,r:s*.8,base:0,top:s*.95});keepOut(x,z,s);return true});
   const tufts=(I,n)=>scatter(I,n,(x,z,a)=>{if(!free(I,x,z,.3))return false;grove('meadow',x,z,.42+.3*Math.sin(a*7)**2,0,.77);return true});
   function waterfall(I,a,h){const x=I.x+Math.cos(a)*(I.r+.15),z=I.z+Math.sin(a)*(I.r+.15),ry=Math.atan2(Math.cos(a),Math.sin(a));
    for(let j=0;j<2;j++){const f=new T.Mesh(new T.PlaneGeometry(1.6,h*2,1,1),water);f.position.set(x+Math.cos(a+1.57)*j*.6,-h+I.lift,z+Math.sin(a+1.57)*j*.6);f.rotation.y=ry;scene.add(f);falls.push([f,-h+I.lift])}
@@ -880,6 +996,7 @@ void main(){float y=vUv.y;
     doors.push({pivot,ry:0,open:0,x:GX,z:GZ+2.8*GS,parent:hg,out:true});
     // walls and roof; between the front pillars the doorway stays open up to the door leaf
     solids.add({x:GX,z:GZ-.34*GS,w:2.55*GS,d:3.14*GS,base:0,top:6.9*GS});for(const k of [-1,1])solids.add({x:GX+k*1.65*GS,z:GZ+3.14*GS,w:.9*GS,d:.34*GS,base:0,top:6.9*GS});
+    {const sp=group(GX+2.2,0,1.1);const post=new T.Mesh(cube,mats.get(oak)||new T.MeshStandardMaterial({color:oak,roughness:.85}));post.scale.set(.14,2.6,.14);post.position.y=1.3;post.castShadow=true;sp.add(post);tradeSign(GX+2.2,2.55,1.1-.07,Math.PI/2,'HOUTVESTER','bijl');solids.add({x:GX+2.2,z:1.1,r:.12,base:0,top:2.6})}
     scanProp('wine_barrel',GX-3.4,0,.5,1.2,1.02);solids.add({x:GX-3.4,z:.5,r:.36,base:0,top:.86});
     scanProp('settle',GX+3.5,0,.55,0,1);solids.add({x:GX+3.5,z:.55,w:.62,d:.2,base:0,top:.5})}
    else hut(GX,-2.4,5,2)}
@@ -1015,7 +1132,7 @@ void main(){float y=vUv.y;
   // rubble and broken sail lattice at the foot of the mill, cleared when you mend its foot (level 2, first part)
   millDebris=group(-68,0,-62);for(const [x,z,r,k] of [[2,2.4,.4,1],[-1.4,2.8,1.2,.8],[.9,3.3,2.1,.7],[2.6,1.4,.3,.9]])shape(stoneGeo,0x9d9384,x,.22*k,z,.6*k,.42*k,.5*k,r,0,0,millDebris);
   for(const [x,z,r,t] of [[-.4,3.6,.5,.25],[1.6,3.0,1.9,-.2],[-2.2,2.0,1.1,.35]])shape(cube,0x8a6a48,x,.12,z,.13,.09,2.3,r,t,0,millDebris);solids.add({x:-68,z:-62,r:2.6,base:0,top:9});keepOut(-68,-62,4.2);
-  hut(-50,-67,6,1,true);keepOut(-50,-67,4.8);if(scanReady){scanProp('sf_ladder',-45.9,0,-64.4,.9,1);solids.add({x:-45.9,z:-64.4,r:.55,base:0,top:1.85});keepOut(-45.9,-64.4,1)}
+  hut(-50,-67,6,1,true);keepOut(-50,-67,4.8);tradeSign(-52.88,3.55,-64.4,0,'BOERDERIJ','boer');if(scanReady){scanProp('sf_ladder',-45.9,0,-64.4,.9,1);solids.add({x:-45.9,z:-64.4,r:.55,base:0,top:1.85});keepOut(-45.9,-64.4,1)}
   {const wx=-62,wz=-54,ring=new T.CylinderGeometry(1,1,1,24,1,true);ring.userData.surface=new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xd8cfbf,roughness:.95,side:T.DoubleSide});
    // fieldstone well: an open stone ring with a capstone rim, dark water, a timber frame with a shingle roof, a crank, rope and bucket
    shape(ring,0xffffff,wx,.45,wz,.85,.9,.85);shape(ring,0xffffff,wx,.45,wz,.66,.9,.66);shape(new T.TorusGeometry(.76,.11,6,24),0xcfc4b0,wx,.92,wz,1,1,1,0,0,Math.PI/2);shape(cyl,0x1c2a30,wx,.55,wz,.66,.02,.66);
@@ -1030,7 +1147,7 @@ void main(){float y=vUv.y;
     for(const [ox,oz] of [[.006,0],[0,.006]]){const b=pos.length/3;pos.push(x-ox,0,z-oz,x+ox,0,z+oz,x+lean+ox,h,z+oz,x+lean-ox,h,z-oz);idx.push(b,b+1,b+2,b,b+2,b+3)}
     leafSet(pos,idx,x+lean,h-.03,z,a,1.32,.14,.04)}},new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.8}));
   // fruit trees: the same limb structure, low and spreading, with a green crown (1.21.1)
-  function appleTree(x,z,h){appleTrees.push({x,z,h,y:liftAt(x,z)});limbTree(x,z,h,[0x4f7d32,0x5b8b3b,0x3f6e2c],.95,.2);
+  function appleTree(x,z,h){lastPine=null;appleTrees.push({x,z,h,y:liftAt(x,z)});limbTree(x,z,h,[0x4f7d32,0x5b8b3b,0x3f6e2c],.95,.2);
    for(let k=0;k<12;k++){const a=k*2.4+z,e=.1+(k%4)*.2,r=1.25*Math.cos(e);shape(appleGeo,k%3?0xb3262a:0xc9572c,x+Math.cos(a)*r,h*.62+Math.sin(e)*.8,z+Math.sin(a)*r,.07,.07,.07)}}
   function field(x0,x1,z0,z1,crop,stone=false,gate=0){const cx=(x0+x1)/2,cz=(z0+z1)/2,gx=cx+gate;shape(cube,0x6b4a2e,cx,.04,cz,x1-x0,.08,z1-z0);
    for(let z=z0+.5;z<z1-.3;z+=.8){shape(cube,0x5e4128,cx,.12,z,x1-x0-.4,.16,.42);for(let x=x0+.45;x<x1-.3;x+=crop?.42:.7){const j=Math.sin(x*12.9+z*7.3);crop?shape(wheatGeo,j>0?0xd9b862:0xc9a552,x+j*.05,.16,z,1,.9+.12*j,1,j*3):(shape(leafGeo,j>0?0x5d8f4c:0x6b9a52,x,.14,z,1.7,1.05,1.7,j*3),shape(ball,0x9cc37a,x,.24,z,.1,.09,.1))}}
@@ -1075,7 +1192,7 @@ void main(){float y=vUv.y;
      const j=Math.sin(a*23+tier*5),hh=h+.3*j;shape(stoneGeo,0xffffff,x,hh*.42,z,d*.1+.55,hh*.62,1.25,-a-Math.PI/2+j*.3,.05*j,.04*j);solids.add({x,z,r:1.2,base:0,top:hh})}}
    for(let i=0;i<18;i++){const a=-1.2+i*.14,d=9.6+.5*Math.sin(i*3.1),x=quarry.x+Math.cos(a)*d,z=quarry.z+Math.sin(a)*d,s=.35+.3*Math.abs(Math.sin(i*1.7));if(clear.some(([a2,b2,r2])=>Math.hypot(x-a2,z-b2)<r2+.4))continue;shape(stoneGeo,0xffffff,x,s*.3,z,s,s*.7,s,i)}
    keepOut(quarry.x+11,quarry.z,6)}
-  workshop(47,-84,4.4,true);keepOut(47,-84,3.8);
+  workshop(47,-84,4.4,true);keepOut(47,-84,3.8);tradeSign(49.1,2.95,-82.07,0,'STEENHOUWER','steen');
   {const bx=52.8,bz=-84.2;for(let i=0;i<3;i++)for(let j=0;j<2;j++)shape(masonry,0xdad4c4,bx+(i-1)*1.12,.38+j*.76,bz,1.05,.74,.9,.02*Math.sin(i+j*3));shape(masonry,0xdad4c4,bx,1.9,bz,1.05,.74,.9,.2);
    solids.add({x:bx,z:bz,w:1.75,d:.5,base:0,top:2.3});keepOut(bx,bz,2.2)}
   {const kx=59.5,kz=-76.5;shape(cube,0x5a4632,kx,.75,kz,1.5,.7,.95,.5);for(const o of [-.5,.5])for(const s of [-1,1]){shape(wheel,iron,kx+o*Math.cos(.5)+s*.5*Math.sin(.5),.32,kz-o*Math.sin(.5)+s*.5*Math.cos(.5),.3,.3,.6,.5)}
@@ -1142,6 +1259,17 @@ void main(){float y=vUv.y;
   seed=keep}
  const cloudGeo=new T.PlaneGeometry();
  cloudGeo.userData.surface=new T.MeshBasicMaterial({map:loadSurface('mist.png'),transparent:true,depthWrite:false,side:T.DoubleSide,opacity:.66});
+ // 1.22 (PR #16): the mist banks turn to face the camera (so you never see a flat card edge-on) and thin out when you
+ // come close, which reads as soft volume instead of paper cut-outs.
+ cloudGeo.userData.surface.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying float vNear;').replace('#include <project_vertex>',`
+  vec4 mvPosition=vec4(0.,0.,0.,1.);
+  #ifdef USE_INSTANCING
+   mvPosition=instanceMatrix*mvPosition;vec2 bsz=vec2(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz));
+  #else
+   vec2 bsz=vec2(1.);
+  #endif
+  mvPosition=modelViewMatrix*mvPosition;mvPosition.xy+=position.xy*bsz;vNear=smoothstep(10.,38.,-mvPosition.z);gl_Position=projectionMatrix*mvPosition;`);
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vNear;').replace('#include <opaque_fragment>','diffuseColor.a*=vNear;\n#include <opaque_fragment>')};
  // Upright mist banks hang well below the islands and never right under one: a bank in front of an island's rock
  // underside looked like a hole in the rock (the "see-through mountains"). Same random sequence as before, so
  // everything placed after this keeps its spot; a bank too close to an island is pushed outward instead.
@@ -1167,7 +1295,15 @@ void main(){float y=vUv.y;
   shape(ball,brass,ox,5.5+R*.92+.1,oz,.16,.16,.16);
   shape(ring,brass,ox,6.15,oz,1,1,1,0,0,Math.PI/2);for(let k=0;k<20;k++){const a=k*Math.PI/10;shape(cyl,brass,ox+Math.cos(a)*(R+.62),5.85,oz+Math.sin(a)*(R+.62),.035,.62,.035)}
   // telescope: a long brass-banded tube through the slit
-  {const tx=ox+1.7,ty=7.05,dx=.766,dy=.643;shape(cyl,0x2f3a3d,tx,ty,oz,.36,4.4,.36,0,-.87);for(const k of [-1.9,0,2.1])shape(cyl,brass,tx+dx*k,ty+dy*k,oz,.42,.18,.42,0,-.87);shape(cyl,brass,tx-dx*2.35,ty-dy*2.35,oz,.12,.4,.12,0,-.87)}
+  // (1.22) tapered tube with a dew shield and lens, brass bands, a focuser with knobs and an eyepiece, a finder scope,
+  // and trunnions on which the tube turns
+  {const tx=ox+1.7,ty=7.05,dx=.766,dy=.643,at=(k,o=0)=>[tx+dx*k-dy*o,ty+dy*k+dx*o];
+   shape(teleTube,0x2f3a3d,tx,ty,oz,1,4.4,1,0,-.87);{const [x,y]=at(2.4);shape(cyl,0x23292b,x,y,oz,.45,.5,.45,0,-.87)}{const [x,y]=at(2.2);shape(cyl,0x8fb0bf,x,y,oz,.36,.02,.36,0,-.87)}
+   for(const k of [-1.9,0,2.1]){const [x,y]=at(k);shape(cyl,brass,x,y,oz,.41,.16,.41,0,-.87)}
+   {const [x,y]=at(-2.35);shape(cyl,brass,x,y,oz,.12,.4,.12,0,-.87)}{const [x,y]=at(-2.62);shape(cyl,0x1d1d1f,x,y,oz,.075,.26,.075,0,-.87)}
+   {const [x,y]=at(-2.3);shape(cyl,brass,x,y,oz,.035,.46,.035,0,0,Math.PI/2);for(const s2 of [-1,1])shape(ball,brass,x,y,oz+s2*.24,.05,.05,.05)}
+   {const [x,y]=at(.6,.52);shape(cyl,0x2f3a3d,x,y,oz,.075,1.3,.075,0,-.87);for(const k of [.2,1.0]){const [a,b]=at(k,.42);shape(cube,brass,a,b,oz,.06,.06,.06)}}
+   shape(cyl,brass,tx,ty,oz,.16,.95,.16,0,0,Math.PI/2)}
   // door with a stone arch and steps, arched windows around the drum
   {const dxp=ox+R+.04;shape(cube,0x1a1410,dxp,1.95,oz,.06,2.5,1.3);shape(cube,0x6e4a30,dxp+.04,1.85,oz,.06,2.3,1.16);shape(arch,0xcfc4b0,dxp+.06,3.1,oz,1,1,1,Math.PI/2);
    for(const s of [-1,1])shape(masonry,0xcfc4b0,dxp+.08,1.85,oz+s*.78,.2,2.5,.26);shape(masonry,0xc9bea9,dxp+.55,.12,oz,1,.24,2.2);shape(masonry,0xc9bea9,dxp+.3,.36,oz,.6,.24,1.9);lantern(dxp+.35,3.0,oz+1.15)}
@@ -1211,7 +1347,13 @@ void main(){float y=vUv.y;
  const beaconGlass=new T.Mesh(new T.CylinderGeometry(1.2,1.2,2.05,24,1,true),new T.MeshStandardMaterial({color:0xe2f1f3,transparent:true,opacity:.22,roughness:.05,metalness:.3,depthWrite:false,side:T.DoubleSide}));beaconGlass.position.y=LH;beaconGlass.visible=!scanReady;beacon.add(beaconGlass);
  const beaconLight=new T.PointLight(0xffcf7a,3,22,1.6);beaconLight.position.set(0,LH+.05,0);beacon.add(beaconLight);
  const glowTex=(fade)=>canvasTex(64,256,c=>{const gr=c.createLinearGradient(0,0,0,256);fade?(gr.addColorStop(0,'rgba(255,240,200,1)'),gr.addColorStop(1,'rgba(255,240,200,0)')):(gr.addColorStop(0,'rgba(255,240,200,0)'),gr.addColorStop(.8,'rgba(255,240,200,.7)'),gr.addColorStop(1,'rgba(255,240,200,1)'));c.fillStyle=gr;c.fillRect(0,0,64,256)});
- const beamMat=fade=>new T.MeshBasicMaterial({map:glowTex(fade),color:0xffe2a0,transparent:true,opacity:.5,blending:T.AdditiveBlending,depthWrite:false,side:T.DoubleSide});
+ // (1.22) The beams are soft light, not glass: brightest where you look straight into the shaft and fading to nothing
+ // at its silhouette, without fog (the fog tint turned a far beam into a flat blue wedge) and without writing alpha, so
+ // over the painted sky they add light instead of covering it with an opaque patch.
+ const beamMat=fade=>new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,blending:T.CustomBlending,blendEquation:T.AddEquation,blendSrc:T.SrcAlphaFactor,blendDst:T.OneFactor,blendSrcAlpha:T.ZeroFactor,blendDstAlpha:T.OneFactor,
+  uniforms:{fade:{value:fade?1:0}},
+  vertexShader:'varying vec2 vUv;varying float vEdge;void main(){vUv=uv;vec4 mv=modelViewMatrix*vec4(position,1.);vec3 n=normalize(normalMatrix*normal);vEdge=abs(dot(n,normalize(-mv.xyz)));gl_Position=projectionMatrix*mv;}',
+  fragmentShader:'uniform float fade;varying vec2 vUv;varying float vEdge;void main(){float v=vUv.y,g=fade>.5?v:(v>.2?.7*(1.-v)/.8:.7+.3*(.2-v)/.2);float a=g*pow(vEdge,1.8)*.42;gl_FragColor=vec4(1.,.886,.627,a);}'});
  const beaconBeam=new T.Mesh(new T.CylinderGeometry(2.6,.6,70,24,1,true),beamMat(false));beaconBeam.position.set(BX,lamp9+LH+35,BZ);scene.add(beaconBeam);
  const sweep=new T.Group();sweep.position.set(BX,lamp9+LH,BZ);scene.add(sweep);
  // the drawn fallback tower has its lantern room lower: move crystal, glass, light and beams down if it is built after all
@@ -1373,11 +1515,12 @@ void main(){float y=vUv.y;
   if(house.key==='bram'){
    table(1.4,-4.25,3.5,1.0,.95,0xa77b4f);build(beam,0x8a6040,1.4,.32,-4.25,3.3,.06,.9);for(let k=0;k<4;k++)build(plank,0xffffff,1.4,.4+k*.07,-4.25,3.1,.06,.25+k*.05);
    build(cube,ironC,-.05,1.12,-4.0,.32,.24,.3);build(cube,ironC,-.05,1.12,-3.78,.1,.1,.3);
-   build(cube,0x9a6a40,1.3,1.06,-4.1,.5,.12,.16);build(cube,ironC,1.3,1.13,-4.1,.08,.06,.18);
+   build(cube,0x9a6a40,1.3,1.03,-4.1,.5,.1,.15);build(ball,0x7a4a2a,1.1,1.12,-4.1,.05,.05,.05);build(cube,0x7a4a2a,1.47,1.15,-4.1,.1,.16,.04,0,.35);build(cube,ironC,1.32,1.13,-4.1,.03,.13,.12,0,-.6);
    build(cyl,0x6e4a2e,2.3,1.1,-4.0,.06,.3,.06,0,0,Math.PI/2);build(cube,0x6e4a2e,2.45,1.1,-4.0,.16,.18,.22);
    for(let k=0;k<4;k++)build(cube,ironC,2.7+k*.12,1.02,-4.3,.02,.02,.26);
    build(beam,0x6e4a2e,1.4,2.35,-4.84,3.4,1.4,.06);
-   build(cube,0xb8b8b4,.4,2.4,-4.79,.7,.32,.01);build(cube,0x6e4a2e,.0,2.4,-4.78,.16,.3,.04);
+   build(sawBlade,0xffffff,.12,2.25,-4.8,1,1,1);build(cube,0x7a4a2a,.04,2.42,-4.78,.18,.26,.04);build(cube,0x2a1c10,.04,2.45,-4.76,.08,.11,.02);
+   if(scanReady){scanProp('sf_hammer',.55,.965,-3.85,.7,1.05,room);scanProp('axe',3.05,1.75,-4.74,0,1.05,room)}
    for(let k=0;k<3;k++){build(cyl,0x8a6040,1.4+k*.35,2.25,-4.78,.03,.5,.03);build(cube,ironC,1.4+k*.35,2.52,-4.77,.16,.08,.08)}
    build(cube,ironC,2.6,2.55,-4.78,.04,.5,.02);build(cube,ironC,2.79,2.32,-4.78,.4,.04,.02);
    // plank rack
@@ -1441,9 +1584,14 @@ void main(){float y=vUv.y;
   if(house.key==='anke'){
    // farm kitchen: long table with bread and cheese, an oven, a butter churn, milk cans, sacks and crates
    table(-2.3,-3.7,2.8,1.0,.9,0x8a6a48);goods.loaf(room,-3.2,.95,-3.7,.6);goods.cheese(room,-2.4,.95,-3.6,.55,true);goods.basket(room,-1.4,.95,-3.75,.7);goods.jar(room,-1.0,.95,-3.4,0,.5);
-   build(masonry,0xd8cdb9,3.7,1.0,-4.1,1.9,2.0,1.1);build(cube,0x1b1410,3.7,.85,-3.54,.9,.7,.04);mesh(ball,flame,3.7,.68,-3.7,.32,.18,.16);build(cyl,0x3a3a3c,4.3,2.6,-4.3,.16,1.4,.16);solid(3.7,-4.1,2.0,1.2);
-   build(cyl,0x9a7552,4.1,.55,-1.6,.26,1.1,.26);build(cyl,0x6e4a2e,4.1,1.35,-1.6,.03,.6,.03);for(const yy of [.25,.85])build(wheel,0x3a3a3c,4.1,yy,-1.6,.27,.27,.5,0,0,Math.PI/2);solid(4.1,-1.6,.6,.6);
-   for(let k=0;k<3;k++){build(cyl,0xb8bec0,3.0+k*.45,.35,-2.6,.16,.7,.16);build(cyl,0xb8bec0,3.0+k*.45,.75,-2.6,.09,.1,.09)}solid(3.45,-2.6,1.4,.4);
+   // bread oven: a brick dome on a stone base, an arched mouth with embers, the iron door leaning beside it, a flue
+   {const os=(g,rx,ry)=>{if(scanReady&&typeof Models!=='undefined'){const [map,nor]=[Models.texture('wallslate_diff.jpg',true).clone(),Models.texture('wallslate_nor.jpg').clone()];for(const t of [map,nor]){t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(rx,ry);t.needsUpdate=true}g.userData={surface:new T.MeshStandardMaterial({map,normalMap:nor,roughness:.92})}}else g.userData={surface:masonry.userData.surface};return g};build(os(cube.clone(),2.4,1.1),0xcfc4b0,3.7,.45,-4.1,1.9,.9,1.2);build(os(ovenDome,3.4,1.2),0xd09a74,3.7,.9,-4.2,.92,.86,.62)}build(halfDisc,0xffffff,3.7,.9,-3.57,.34,.34,1);
+   build(wheel,0xb6a48c,3.7,.9,-3.56,.38,.38,.6,0,0,0);mesh(ball,flame,3.7,.96,-3.75,.22,.1,.14);build(cube,0x2b2926,4.42,.62,-3.46,.46,.44,.035,.35);build(cyl,0x8a7f72,3.7,2.45,-4.42,.14,2.3,.14);solid(3.7,-4.1,2.0,1.2);
+   // butter churn: tapered staves with three iron hoops, a lid and the dasher with its cross handle
+   build(churnBody,0x9a7552,4.1,.5,-1.6,1,1,1);for(const yy of [.14,.5,.86]){const r=.272-.07*yy;build(wheel,0x3a3a3c,4.1,yy,-1.6,r,r,.5,0,0,Math.PI/2)}
+   build(cyl,0x8a6a48,4.1,1.02,-1.6,.215,.04,.215);build(cyl,0x6e4a2e,4.1,1.36,-1.6,.025,.7,.025);build(cube,0x6e4a2e,4.1,1.7,-1.6,.3,.04,.04);solid(4.1,-1.6,.6,.6);
+   // milk cans with a shoulder, neck, lid and two handles
+   for(let k=0;k<3;k++){const cx=3.0+k*.45;build(milkCan,0xffffff,cx,0,-2.6,1,1,1,k*.7);for(const sx of [-1,1])build(hoop,0x9aa0a4,cx+sx*.15,.5,-2.6,.06,.06,.05,Math.PI/2);build(ball,0x9aa0a4,cx,.75,-2.6,.035,.03,.035)}solid(3.45,-2.6,1.4,.4);
    for(const [cx,cz,kind,k] of [[-4.0,.6,'apple',0],[-4.0,1.6,'pear',1]]){build(beam,0x8a6a48,cx,.12,cz,.86,.24,.9);goods.crate(room,cx,.24,cz,kind,k,.8,.8);solid(cx,cz,.9,1.0)}
    goods.sack(room,3.9,0,2.3,.95);goods.sack(room,3.3,0,2.7,.85,true);solid(3.6,2.5,1.4,1.1);
    for(let k=0;k<6;k++)herbBundle(-.8,3.62,-3.0+k*.5,k+1);build(beam,0x6e4a2e,-.8,4.05,-1.75,.1,.1,3.4);
@@ -1454,7 +1602,11 @@ void main(){float y=vUv.y;
    // stonemason's shed: a heavy stone bench with chisels, a half-carved statue, a grindstone and stacked blocks
    build(masonry,0xd5cfc0,1.4,.45,-4.0,2.6,.9,1.0);build(masonry,0xe3ddcf,1.4,.95,-4.0,2.7,.1,1.1);solid(1.4,-4,2.7,1.1);
    for(let k=0;k<4;k++)build(cube,0x8a9397,.6+k*.22,1.02,-3.7,.03,.02,.28,0,0,0);build(cyl,0x6e4a2e,2.3,1.08,-3.8,.12,.3,.12,0,Math.PI/2);build(cube,0xcfc8b8,1.8,1.12,-4.1,.5,.3,.4,.2);
-   build(masonry,0xcfc8b8,-2.6,.35,-3.4,1.1,.7,1.1);build(masonry,0xe0dacb,-2.6,1.2,-3.4,.8,1.0,.7);build(cyl,0xe8e2d3,-2.6,2.0,-3.4,.28,.7,.24);build(ball,0xe8e2d3,-2.6,2.55,-3.4,.2,.24,.2);solid(-2.6,-3.4,1.2,1.2);
+   // a half-finished statue: the scanned figure rises out of a rough block, chisel and mallet on the block, chips below
+   build(masonry,0xcfc8b8,-2.6,.35,-3.4,1.1,.7,1.1);build(stoneGeo,0xe0dacb,-2.6,1.12,-3.4,.62,.55,.5,.4);
+   scanProp('statue',-2.6,.82,-3.4,.4,.98,room,()=>{build(masonry,0xe0dacb,-2.6,1.2,-3.4,.8,1.0,.7);build(cyl,0xe8e2d3,-2.6,2.0,-3.4,.28,.7,.24);build(ball,0xe8e2d3,-2.6,2.55,-3.4,.2,.24,.2)});
+   build(cube,0x8a9397,-2.05,1.42,-3.1,.03,.03,.26,.6);build(cyl,0x6e4a2e,-2.08,1.47,-3.32,.07,.22,.07,.6,0,Math.PI/2);
+   for(let k=0;k<7;k++)build(stoneGeo,0xe0dacb,-2.6+Math.cos(k*2.3)*(.75+k*.06),.05,-3.4+Math.sin(k*2.3)*(.7+k*.05),.07+.02*(k%3),.04,.06,k);solid(-2.6,-3.4,1.2,1.2);
    build(cyl,0xa8a296,4.0,1.0,-1.4,.6,.18,.6,0,0,Math.PI/2);for(const zz of [-1.75,-1.05])build(beam,0x6e4a2e,4.0,.5,zz,.12,1.0,.12);build(beam,0x6e4a2e,4.0,1.0,-1.4,.06,.06,.9,0,0,0);build(cyl,0x7a5232,3.4,.3,-1.4,.3,.6,.3);solid(3.9,-1.4,1.3,1.2);
    for(let k=0;k<3;k++)for(let j=0;j<2-(k>1);j++)build(masonry,0xd8d2c4,-4.1+j*.0,.3+k*.6,1.2+j*.9,.8,.58,.85,(k+j)*.1);solid(-4.1,1.6,.9,1.9);
    build(beam,0x6e4a2e,4.55,1.6,1.6,.25,.05,2.4);for(let k=0;k<5;k++)build(stoneGeo,0xffffff,4.55,1.72,.6+k*.45,.12,.1,.12,k);
@@ -1757,6 +1909,7 @@ void main(){float y=vUv.y;
   bridgeGroups.forEach(b=>{const full=s.stage>=b.stage,n=b.stage===s.stage+1?built:0;b.parts.forEach((list,i)=>list.forEach(g=>g.visible=full||n>i))});
   // the Molenhoeve mill: rubble at its foot until the foot is mended, then the stocks and lattice, the sails last
   if(farmRotor){const whole=s.stage>=4,n=s.stage===3?built:0;farmRotor.visible=whole||n>=2;farmRotor.traverse(o=>{if(o.name==='sail')o.visible=whole});if(millDebris)millDebris.visible=!whole&&n<1}}beaconBeam.visible=sweep.visible=s.stage>=3;beaconLight.intensity=s.stage>=3?16:3;core.material.emissiveIntensity=s.stage>=3?2.4:1.1;if(lightTower)[].concat(lightTower.material).forEach(m=>{if(m.emissiveMap)m.emissiveIntensity=s.stage>=3?2.6:.15});if(farmRotor)farmRotor.userData.stopped=s.stage<4;if(craneHook)craneHook.userData.live=s.stage>=5;if(signalFire)signalFire.visible=s.stage>=6;builds.clear();s.builds.forEach(b=>construction(b.x,b.z,b.y,b.type));gates.forEach((o,i)=>o.g.visible=s.stage===2&&!s.rings.includes(i))}
+ let camFree=null,camY=null;
  function ground(x,z,s,y=100){if(inside)return inside.floorAt(x-inside.x,z,y);const L=liftAt(x,z);let h=islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r-.35)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r-.35?L+mountainH(x,z):-100;
  for(const b of bridges){if(b.stage>s.stage)continue;const o=onBridge(b,x,z,2.3);if(o&&o.v<b.hw-.02)h=Math.max(h,o.y+.19)}
  if(tower)h=Math.max(h,tower.stairs(x,z,s,y));
@@ -1790,21 +1943,30 @@ void main(){float y=vUv.y;
   let a=view.yaw,dist=view.dist,height=view.height;
   // view.look (right mouse button) tilts the camera: down behind the player, the aim up towards the sky
   const look=start?0:Math.max(-.15,Math.min(1,view.look||0));
-  let target=start?new T.Vector3(cam.aspect<.85?-.48:-1.65,1.58,12.5):new T.Vector3(p.x,p.y+1.35+Math.max(0,look)*4.2,p.z);
-  let eye=start?new T.Vector3(-1+.14*Math.sin(t*.22),1.95,17.5):new T.Vector3(p.x+Math.sin(a)*dist,p.y+height*(1-.78*Math.max(0,look))-Math.min(0,look)*3,p.z+Math.cos(a)*dist);
+  // (1.22) the camera follows the player's height through a short damper, so ridges, rocks and steps underfoot no
+  // longer shake the whole picture; big changes (a jump, a ride, a respawn) are followed at once
+  camY=start||camY==null||dt>=1||Math.abs(p.y-camY)>2.5?p.y:camY+(p.y-camY)*(1-Math.exp(-dt*9));const py=start?p.y:camY;
+  let target=start?new T.Vector3(cam.aspect<.85?-.48:-1.65,1.58,12.5):new T.Vector3(p.x,py+1.35+Math.max(0,look)*4.2,p.z);
+  let eye=start?new T.Vector3(-1+.14*Math.sin(t*.22),1.95,17.5):new T.Vector3(p.x+Math.sin(a)*dist,py+height*(1-.78*Math.max(0,look))-Math.min(0,look)*3,p.z+Math.cos(a)*dist);
   if(inside){target.set(p.x,p.y+1.65,p.z);const dd=Math.min(dist,4.2);{const ex=Math.max(inside.x-4.45,Math.min(inside.x+4.45,p.x+Math.sin(a)*dd)),ez=Math.max(-4.45,Math.min(4.45,p.z+Math.cos(a)*dd));eye.set(ex,Math.min(inside.ceil(ex-inside.x,ez,p.y)-.4,p.y+2.35),ez)}if(inside.actor.mixer||inside.actor.update)resident(inside,t,Math.min(dt,.1),p);else{inside.actor.root.rotation.y=Math.atan2(inside.npc.x-p.x,inside.npc.z-p.z);inside.actor.blend([])}if(inside.accent.intensity)inside.accent.intensity=6+1.6*Math.sin(t*9)*Math.sin(t*3.7)}
-  cam.position.lerp(eye,dt>=1?1:1-Math.exp(-dt*10));
+  // 1.22: the free distance is measured along the direction to the wanted eye (not along the lagging camera), with a
+  // margin around the lens so the near plane never cuts into a slope, a rock or a wall; it shrinks quickly and grows
+  // back slowly. Before, the camera was snapped in after its smooth move out every frame, which made it shake against
+  // walls, and it could end up inside mountains and rocks.
   if(!start&&!inside){
-   const offset=cam.position.clone().sub(target),distance=offset.length();offset.normalize();
+   const want=eye.clone().sub(target),wd=want.length();want.normalize();
    const near=canopies.filter(o=>Math.abs(o.x-target.x)<16&&Math.abs(o.z-target.z)<16);
-   for(let d=.25;d<=distance;d+=.17){
-    const sample=target.clone().addScaledVector(offset,d);
-    if(sample.y<ground(sample.x,sample.z,s,sample.y+.5)+.35||blocked(sample.x,sample.z,s,sample.y-.10,.17,.22)||rotorDiscs.some(o=>Math.abs(sample.z-o.z)<.7&&Math.hypot(sample.x-o.x,sample.y-o.y)<o.r)||near.some(o=>{const k=(sample.y-o.y)/o.h;return k>.12&&k<1&&Math.hypot(sample.x-o.x,sample.z-o.z)<o.r*(1-k)+.25})){
-     const keep=Math.max(1.5,d-.24);cam.position.copy(target).addScaledVector(offset,keep);if(keep<3)cam.position.y=Math.max(cam.position.y,target.y+(3-keep)*.9+.4);break;
-    }
-   }
-  }
-  cam.lookAt(target);firLod(cam.position);
+   const terrain=(x,z)=>{const L=liftAt(x,z);return islands.some(i=>Math.hypot(x-i.x,z-i.z)<i.r+.6)||Math.hypot(x-lobe.x,z-lobe.z)<lobe.r+.6?L+mountainH(x,z):-100};
+   const hit=q=>q.y<ground(q.x,q.z,s,q.y+.5)+.5||q.y<Math.max(terrain(q.x+.5,q.z),terrain(q.x-.5,q.z),terrain(q.x,q.z+.5),terrain(q.x,q.z-.5))+.45||blocked(q.x,q.z,s,q.y-.35,.42,.7)||
+    rotorDiscs.some(o=>Math.abs(q.z-o.z)<.9&&Math.hypot(q.x-o.x,q.y-o.y)<o.r+.3)||near.some(o=>{const k=(q.y-o.y)/o.h;return k>.12&&k<1&&Math.hypot(q.x-o.x,q.z-o.z)<o.r*(1-k)+.4});
+   let free=wd;for(let d=.3;d<=wd;d+=.17){if(hit(target.clone().addScaledVector(want,d))){free=Math.max(1.1,d-.4);break}}
+   camFree=camFree==null||dt>=1?free:camFree+(free-camFree)*(1-Math.exp(-dt*(free<camFree?22:2.5)));
+   const goal=target.clone().addScaledVector(want,Math.min(wd,camFree));
+   if(camFree<3){const up=goal.clone();up.y=Math.max(up.y,target.y+(3-camFree)*.9+.4);if(!hit(up))goal.copy(up)}
+   cam.position.lerp(goal,dt>=1?1:1-Math.exp(-dt*10));
+   const lim=goal.distanceTo(target),off=cam.position.clone().sub(target),od=off.length();if(od>lim+.05)cam.position.copy(target).addScaledVector(off.normalize(),lim);
+  }else cam.position.lerp(eye,dt>=1?1:1-Math.exp(-dt*10));
+  cam.lookAt(target);if(!start)fellSync(s);firLod(cam.position);
   if(inside&&(portalTick++%(inside.door.open>.02?3:6)===0||dt>=1))renderPortal();
   if(context){sun.position.set(portrait.x-36,portrait.y+34,portrait.z+22);sun.target.position.set(portrait.x,portrait.y,portrait.z)}
   else {const angle=Math.atan2(eye.x-target.x,eye.z-target.z);skyCanvas.style.backgroundPosition=(50+angle*100/Math.PI)+'% 62%'}
@@ -1826,15 +1988,24 @@ void main(){float y=vUv.y;
  let firSet=null;const firAt=new T.Vector3(1e9,0,0);
  function plantFirs(){const names=[];for(let v=1;v<=6;v++)for(const l of [1,2,3])names.push('fir'+v+'_l'+l);
   Promise.all(names.map(Models.load)).then(list=>{const H=[9.31,9.24,8.1,4.43,4.16,6.61],Q=new T.Quaternion(),S=new T.Vector3(),P=new T.Vector3(),Y=new T.Vector3(0,1,0),sets=[[],[],[],[],[],[]],mats=new Set();
-   for(const t of pines){const k=(t.h>=5?0:3)+t.v,sc=t.h*FIR/H[k];P.set(t.x,t.y-.05,t.z);Q.setFromAxisAngle(Y,t.ry);S.set(sc,sc*(.94+.12*((t.v*7+Math.abs(Math.round(t.x)))%5)/4),sc);sets[k].push({x:t.x,y:t.y,z:t.z,m:new T.Matrix4().compose(P,Q,S)})}
+   pines.forEach((t,pi)=>{const k=(t.h>=5?0:3)+t.v,sc=t.h*FIR/H[k];P.set(t.x,t.y-.05,t.z);Q.setFromAxisAngle(Y,t.ry);S.set(sc,sc*(.94+.12*((t.v*7+Math.abs(Math.round(t.x)))%5)/4),sc);sets[k].push({x:t.x,y:t.y,z:t.z,id:'t'+pi,m:new T.Matrix4().compose(P,Q,S)})});
    firSet=sets.map((trees,k)=>{if(!trees.length)return null;return {trees,tiers:[0,1,2].map(l=>{const r=list[k*3+l],mesh=new T.InstancedMesh(r.geometry,r.material,trees.length);
      mesh.count=0;mesh.visible=false;mesh.castShadow=l<2;mesh.receiveShadow=true;mesh.frustumCulled=false;scene.add(mesh);for(const m of [].concat(r.material))mats.add(m);return mesh})}}).filter(Boolean);
    mats.forEach(m=>{if(!m.userData.swayed){m.userData.swayed=true;Nature.sway(m,.0016)}});
    scene.traverse(o=>{if(o.isInstancedMesh&&(o.geometry===pineTrunk||conifers.includes(o.geometry)))o.visible=false});firAt.set(1e9,0,0)
   }).catch(e=>console.warn('firs',e))}
+ // felled firs: hidden from the LOD sets, a scanned stump in their place until s.harvest says they have grown back
+ const felled=new Set(),stumps=new Map();let felledAt=0;
+ function fellSync(s,force){const now=Date.now();if(!force&&now-felledAt<800)return;felledAt=now;let changed=false;
+  pines.forEach((t,pi)=>{const id='t'+pi,down=s.harvest?.[id]>now;if(down===felled.has(id))return;changed=true;
+   if(down){felled.add(id);const st=new T.Group();st.position.set(t.x,t.y-.03,t.z);scene.add(st);stumps.set(id,st);
+    if(scanReady)Models.load('stump').then(r=>{const m=new T.Mesh(r.geometry,r.material);m.scale.setScalar(.5+t.h*.05);m.rotation.y=pi;m.castShadow=m.receiveShadow=true;st.add(m)}).catch(()=>{});
+    else{const m=new T.Mesh(cyl,new T.MeshStandardMaterial({color:0x6b5446}));m.scale.set(.3,.35,.3);m.position.y=.17;st.add(m)}}
+   else{felled.delete(id);const st=stumps.get(id);if(st){scene.remove(st);stumps.delete(id)}}});
+  if(changed)firAt.set(1e9,0,0)}
  function firLod(c){if(!firSet||firAt.distanceToSquared(c)<6)return;firAt.copy(c);
-  for(const {trees,tiers} of firSet){const n=[0,0,0];for(const t of trees){const d=Math.hypot(t.x-c.x,t.z-c.z,(t.y-c.y)*.5),l=d<24?0:d<80?1:2;tiers[l].setMatrixAt(n[l]++,t.m)}
+  for(const {trees,tiers} of firSet){const n=[0,0,0];for(const t of trees){if(felled.has(t.id))continue;const d=Math.hypot(t.x-c.x,t.z-c.z,(t.y-c.y)*.5),l=d<24?0:d<80?1:2;tiers[l].setMatrixAt(n[l]++,t.m)}
    tiers.forEach((m,l)=>{m.count=n[l];m.visible=n[l]>0;m.instanceMatrix.needsUpdate=true})}}
  if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));Models.load('sf_bookshelf').then(r=>r.material.color.setHex(0xa8876a)).catch(()=>{});dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb39c86);dressCrags();dressStumps();plantFirs()}
- return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),rooms,enterRoom,outfit:hero.outfit,rig:()=>hero.rig?.(),appleTrees,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,housePlots,siteCheck,houseGhost:d=>{houseGhostDesign=d||null;houseSync(houseLastS,houseGhostDesign)},houseLocal:(x,z)=>houseNow?houseLocal(x,z):null,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
+ return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),rooms,enterRoom,outfit:hero.outfit,rig:()=>hero.rig?.(),appleTrees,trees:pines.map((t,i)=>({i:'t'+i,type:'hout',kind:'tree',x:t.x,z:t.z,y:t.y,max:2,regrow:300000})),rocks:rocks.map((r,i)=>({i:'r'+i,type:'steen',kind:'rock',x:r.x,z:r.z,y:r.y,r:r.r,max:2,regrow:180000})),fellSync,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,housePlots,siteCheck,houseGhost:d=>{houseGhostDesign=d||null;houseSync(houseLastS,houseGhostDesign)},houseLocal:(x,z)=>houseNow?houseLocal(x,z):null,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
 }

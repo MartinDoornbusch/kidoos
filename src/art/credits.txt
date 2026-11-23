@@ -121,3 +121,11 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
 1.21.1
 - Geen nieuwe assets. Kersen- en appelbomen zijn opnieuw opgebouwd uit een stam met schors (bestaande ridged-bark.jpg),
   vertakte gesteltakken en kroondelen aan de takeinden.
+
+1.22.0
+- Geen nieuwe externe assets. Beekjes, uithangborden, molens, eilanden en props zijn gemaakt in de code of met al
+  vermelde texturen (castle_wall_slates, board.jpg, ridged-bark.jpg). Joosts halve beeld is de al vermelde Poly Haven-scan
+  gothic_statue; Brams hamer komt uit de Blacksmith-set van Mike Farrant (zie 1.18.0); de bijl is Poly Haven-scan.
+- Personages: haar en kleding van enkele Rocketbox-bewoners (MIT) zijn opnieuw ingekleurd (natuurlijke stoffen,
+  blond en lichtbruin haar).
+- De bedding van de beekjes gebruikt de al vermelde Poly Haven-textuur rocky_gravel (CC0, zie 1.19.0).
