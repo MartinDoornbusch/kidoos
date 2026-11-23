@@ -215,12 +215,36 @@ function createWorld(canvas) {
   const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.anisotropy=4;return tex}
  const withSurface=(geo,material)=>{geo.userData={surface:material};return geo};
  const plasterMap=plasterTexture(),oakMap=loadSurface('wood.jpg'),tileMap=loadSurface('roof.jpg');tileMap.repeat.set(2.2,1.6);
- const plasterBox=withSurface(cube.clone(),new T.MeshStandardMaterial({map:plasterMap,roughness:.96}));
- const beam=withSurface(cube.clone(),new T.MeshStandardMaterial({map:oakMap,roughness:.82}));
+ // Since 1.21 (house audit PR #9): walls of lime plaster and beams of weathered oak, both with a normal map. Their
+ // texture coordinates come from the part's real size (taken from the instance or model scale), so a 5 m wall and a
+ // 30 cm post show plaster and wood grain at the same scale, and the grain always runs along a beam's length.
+ function metric(m,uSize,vSize,grain){m.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <uv_vertex>',`#include <uv_vertex>
+  {vec3 sc;
+  #ifdef USE_INSTANCING
+   sc=vec3(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz),length(instanceMatrix[2].xyz));
+  #else
+   sc=vec3(length(modelMatrix[0].xyz),length(modelMatrix[1].xyz),length(modelMatrix[2].xyz));
+  #endif
+  vec3 lp=position*sc,an=abs(normal);vec2 g;
+  ${grain?`float al,ac;if(sc.x>=sc.y&&sc.x>=sc.z){al=lp.x;ac=an.y>.5?lp.z:lp.y;}else if(sc.y>=sc.z){al=lp.y;ac=an.x>.5?lp.z:lp.x;}else{al=lp.z;ac=an.x>.5?lp.y:lp.x;}g=vec2(ac,al);`
+   :`g=an.x>.5?lp.zy:an.y>.5?lp.xz:lp.xy;`}
+  g/=vec2(${uSize.toFixed(3)},${vSize.toFixed(3)});
+  #ifdef USE_MAP
+   vMapUv=g;
+  #endif
+  #ifdef USE_NORMALMAP
+   vNormalMapUv=g;
+  #endif
+  }`)};m.customProgramCacheKey=()=>'metric'+uSize+vSize+grain;return m}
+ const metricMap=(file,nor)=>{const t=loadSurface(file);if(nor)t.colorSpace=T.NoColorSpace;return t};
+ const plasterBox=withSurface(cube.clone(),metric(new T.MeshStandardMaterial({map:metricMap('plaster_lime.jpg'),normalMap:metricMap('plaster_lime_nor.jpg',true),normalScale:new T.Vector2(.7,.7),roughness:.95}),2.6,2.6,false));
+ const beam=withSurface(cube.clone(),metric(new T.MeshStandardMaterial({map:metricMap('timber_oak.jpg'),normalMap:metricMap('timber_oak_nor.jpg',true),normalScale:new T.Vector2(1.1,1.1),roughness:.84}),.32,1.9,true));
  const tiles=withSurface(cube.clone(),new T.MeshStandardMaterial({map:tileMap,roughness:.88}));
  // scanned clay roof tiles (Poly Haven clay_roof_tiles_02) with relief: rows run down the slope
  if(context&&typeof Models!=='undefined'){const m=tiles.userData.surface,map=Models.texture('rooftiles_diff.jpg',true),nor=Models.texture('rooftiles_nor.jpg');
   for(const t of [map,nor]){t.center.set(.5,.5);t.rotation=Math.PI/2;t.repeat.set(2.6,3.4)}m.map=map;m.normalMap=nor;m.normalScale.set(1.2,1.2);m.color.set(0xf2e2d4);m.roughness=.8}
+ // rubble stone (Poly Haven wall texture with relief) for house plinths and the stone workshops, also in metres
+ const stoneWall=withSurface(cube.clone(),scanReady&&typeof Models!=='undefined'?metric(new T.MeshStandardMaterial({map:Models.texture('wallslate_diff.jpg',true),normalMap:Models.texture('wallslate_nor.jpg'),normalScale:new T.Vector2(1.3,1.3),roughness:.92}),2.2,2.2,false):masonry.userData.surface);
  const glass=withSurface(cube.clone(),new T.MeshStandardMaterial({color:0x2a2522,emissive:0xffb25c,emissiveIntensity:1.5,roughness:.2,metalness:.1}));
  const ember=withSurface(cube.clone(),new T.MeshStandardMaterial({color:0x2b140a,emissive:0xff6a1f,emissiveIntensity:3.2,roughness:.6}));
  const planks=withSurface(cube.clone(),new T.MeshStandardMaterial({map:loadSurface('board.jpg'),roughness:.9}));
@@ -275,7 +299,7 @@ function createWorld(canvas) {
   for(const yy of [.22,.78]){const band=new T.Mesh(cube,mats.get(0x2a2622)||new T.MeshStandardMaterial({color:0x2a2622,roughness:.6}));band.scale.set(w*.86,.06,.1);band.position.set(w*.47,h*yy,0);pivot.add(band)}
   const knob=new T.Mesh(ball,new T.MeshStandardMaterial({color:0xb69765,metalness:.8,roughness:.35}));knob.scale.setScalar(.05);knob.position.set(w-.16,h*.47,.07);pivot.add(knob);
   const d={pivot,ry,open:0,x:hx+Math.cos(ry)*w/2,z:hz-Math.sin(ry)*w/2,parent};doors.push(d);return d}
- const oak=0x4d3526,paint=[0x3f6b63,0x7c3b2c,0x45603a];
+ const oak=0x664a33,paint=[0x3f6b63,0x7c3b2c,0x45603a];
  // window frames: the scanned six-pane frame (glass removed) is dressed onto an invisible stand-in once loaded
  const winFrame=new T.BufferGeometry();for(const [k,n] of [['position',3],['normal',3],['uv',2]])winFrame.setAttribute(k,new T.Float32BufferAttribute(new Array(3*n).fill(0),n));
  winFrame.userData={dress:[['sf_window'],true,0xf0e6da,1],surface:new T.MeshBasicMaterial({visible:false})};
@@ -286,7 +310,7 @@ function createWorld(canvas) {
   for(const sy of [-1,1])P(beam,oak,lx,y+sy*(h/2+.045),out+.06,w+.18,.09,.12);
   P(beam,oak,lx,y,out+.05,.045,h,.05);P(beam,oak,lx,y+h*.12,out+.05,w,.045,.05)}
   P(planks,0xd8c3a2,lx,y-h/2-.11,out+.11,w+.34,.07,.22);
-  for(const sx of [-1,1]){P(planks,shutter,lx+sx*(w/2+.27),y,out+.07,.4,h+.1,.04);P(beam,0x2a2a28,lx+sx*(w/2+.27),y+h*.25,out+.1,.32,.03,.02)}
+  for(const sx of [-1,1]){P(planks,shutter,lx+sx*(w/2+.27),y,out+.17,.4,h+.1,.04);P(beam,0x2a2a28,lx+sx*(w/2+.27),y+h*.25,out+.2,.32,.03,.02)}
   if(!flowers)return;
   P(planks,0x7a5536,lx,y-h/2-.25,out+.2,w+.18,.2,.24);
   const tones=[0xe2475b,0xf6c443,0xf4f0f2,0xd45a9b,0xe2475b];
@@ -300,32 +324,52 @@ function createWorld(canvas) {
   P(beam,oak,lx,y0+H+.1,out+.08,W+.42,.18,.17);
   P(masonry,0xcfc1a8,lx,.12,out+.42,W+.5,.24,.8)}
  // Half-timbered facade: corner posts, rails at sill and plate height, St Andrew's crosses under the windows.
+ // Since 1.21 the frame is heavy oak in relief: posts and rails 22 to 24 cm wide that stand about 15 cm proud of the
+ // plaster, like the timber of the scanned forester's house.
  function halfTimber(P,half,out,y0,hgt,openings){
-  const sill=y0+hgt*.32,plate=y0+hgt-.07;
-  for(const lx of [-half+.07,half-.07])P(beam,oak,lx,y0+hgt/2,out+.035,.16,hgt,.14);
-  P(beam,oak,0,y0+.07,out+.035,half*2,.15,.14);P(beam,oak,0,plate,out+.035,half*2,.15,.14);P(beam,oak,0,sill,out+.035,half*2,.12,.13);
-  const edges=[-half+.07,...openings.flatMap(([c,w])=>[c-w/2,c+w/2]),half-.07].sort((a,b)=>a-b);
+  const sill=y0+hgt*.32,plate=y0+hgt-.1;
+  for(const lx of [-half+.1,half-.1])P(beam,oak,lx,y0+hgt/2,out+.06,.24,hgt,.2);
+  P(beam,oak,0,y0+.1,out+.06,half*2+.1,.22,.2);P(beam,oak,0,plate,out+.06,half*2+.1,.22,.2);P(beam,oak,0,sill,out+.055,half*2,.17,.18);
+  const edges=[-half+.1,...openings.flatMap(([c,w])=>[c-w/2-.08,c+w/2+.08]),half-.1].sort((a,b)=>a-b);
   for(let i=0;i<edges.length-1;i+=2){const a=edges[i],b=edges[i+1],span=b-a;if(span<.45)continue;
-   const mid=(a+b)/2,low=y0+.07,high=sill,len=Math.hypot(span,high-low),ang=Math.atan2(high-low,span);
-   for(const s of [-1,1])P(beam,oak,mid,(low+high)/2,out+.03,len,.1,.11,s*ang);
-   if(span>1.5)P(beam,oak,mid,(sill+plate)/2,out+.035,.13,plate-sill,.12)}
-  for(const [c,w,full] of openings)if(!full)for(const sx of [-1,1])P(beam,oak,c+sx*(w/2+.12),(sill+plate)/2,out+.035,.12,plate-sill,.12)}
+   const mid=(a+b)/2,low=y0+.1,high=sill,len=Math.hypot(span,high-low),ang=Math.atan2(high-low,span);
+   for(const s of [-1,1])P(beam,oak,mid,(low+high)/2,out+.05,len,.15,.15,s*ang);
+   if(span>1.5)P(beam,oak,mid,(sill+plate)/2,out+.055,.18,plate-sill,.17)}
+  for(const [c,w,full] of openings)if(!full)for(const sx of [-1,1])P(beam,oak,c+sx*(w/2+.2),(sill+plate)/2,out+.055,.17,plate-sill,.17)}
+ // Since 1.21 a tiled roof is laid in overlapping courses: each row of tiles rests on the one below, so eaves and
+ // verges show the stepped edge of a real tile roof. One mesh per roof face, textured in metres.
+ const courseMats=new Map();
+ function courseMaterial(color){if(courseMats.has(color))return courseMats.get(color);let m;
+  if(!scanReady)m=tiles.userData.surface;
+  else{const [map,nor]=[Models.texture('rooftiles_diff.jpg',true).clone(),Models.texture('rooftiles_nor.jpg').clone()];for(const t of [map,nor]){t.center.set(0,0);t.rotation=0;t.repeat.set(1,1);t.wrapS=t.wrapT=T.RepeatWrapping;t.needsUpdate=true}
+   m=new T.MeshStandardMaterial({map,normalMap:nor,normalScale:new T.Vector2(1.2,1.2),color:color===0xffffff?0xf2e2d4:color,roughness:.8,side:T.DoubleSide})}
+  courseMats.set(color,m);return m}
+ function tileCourses(L,D,c=.36,t=.09,lift=.075){const v=[],uv=[],U=6.2,V=3.9,n=Math.ceil(L/c);
+  const quad=(p,u)=>{for(const i of [0,1,2,0,2,3]){v.push(...p[i]);uv.push(...u[i])}};
+  for(let k=0;k<n;k++){const s0=k*c,s1=Math.min(L,(k+1)*c),h1=t+lift*(s1-s0)/c,low=k<n-1?t:0;
+   quad([[s0,t,-D/2],[s0,t,D/2],[s1,h1,D/2],[s1,h1,-D/2]],[[-D/2/U,s0/V],[D/2/U,s0/V],[D/2/U,s1/V],[-D/2/U,s1/V]]);
+   quad([[s1,h1,-D/2],[s1,h1,D/2],[s1,low,D/2],[s1,low,-D/2]],[[-D/2/U,s1/V],[D/2/U,s1/V],[D/2/U,s1/V+.02],[-D/2/U,s1/V+.02]]);
+   for(const e of [-1,1])quad([[s0,0,e*D/2],[s1,0,e*D/2],[s1,h1,e*D/2],[s0,t,e*D/2]],[[s0/V,0],[s1/V,0],[s1/V,h1/V],[s0/V,t/V]])}
+  quad([[0,0,-D/2],[L,0,-D/2],[L,0,D/2],[0,0,D/2]],[[0,0],[L/V,0],[L/V,D/U],[0,D/U]]);
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.computeVertexNormals();return g}
  function roof(x,z,w,d,yTop,rise,mat,color,over=.5){
-  const a=Math.atan2(rise,w/2),slope=Math.hypot(w/2,rise),t=.18;
+  const a=Math.atan2(rise,w/2),slope=Math.hypot(w/2,rise),t=.18,courses=mat===tiles&&scanReady;
   for(const side of [-1,1]){const cx=x+side*w/4,cy=yTop+rise/2,ux=side*Math.cos(a),uy=-Math.sin(a),nx=side*Math.sin(a),ny=Math.cos(a);
-   shape(mat,color,cx+ux*over/2+nx*(t/2+.02),cy+uy*over/2+ny*(t/2+.02),z,slope+over,t,d+.9,0,-side*a);
+   if(courses){const m=new T.Mesh(tileCourses(slope+over,d+.9),courseMaterial(color));m.position.set(x+nx*.02,yTop+rise+ny*.02+(liftOff?0:liftAt(x,z)),z);m.rotation.z=-side*a;m.scale.x=side;m.castShadow=m.receiveShadow=true;scene.add(m)}
+   else shape(mat,color,cx+ux*over/2+nx*(t/2+.02),cy+uy*over/2+ny*(t/2+.02),z,slope+over,t,d+.9,0,-side*a);
    shape(beam,oak,cx+ux*over/2+nx*.02,cy+uy*over/2-.06,z,slope+over,.12,d+.6,0,-side*a)}
   shape(ridge,0xc98a64,x,yTop+rise+.12,z,.13,d+.95,.13,0,0,Math.PI/2)}
  function gables(x,z,w,d,yTop,rise,attic=true){const g=gableGeometry(w,rise);
   for(const end of [-1,1]){const P=frame(x,yTop,z+end*d/2,end>0?0:Math.PI);
    shape(g,0xf2e6d0,x,yTop,z+end*d/2,1,1,1,end>0?0:Math.PI);
    P(beam,oak,0,rise*.42,.04,.15,rise*.84,.13);P(beam,oak,0,rise*.4,.04,w*.58,.13,.13);
-   for(const s of [-1,1])P(beam,oak,s*w/4,rise/2-.03,.06,Math.hypot(w/2,rise)+.5,.12,.12,s*Math.atan2(rise,w/2)*-1);
+   for(const s of [-1,1]){P(beam,oak,s*w/4,rise/2-.03,.06,Math.hypot(w/2,rise)+.5,.16,.16,s*Math.atan2(rise,w/2)*-1);P(beam,oak,s*(w/4+.08),rise/2-.16,.44,Math.hypot(w/2,rise)+.62,.26,.1,s*Math.atan2(rise,w/2)*-1)}
    if(attic){P(glass,0xffffff,0,rise*.62,.03,.42,.42,.04);P(wheel,oak,0,rise*.62,.07,.3,.3,.4)}}}
  function chimney(x,z,yTop,rise){const h=rise+1.1;shape(masonry,0xd9c9ae,x,yTop+h/2,z,.62,h,.62);shape(masonry,0xa89886,x,yTop+h+.08,z,.8,.16,.8);chimneys.push([x,yTop+h+.25+liftAt(x,z),z])}
- function hut(x,z,w,variant=0){
-  const d=w*.86,y0=.48,hgt=w*.74,yTop=y0+hgt,rise=w*.47,colors=paint[variant%3];
-  shape(masonry,0xd8cdb9,x,y0/2,z,w+.22,y0,d+.22);
+ // upper=true (1.21) adds a jettied half-timbered upper floor that overhangs front and back, on joists.
+ function hut(x,z,w,variant=0,upper=false){
+  const d=w*.86,y0=.48,hgt=w*.74,yTop=y0+hgt,rise=w*.47,colors=paint[variant%3],H2=upper?2.55:0,J=upper?.38:0,yR=yTop+H2;
+  shape(stoneWall,0xd9d2c6,x,y0/2,z,w+.34,y0,d+.34);shape(stoneWall,0xc9c0b2,x,y0-.03,z,w+.46,.08,d+.46);
   shape(plasterBox,variant?0xf3e4cc:0xffffff,x,yTop/2+y0/2,z,w,hgt,d);
   // front: door with a window either side
   let P=frame(x,0,z+d/2,0);halfTimber(P,w/2,0,y0,hgt,[[0,1.6,true],[-w*.33,.95],[w*.33,.95]]);doorAt(P,0,y0,0,0x6e4a30);
@@ -334,19 +378,26 @@ function createWorld(canvas) {
   // sides and back
   for(const side of [-1,1]){P=frame(x+side*w/2,0,z,side*Math.PI/2);halfTimber(P,d/2,0,y0,hgt,[[side*-.45,.95]]);windowAt(P,side*-.45,y0+hgt*.6,0,.7,.78,colors,side>0)}
   P=frame(x,0,z-d/2,Math.PI);halfTimber(P,w/2,0,y0,hgt,[[0,.95]]);windowAt(P,0,y0+hgt*.6,0,.78,.86,colors,false);
-  gables(x,z,w,d,yTop,rise);roof(x,z,w,d,yTop,rise,tiles,0xffffff);chimney(x+w*.24,z-d*.18,yTop,rise);
+  if(upper){const dd=d+2*J;
+   // bressummer and joist ends carrying the overhang
+   shape(beam,oak,x,yTop+.1,z,w+.3,.22,dd+.12);for(const e of [-1,1])for(let i=0;i<7;i++)shape(beam,oak,x-w/2+.35+i*(w-.7)/6,yTop-.07,z+e*(d/2+J/2),.15,.15,J+.14);
+   shape(plasterBox,variant?0xf3e4cc:0xffffff,x,yTop+.21+(H2-.21)/2,z,w,H2-.21,dd);
+   let Q=frame(x,0,z+dd/2,0);halfTimber(Q,w/2,0,yTop+.21,H2-.21,[[-w*.27,.8],[w*.27,.8]]);for(const s2 of [-1,1])windowAt(Q,s2*w*.27,yTop+H2*.56,0,.7,.84,colors,true);
+   Q=frame(x,0,z-dd/2,Math.PI);halfTimber(Q,w/2,0,yTop+.21,H2-.21,[[0,.8]]);windowAt(Q,0,yTop+H2*.56,0,.7,.84,colors,false);
+   for(const side of [-1,1]){Q=frame(x+side*w/2,0,z,side*Math.PI/2);halfTimber(Q,dd/2,0,yTop+.21,H2-.21,[[0,.8]]);windowAt(Q,0,yTop+H2*.56,0,.66,.78,colors,false)}}
+  gables(x,z,w,d+2*J,yR,rise);roof(x,z,w,d+2*J,yR,rise,tiles,0xffffff);chimney(x+w*.24,z-d*.18,yR,rise);
   // garden details: barrel, bench, bushes along the front
   if(scanReady){scanProp('wine_barrel',x-w*.52,0,z+d*.5+.45,x*.7,1.02);scanProp('settle',x+w*.33,0,z+d/2+.42,0,1)}
   else{shape(cyl,0x7a5232,x-w*.52,.42,z+d*.5+.45,.32,.84,.32);for(const yy of [.18,.66])shape(cyl,0x3b3a36,x-w*.52,yy,z+d*.5+.45,.335,.05,.335);
   shape(planks,0xb08d67,x+w*.33,.46,z+d/2+.55,1.2,.08,.36);for(const s of [-1,1])shape(beam,oak,x+w*.33+s*.5,.22,z+d/2+.55,.08,.44,.3)}
   for(const s of [-1,1])for(let i=0;i<3;i++)shape(pick(tufts,x+s*i,z),0xffffff,x+s*(w*.18+i*.42),0,z+d/2+.3,.55,.5,.55,i+s);
   solids.add({x:x-w*.52,z:z+d*.5+.45,r:.36,base:0,top:.86});solids.add({x:x+w*.33,z:z+d/2+.55,w:.62,d:.2,base:0,top:.5});
-  solids.add({x,z,w:w*.53,d:w*.46,base:0,top:yTop+rise})
+  solids.add({x,z,w:w*.53,d:w*.46,base:0,top:yR+rise})
  }
  // Stone smithy with a glowing forge, and a timber carpentry shed with a lean-to and lumber.
  function workshop(x,z,w,stone){
   const d=w*.87,h=stone?3.45:3.55,front=z+d*.5,rise=stone?1.25:1.7;
-  if(stone){shape(masonry,0xf0dcc0,x,h/2,z,w,h,d);
+  if(stone){const tone=x>30?0xf4ecdc:0xc8c0b6;shape(stoneWall,tone,x,h/2,z,w,h,d);for(const sx of [-1,1])for(const sz of [-1,1])for(let k=0;k<6;k++)shape(stoneWall,tone,x+sx*(w/2-.12+(k%2?.06:0)),.3+k*.55,z+sz*(d/2-.12+(k%2?0:.06)),.42+(k%2?.18:0),.34,.42+(k%2?0:.18));
    let P=frame(x,0,front,0);
    doorAt(P,-.22*w,0,0,0x5d3f2a);
    P(ember,0xffffff,.26*w,1.0,.03,.95,.7,.06);P(masonry,0x8c7f72,.26*w,1.42,.12,1.25,.16,.3);P(masonry,0x8c7f72,.26*w,.58,.12,1.25,.16,.3);for(const s of [-1,1])P(masonry,0x8c7f72,.26*w+s*.56,1.0,.12,.16,.95,.3);
@@ -356,7 +407,7 @@ function createWorld(canvas) {
    gables(x,z,w,d,h,rise,false);roof(x,z,w,d,h,rise,slate,0xbcb2a6,.42);
    shape(masonry,0xc4ad90,x+.3*w,h/2+1.3,z-.2*d,1.05,h+2.6,1.05);shape(masonry,0x9a8a7a,x+.3*w,h+2.68,z-.2*d,1.25,.2,1.25);chimneys.push([x+.3*w,h+2.9,z-.2*d],[x+.3*w,h+3.2,z-.2*d]);
   }else{
-   shape(planks,0xc6a47c,x,h/2,z,w,h,d);shape(masonry,0xcfc3ad,x,.15,z,w+.18,.3,d+.18);
+   shape(planks,0xc6a47c,x,h/2,z,w,h,d);shape(stoneWall,0xd9d2c6,x,.2,z,w+.3,.4,d+.3);
    for(const sx of [-1,1])for(const sz of [-1,1])shape(beam,oak,x+sx*(w/2-.05),h/2,z+sz*(d/2-.05),.2,h,.2);
    for(const sz of [-1,1])shape(beam,oak,x,h-.08,z+sz*(d/2+.02),w+.1,.16,.12);
    let P=frame(x,0,front,0);doorAt(P,-.22*w,0,0,0x7d5636);windowAt(P,.24*w,1.85,0,.8,.9,0x3f6b63);
@@ -393,7 +444,7 @@ function createWorld(canvas) {
  // Two-storey manor: stone ground floor, a jettied half-timbered upper floor, a side wing and a porch.
  function manor(x,z){
   const w=8.5,d=6.4,y0=.5,h1=3.9,h2=3.4,yTop=y0+h1+h2,rise=3.3,front=z+d/2,tone=0x5a4a6a;
-  shape(masonry,0xc9bda6,x,y0/2,z,w+.3,y0,d+.3);shape(masonry,0xe6d8bf,x,y0+h1/2,z,w,h1,d);
+  shape(stoneWall,0xd2cabd,x,y0/2,z,w+.3,y0,d+.3);shape(stoneWall,0xeee4d4,x,y0+h1/2,z,w,h1,d);
   shape(plasterBox,0xfff4e0,x,y0+h1+h2/2,z,w+.3,h2,d+.3);shape(beam,oak,x,y0+h1+.06,z,w+.42,.2,d+.42);
   let P=frame(x,0,front,0);doorAt(P,0,y0,0,0x4a3428);
   for(const s of [-1,1])for(const lx of [1.9,3.3])windowAt(P,s*lx,y0+2.1,0,.8,1.2,tone,true);
@@ -765,8 +816,8 @@ void main(){float y=vUv.y;
   add(B,metal,0,-.42,0,.12,.36,.12);add(B,metal,0,-.3,0,.1,.1,.9);for(const z of [-.4,.4])add(new T.TorusGeometry(.16,.05,6,12),metal,0,0,z,1,1,1,0,Math.PI/2,0);
   add(B,metal,0,-.15,0,.16,.32,1.0)}
  gondola.userData.f=0;
- hut(-10,5,5,0);workshop(-15,-3,4,false);workshop(11,7,4.7,true);mill(-9,-11);pennants(0,4,10);airship(14,32,-15);
- hut(12,-60,5,1);pennants(0,-58,9);mill(-12,-68,true);
+ hut(-10,5,5,0,true);workshop(-15,-3,4,false);workshop(11,7,4.7,true);mill(-9,-11);pennants(0,4,10);airship(14,32,-15);
+ hut(12,-60,5,1,true);pennants(0,-58,9);mill(-12,-68,true);
  tradingPost(13,-6.36);manor(-13,-52.94);
  for(let i=0;i<30;i++){let s=i%2?1:-1,x=s*(48+rnd()*88),z=32-rnd()*205,r=4+rnd()*12,h=-6+rnd()*15;while(extraIslands.some(E=>Math.hypot(x-E.x,z-E.z)<E.r+r+9))x+=s*24;island(x,z,r,land[i%3],r*.85,h);for(let j=0;j<3;j++)pine(x+rnd()*r*.6,z+rnd()*r*.55,3+rnd()*4,h)}
  let farmRotor=null,craneHook=null,signalFire=null,millDebris=null;const appleTrees=[];
@@ -947,7 +998,7 @@ void main(){float y=vUv.y;
   // rubble and broken sail lattice at the foot of the mill, cleared when you mend its foot (level 2, first part)
   millDebris=group(-68,0,-62);for(const [x,z,r,k] of [[2,2.4,.4,1],[-1.4,2.8,1.2,.8],[.9,3.3,2.1,.7],[2.6,1.4,.3,.9]])shape(stoneGeo,0x9d9384,x,.22*k,z,.6*k,.42*k,.5*k,r,0,0,millDebris);
   for(const [x,z,r,t] of [[-.4,3.6,.5,.25],[1.6,3.0,1.9,-.2],[-2.2,2.0,1.1,.35]])shape(cube,0x8a6a48,x,.12,z,.13,.09,2.3,r,t,0,millDebris);solids.add({x:-68,z:-62,r:2.6,base:0,top:9});keepOut(-68,-62,4.2);
-  hut(-50,-67,6,1);keepOut(-50,-67,4.8);if(scanReady){scanProp('sf_ladder',-45.9,0,-64.4,.9,1);solids.add({x:-45.9,z:-64.4,r:.55,base:0,top:1.85});keepOut(-45.9,-64.4,1)}
+  hut(-50,-67,6,1,true);keepOut(-50,-67,4.8);if(scanReady){scanProp('sf_ladder',-45.9,0,-64.4,.9,1);solids.add({x:-45.9,z:-64.4,r:.55,base:0,top:1.85});keepOut(-45.9,-64.4,1)}
   {const wx=-62,wz=-54,ring=new T.CylinderGeometry(1,1,1,24,1,true);ring.userData.surface=new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xd8cfbf,roughness:.95,side:T.DoubleSide});
    // fieldstone well: an open stone ring with a capstone rim, dark water, a timber frame with a shingle roof, a crank, rope and bucket
    shape(ring,0xffffff,wx,.45,wz,.85,.9,.85);shape(ring,0xffffff,wx,.45,wz,.66,.9,.66);shape(new T.TorusGeometry(.76,.11,6,24),0xcfc4b0,wx,.92,wz,1,1,1,0,0,Math.PI/2);shape(cyl,0x1c2a30,wx,.55,wz,.66,.02,.66);
