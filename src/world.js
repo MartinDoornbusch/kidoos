@@ -2036,6 +2036,7 @@ void main(){float u=vUv.x,v=vUv.y;
   // margin around the lens so the near plane never cuts into a slope, a rock or a wall; it shrinks quickly and grows
   // back slowly. Before, the camera was snapped in after its smooth move out every frame, which made it shake against
   // walls, and it could end up inside mountains and rocks.
+  let aim=null;
   if(!start&&!inside){
    const want=eye.clone().sub(target),wd=want.length();want.normalize();
    const near=canopies.filter(o=>Math.abs(o.x-target.x)<16&&Math.abs(o.z-target.z)<16);
@@ -2066,9 +2067,10 @@ void main(){float u=vUv.x,v=vUv.y;
    cam.position.lerp(goal,dt>=1?1:1-Math.exp(-dt*10));
    const lim=goal.distanceTo(target),off=cam.position.clone().sub(target),od=off.length();if(od>lim+.05)cam.position.copy(target).addScaledVector(off.normalize(),lim);
    if(solid(cam.position))cam.position.copy(goal);
-   hero.root.visible=cam.position.distanceTo(target)>.95;
+   // squeezed in so far that you would look into your own head: hide the explorer and look ahead from the head
+   hero.root.visible=cam.position.distanceTo(target)>.95;if(!hero.root.visible)aim=new T.Vector3(target.x-Math.sin(a)*4,target.y-.25,target.z-Math.cos(a)*4);
   }else{cam.position.lerp(eye,dt>=1?1:1-Math.exp(-dt*10));hero.root.visible=true}
-  cam.lookAt(target);if(!start)fellSync(s);firLod(cam.position);
+  cam.lookAt(aim||target);if(!start)fellSync(s);firLod(cam.position);
   if(inside&&(portalTick++%(inside.door.open>.02?3:6)===0||dt>=1))renderPortal();
   if(context){sun.position.set(portrait.x-36,portrait.y+34,portrait.z+22);sun.target.position.set(portrait.x,portrait.y,portrait.z)}
   else {const angle=Math.atan2(eye.x-target.x,eye.z-target.z);skyCanvas.style.backgroundPosition=(50+angle*100/Math.PI)+'% 62%'}
