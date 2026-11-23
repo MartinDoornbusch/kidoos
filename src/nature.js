@@ -90,10 +90,10 @@ const Nature=(()=>{
 
  // Grass in tiles, so tiles behind the camera or far away are skipped.
  function grass(scene,area,count,seed){const r=rng(seed),geo=clumpGeometry(seed),tiles=new Map(),m=new T.Object3D(),tint=new T.Color();
-  for(const [x,z,y=0] of area(count,r)){const key=Math.floor(x/12)+','+Math.floor(z/12);if(!tiles.has(key))tiles.set(key,[]);tiles.get(key).push([x,z,y])}
+  for(const [x,z,y=0,b=1] of area(count,r)){const key=Math.floor(x/12)+','+Math.floor(z/12);if(!tiles.has(key))tiles.set(key,[]);tiles.get(key).push([x,z,y,b])}
   const meshes=[];
   for(const list of tiles.values()){const mesh=new T.InstancedMesh(geo,plantMaterial,list.length);
-   list.forEach(([x,z,y],i)=>{const s=.14+r()*.2;m.position.set(x,y,z);m.rotation.set(0,r()*6.28,0);m.scale.set(s*1.2,s*(.8+r()*.6),s*1.2);m.updateMatrix();mesh.setMatrixAt(i,m.matrix);
+   list.forEach(([x,z,y,b],i)=>{const s=(.14+r()*.2)*b;m.position.set(x,y,z);m.rotation.set(0,r()*6.28,0);m.scale.set(s*1.2,s*(.8+r()*.6),s*1.2);m.updateMatrix();mesh.setMatrixAt(i,m.matrix);
     mesh.setColorAt(i,tint.setHSL(.2+r()*.07,.28+r()*.18,.5+r()*.13))});
    mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);meshes.push(mesh)}
   return meshes}
