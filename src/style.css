@@ -99,3 +99,4 @@ dialog .opts button:disabled,dialog .wingrid button:disabled{opacity:.45;transfo
 #hud #toolbar button.held{background:linear-gradient(180deg,rgba(255,226,158,.95),rgba(244,180,89,.95));color:#2a1d08;border-color:#fff0c4;box-shadow:0 0 0 2px rgba(255,210,120,.35),0 8px 20px rgba(80,40,0,.3);transform:translateY(-2px)}
 @media(pointer:fine){#hud.withTools #act{bottom:116px}}@media(pointer:coarse){#toolbar{bottom:22px}#hud #toolbar button{min-height:44px;padding:8px 10px}}
 @media(max-width:620px) and (pointer:coarse){#toolbar{bottom:128px}#hud.withTools #waypoint{bottom:182px}}
+#hud #toolbar button.held kbd{background:rgba(42,29,8,.85);color:#ffe29e;border-color:rgba(42,29,8,.9)}
