@@ -1,7 +1,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 let world;
-const newSave=()=>({version:1,stage:0,hout:0,steen:0,planken:0,seals:0,rings:[],harvest:{},yield:{},tools:{},toolProgress:{},munten:0,items:{},scarf:null,dogFriend:false,builds:[],log:{chapter:7,turn:0,items:{}},position:null,honger:100,appels:0,orchard:{}});
+const newSave=()=>({version:1,stage:0,hout:0,steen:0,planken:0,seals:0,rings:[],harvest:{},yield:{},tools:{},toolProgress:{},munten:0,items:{},scarf:null,dogFriend:false,builds:[],log:{chapter:7,turn:0,items:{}},position:null,honger:100,appels:0,orchard:{},riddles:{}});
 let profile='Niek',s=newSave(),playing=false,context=null,guide=null,placement=null,preview=null,race=null,last=0,toastTimer,joyX=0,joyZ=0,drag=null;
 const p={x:0,y:0,z:13,vy:0,heading:0,speed:0,walk:0,on:true},view={yaw:0,height:3.9,dist:6.9,look:0},keys=new Set();
 let currentRoom=null, outdoorPose=null, ride=null, windNote=-1e9;
@@ -121,7 +121,7 @@ document.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>{profile=b.
 function needs(){const cp=cur(),t3=cp?.r;if(t3){const c=t3.progress.next.cost,planks=Math.max(0,(c.planken||0)-s.planken);return {hout:Math.max(0,(c.hout||0)+planks-s.hout),steen:Math.max(0,(c.steen||0)-s.steen),planks}}
  const c=stepCost();if(!c)return null;const planks=Math.max(0,c.planken-s.planken);
  return {hout:Math.max(0,c.hout+planks-s.hout),steen:Math.max(0,c.steen-s.steen),planks}}
-function pileLeft(n){return s.harvest[n.i]>Date.now()?0:(s.yield[n.i]??PILE)}
+function pileLeft(n){return s.harvest[n.i]>Date.now()?0:(s.yield[n.i]??(n.max||PILE))}
 function reachable(n){const I=world.islands.find(i=>Math.hypot(i.x-n.x,i.z-n.z)<i.r);return !!I&&I.open<=Math.min(s.stage,2)}
 function objective(){
  const m=mission(),cp=cur(),t3=cp?.r;
@@ -171,9 +171,11 @@ let m=mission();$('region').textContent=area().name;$('chapter').textContent=m?'
  context=null;
  if(placement){context={kind:'place'};$('act').textContent='Plaatsen · E'}
  else {if(s.stage>=3&&!race&&dist(repair[2])<4.6)context={kind:'race'};let r=mission()&&repair[s.stage];if(r&&dist(r)<4.6)context={kind:'repair'};
- let n=world.nodes.filter(n=>pileLeft(n)>0&&dist(n)<3.4).sort((a,b)=>dist(a)-dist(b))[0];
+ // (1.22) besides the piles, every fir can be sawn down and every rock quarried
+ const sources=[...world.nodes.filter(n=>dist(n)<3.4),...(world.trees||[]).filter(t=>dist(t)<2.1&&Math.abs(p.y-t.y)<2.2),...(world.rocks||[]).filter(r=>dist(r)<r.r+1.4&&Math.abs(p.y-r.y)<3)];
+ let n=sources.filter(n=>pileLeft(n)>0).sort((a,b)=>dist(a)-dist(b)-(a.r||0)+(b.r||0))[0];
  if(n&&(!context||(r&&dist(n)<dist(r))))context={kind:'resource',n};
- $('act').textContent=context?.kind==='resource'?(context.n.type==='hout'?(s.tools.bijl?'Hout hakken':'Bijl nodig'):(s.tools.houweel?'Steen hakken':'Houweel nodig'))+' · E':context?.kind==='race'?'Start de windrace · E':context?'Werkplaats · E':''}
+ $('act').textContent=context?.kind==='resource'?(context.n.type==='hout'?(s.tools.bijl?(context.n.kind==='tree'?'Boom omzagen':'Hout hakken'):'Bijl nodig'):(s.tools.houweel?(context.n.kind==='rock'?'Steen hakken uit de rots':'Steen hakken'):'Houweel nodig'))+' · E':context?.kind==='race'?'Start de windrace · E':context?'Werkplaats · E':''}
  if(l3On()&&!placement&&!race&&dist(L3.site)<4.4&&(!context||context.kind!=='resource'||dist(L3.site)<dist(context.n))){context={kind:'tower'};$('act').textContent='Bouwplaats wachttoren · E'}
  else if((s.level||1)>=4&&houseReady()&&!placement&&!race){const hi=houseInfo(),d=hi?hi.design:houseDraft(),near=Math.hypot(p.x-d.x,p.z-d.z)<6.5;
   if(near&&(!context||context.kind!=='resource')){context={kind:'house'};$('act').textContent=(!hi?'Ontwerp je huis':hi.progress.finished?'Inrichten':'Bouwplek mijn huis')+' · E'}}
@@ -229,8 +231,8 @@ function harvest(n){
   show('<small>GEREEDSCHAP NODIG</small><h2>'+(tool==='bijl'?'Zonder bijl geen hout':'Zonder houweel geen steen')+'</h2><p>'+h.name+' in de '+h.place.toLowerCase()+' geeft je '+(tool==='bijl'?'een bijl':'een houweel')+' als je '+t.need+' opdrachten goed maakt. Je kompas wijst de weg.</p>'+buttons());back();return}
  function swing(){
   const left=pileLeft(n);
-  askOne(subject(),{kicker:(n.type==='hout'?'HOUTHAKKEN':'STEENHAKKEN')+' · NOG '+left+' IN DEZE '+(n.type==='hout'?'STAPEL':'GROEVE'),title:n.type==='hout'?'Raak de stam':'Raak de rots',lead:'Een goed antwoord is een raak slag.'},ok=>{
-   if(ok){s[n.type]++;s.yield[n.i]=left-1;if(left-1<=0){s.harvest[n.i]=Date.now()+GONE;delete s.yield[n.i]}world.reach();world.burst(n.x,1.6,n.z,n.type==='hout'?0xffcf6a:0x9fe3ff)}
+  askOne(subject(),{kicker:(n.kind==='tree'?'BOOM OMZAGEN · NOG '+left+' ZAAGSNEDEN':(n.type==='hout'?'HOUTHAKKEN':'STEENHAKKEN')+' · NOG '+left+' IN '+(n.kind==='rock'?'DIT ROTSBLOK':'DEZE '+(n.type==='hout'?'STAPEL':'GROEVE'))),title:n.kind==='tree'?'Zaag de stam door':n.type==='hout'?'Raak de stam':'Raak de rots',lead:'Een goed antwoord is een raak slag.'},ok=>{
+   if(ok){s[n.type]++;s.yield[n.i]=left-1;if(left-1<=0){s.harvest[n.i]=Date.now()+(n.regrow||GONE);delete s.yield[n.i];if(n.kind==='tree'){world.fellSync?.(s,true);notify('De boom valt! Over een paar minuten groeit hier een nieuwe.')}else if(n.kind==='rock')notify('Dit rotsblok is even leeg gehakt.')}world.reach();world.burst(n.x,(n.y||0)+1.6,n.z,n.type==='hout'?0xffcf6a:0x9fe3ff)}
    persist();const more=pileLeft(n)>0,n2=needs();
    return {head:ok?'Raak! +1 '+n.type:'Mis! Deze slag levert niets op',note:ok&&!more?(n.type==='hout'?'De stapel is op.':'Deze groeve is leeg.'):'',
     buttons:more?[['Volgende slag',swing,true],['Stoppen',closePanel]]:[['Verder',closePanel,true]]}
@@ -297,7 +299,7 @@ function shop(note=''){
   return '<div class="meter">'+names[k]+' <b>'+s[k]+' in je rugzak'+(need[k]?' · '+need[k]+' nodig':'')+'</b></div><div class="row"><button data-sell="'+k+'" data-n="1"'+(s[k]?'':' disabled')+'>Verkoop 1 · '+PRICE[k]+' munten</button>'+(spare>1?'<button data-sell="'+k+'" data-n="'+spare+'">Verkoop '+spare+' over · '+spare*PRICE[k]+' munten</button>':'')+'</div>'}).join('');
  const buy=GOODS.map(o=>{const have=o.owned?o.owned():o.scarf?s.owned[o.id]:false,wearing=o.scarf&&s.scarf===o.scarf;
   return '<div class="meter">'+o.name+' <b>'+(o.item&&s.items[o.id]?s.items[o.id]+' in je rugzak · ':'')+(have&&!o.scarf?'in bezit':o.cost+' munten')+'</b></div><p class="small">'+o.text+'</p><div class="row">'+(have&&o.scarf?'<button data-wear="'+o.id+'"'+(wearing?' disabled':'')+'>'+(wearing?'Draag je nu':'Omdoen')+'</button>':have&&!o.item?'':'<button data-buy="'+o.id+'"'+((s.munten||0)<o.cost?' disabled':'')+'>Koop · '+o.cost+'</button>')+'</div>'}).join('');
- show('<small>HANDELSPOST · KOOPVROUW</small><h2>Wies</h2><p>“'+(note||'Welkom! Ik koop je overgebleven hout, steen en planken. En wie goed oefent, verdient bij mij altijd wat.')+'”</p><div class="meter">Munten <b>'+(s.munten||0)+'</b></div><h3>Verkopen</h3>'+sell+'<h3>Kopen</h3>'+buy+(s.scarf?'<div class="row"><button id="ochre">Oker sjaal weer om</button></div>':'')+'<div class="row"><button id="endTalk">Gesprek sluiten</button></div>');
+ show('<small>HANDELSPOST · KOOPVROUW</small><h2>Wies</h2><p>“'+(note||'Welkom! Ik koop je overgebleven hout, steen en planken. En wie goed oefent, verdient bij mij altijd wat.')+'”</p><div class="meter">Munten <b>'+(s.munten||0)+'</b></div><h3>Verkopen</h3>'+sell+'<h3>Kopen</h3>'+buy+(s.scarf?'<div class="row"><button id="ochre">Oker sjaal weer om</button></div>':'')+'<div class="row">'+(currentRoom?riddleButton(currentRoom.house):'')+'<button id="endTalk">Gesprek sluiten</button></div>');if($('riddle'))$('riddle').onclick=()=>riddle(currentRoom.house,()=>shop());
  $('endTalk').onclick=closePanel;if($('ochre'))$('ochre').onclick=()=>{s.scarf=null;world.scarf(null);persist();shop('Die okerkleurige staat je ook goed.')};
  document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>{const k=b.dataset.sell,n=Math.min(+b.dataset.n,s[k]);if(!n)return;const short=s[k]-n<need[k];s[k]-=n;coin(n*PRICE[k]);persist();updateHUD();shop(short?'Afgesproken. Let op: dit had je nog nodig voor de missie.':'Afgesproken, '+n*PRICE[k]+' munten voor jou.')});
  document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{const o=GOODS.find(x=>x.id===b.dataset.buy);if((s.munten||0)<o.cost)return;s.munten-=o.cost;
@@ -526,7 +528,10 @@ $('hud').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&e
 const joy=$('joy');function stick(e){let b=joy.getBoundingClientRect(),x=(e.clientX-b.left-b.width/2)/36,z=(e.clientY-b.top-b.height/2)/36,l=Math.max(1,Math.hypot(x,z));joyX=x/l;joyZ=z/l;joy.firstElementChild.style.transform='translate('+joyX*25+'px,'+joyZ*25+'px)'}
 function releaseStick(){joyX=joyZ=0;joy.firstElementChild.style.transform=''}
 joy.onpointerdown=e=>{try{joy.setPointerCapture(e.pointerId)}catch{}stick(e)};joy.onpointermove=e=>{if(joy.hasPointerCapture(e.pointerId))stick(e)};joy.onlostpointercapture=joy.onpointerup=joy.onpointercancel=releaseStick;
-const canvas=$('world');canvas.onpointerdown=e=>{if(playing){canvas.setPointerCapture(e.pointerId);drag=[e.clientX,e.clientY,e.button===2]}};canvas.onpointermove=e=>{if(!drag)return;if(drag[2]){view.look=Math.max(-.15,Math.min(1,(view.look||0)-(e.clientY-drag[1])*.006));view.yaw-=(e.clientX-drag[0])*.007;followHeading=null;drag=[e.clientX,e.clientY,true];return}const orbit=(e.clientX-drag[0])*.007;view.yaw-=orbit;if(movementYaw!==null)movementYaw-=orbit;followHeading=null;view.height=Math.min(10,Math.max(3,view.height+(e.clientY-drag[1])*.035));drag=[e.clientX,e.clientY]};canvas.onlostpointercapture=()=>drag=null;canvas.onwheel=e=>{view.dist=Math.max(5,Math.min(13,view.dist+e.deltaY*.01))};
+const canvas=$('world');canvas.onpointerdown=e=>{if(playing){canvas.setPointerCapture(e.pointerId);drag=[e.clientX,e.clientY,e.button===2]}};canvas.onpointermove=e=>{if(!drag)return;if(drag[2]){pitchBy(-(e.clientY-drag[1])*.006);view.yaw-=(e.clientX-drag[0])*.007;followHeading=null;drag=[e.clientX,e.clientY,true];return}const orbit=(e.clientX-drag[0])*.007;view.yaw-=orbit;if(movementYaw!==null)movementYaw-=orbit;followHeading=null;pitchBy(-(e.clientY-drag[1])*.006);drag=[e.clientX,e.clientY]};canvas.onlostpointercapture=()=>drag=null;canvas.onwheel=e=>{view.dist=Math.max(5,Math.min(13,view.dist+e.deltaY*.01))};
+// One vertical look axis for every pointer (1.22): drag up to look up at the sky and towers, drag down to look down
+// from above. Before, only the right mouse button could look up, so on a tablet or touchpad you never could.
+function pitchBy(d){let pt=(view.look||0)>0?view.look:-(view.height-3.9)/6.1;pt=Math.max(-1,Math.min(1,pt+d));if(pt>=0){view.look=pt;view.height=3.9}else{view.look=0;view.height=3.9-pt*6.1}}
 function move(dt){
  // Riding the cable car: the gondola carries you, steering is off until you arrive.
  if(ride){ride.t+=dt;const k=Math.min(1,ride.t/ride.dur),e=k*k*(3-2*k),f=ride.from?1-e:e,c=world.cable.at(f);
@@ -552,7 +557,10 @@ function move(dt){
  if(p.speed>.03){
   if(!drag)followHeading=p.heading;p.walk+=dt*9*p.speed;
   const speed=(keys.has('shift')?9.2:6.2)*(drive<0?.6:1)*drive*(admin.fly&&!currentRoom?2.2:1)*(s.stage>=1&&(s.honger??100)<=0&&!admin.fly?.72:1),vx=-Math.sin(p.heading)*speed,vz=-Math.cos(p.heading)*speed;
-  const stuck=currentRoom&&world.blocked(p.x,p.z,s,p.y)||admin.fly&&!currentRoom;if(stuck||!world.blocked(p.x+vx*dt,p.z,s,p.y))p.x+=vx*dt;if(stuck||!world.blocked(p.x,p.z+vz*dt,s,p.y))p.z+=vz*dt}
+  // (1.22) on foot you can no longer walk up a rise of more than 55 cm in one step (a cliff, a rock face): that blocks
+  // like a wall instead of making you hop up and down; jumping still works
+  const stuck=currentRoom&&world.blocked(p.x,p.z,s,p.y)||admin.fly&&!currentRoom,tooHigh=(x,z)=>!currentRoom&&p.on&&world.ground(x,z,s,p.y+.6)>p.y+.55;
+  if(stuck||!world.blocked(p.x+vx*dt,p.z,s,p.y)&&!tooHigh(p.x+vx*dt,p.z))p.x+=vx*dt;if(stuck||!world.blocked(p.x,p.z+vz*dt,s,p.y)&&!tooHigh(p.x,p.z+vz*dt))p.z+=vz*dt}
  if(admin.fly&&!currentRoom){p.glide=false;p.vy=0;if(keys.has(' '))p.y+=(keys.has('shift')?18:9)*dt;if(keys.has('c'))p.y-=(keys.has('shift')?18:9)*dt;const fl=world.ground(p.x,p.z,s,p.y+.5);if(p.y<=fl){p.y=fl;p.on=true}else p.on=false}else{
  // The glider only drifts forward while you steer; let go and it sinks slowly in place.
  if(p.glide&&p.speed>.03){let gx=p.x-Math.sin(p.heading)*dt*2.6,gz=p.z-Math.cos(p.heading)*dt*2.6;if(!world.blocked(gx,gz,s,p.y)){p.x=gx;p.z=gz}else p.glide=false}let floor=world.ground(p.x,p.z,s,p.y);p.vy-=20*dt;if(p.glide)p.vy=Math.max(-1.15,p.vy);if(p.vy>0){let limit=world.ceiling(p.x,p.z,s,p.y,2.68)-2.68;if(p.y+p.vy*dt>limit){p.y=limit;p.vy=0}}p.y+=p.vy*dt;if(p.y<=floor&&p.vy<=0){p.y=floor;p.glide=false;p.vy=0;p.on=true}else if(p.on&&p.vy<=0&&!p.glide&&floor>p.y-.5&&floor>-50){p.y=floor;p.vy=0}else p.on=false;}if(p.y<world.liftAt(p.x,p.z)-12)respawn();
@@ -606,12 +614,64 @@ function leaveHouse(){
  Object.assign(p,{x:outdoorPose.x,y:0,z:outdoorPose.z,on:true,glide:false,vy:0,speed:0,heading:Math.PI});
  view.yaw=outdoorPose.yaw;world.animate(performance.now()/1000,s,p,view,false,1);persist();updateHUD()
 }
+// ---- Riddles of the residents (1.22, NPC audit PR #14): four short trade puzzles per resident, with a story line,
+// three answers, a hint and an explanation. Fixed answers decide (no AI); the first right answer of each riddle earns
+// 2 munten. Works fully offline and is saved in s.riddles.
+const RIDDLES={
+ linde:[['Linde schuift een kaart naar je toe. “Op deze kaart is 1 centimeter 100 meter. Het pad naar de Bloesemvallei is 6 centimeter.”','Hoe ver is dat in het echt?',['60 meter','600 meter','6 kilometer'],1,'Vermenigvuldig het aantal centimeters met de afstand per centimeter.','6 × 100 meter = 600 meter.'],
+  ['“Ik stond vanochtend bij het baken en keek recht in de opkomende zon.”','Welke kant keek ik op?',['Oost','West','Noord'],0,'Waar komt de zon op?','De zon komt op in het oosten.'],
+  ['“Op mijn bergkaart liggen de hoogtelijnen hier heel dicht op elkaar.”','Wat betekent dat?',['Een vlakke weide','Een steile helling','Een rivier'],1,'Hoe sneller de hoogte verandert, hoe dichter de lijnen.','Dichte hoogtelijnen betekenen dat het terrein snel stijgt: een steile helling.'],
+  ['“Een raadsel uit mijn la: ik heb steden zonder huizen, bossen zonder bomen en water zonder vis.”','Wat ben ik?',['Een droom','Een schilderij','Een kaart'],2,'Linde werkt er de hele dag mee.','Een kaart toont steden, bossen en water, maar alleen als tekening.']],
+ bram:[['Bram tilt een lange plank op zijn schouder. “Drie meter, en ik zaag er stukken van 75 centimeter af.”','Hoeveel stukken krijg ik?',['3','4','5'],1,'Hoe vaak past 0,75 meter in 3 meter?','3 : 0,75 = 4 stukken.'],
+  ['“Als ik hout wil splijten, doe ik dat altijd met de nerf mee.”','Waarom?',['Dan wordt mijn bijl scherper','Hout splijt makkelijk langs de vezels','Dan wordt het hout zwaarder'],1,'Kijk naar de lijnen in een plank.','Hout bestaat uit lange vezels; daartussen splijt het het makkelijkst.'],
+  ['“Mijn opa zei altijd: meet twee keer, zaag ...”','Hoe vaak zaag je?',['één keer','twee keer','drie keer'],0,'Het gaat erom dat je niet verspilt.','Meet twee keer, zaag één keer: dan zaag je meteen goed.'],
+  ['“Ik maak een tafelblad van 2 bij 1 meter en schuur de hele rand.”','Hoeveel meter rand is dat?',['2 meter','3 meter','6 meter'],2,'Tel alle vier de zijden op.','2 + 1 + 2 + 1 = 6 meter: dat is de omtrek.']],
+ mara:[['Mara houdt een gloeiend hoefijzer omhoog en laat het sissend in de ton zakken.','Waarom doe ik dat?',['Om het snel af te koelen en hard te maken','Om het schoon te poetsen','Om het zwaarder te maken'],0,'Wat gebeurt er met heet metaal in koud water?','Snel afkoelen heet afschrikken: het staal wordt er harder van.'],
+  ['“Als ik de blaasbalg trek, gloeit het vuur feller.”','Waarom?',['De rook verdwijnt','Er komt meer zuurstof bij het vuur','De wind koelt het af'],1,'Wat heeft vuur nodig om te branden?','Vuur heeft zuurstof nodig; meer lucht maakt het heter.'],
+  ['“Een raadsel uit de smidse: ik word de hele dag geslagen, maar ik deuk nooit in. Ik sta altijd naast het vuur.”','Wat ben ik?',['De tang','De blaasbalg','Het aambeeld'],2,'Mara slaat er met haar hamer op.','Het aambeeld vangt alle klappen op.'],
+  ['“Voor een bijl heb ik 3 kilo ijzer nodig. Ik heb 10 kilo.”','Hoeveel bijlen kan ik maken?',['3','4','5'],0,'Hoeveel keer past 3 helemaal in 10?','3 bijlen kosten 9 kilo; voor een vierde heb je te weinig over.']],
+ tomas:[['Tomas houdt een blad tegen het licht. “Hiermee maakt de plant zijn eigen suiker.”','Wat heeft de plant daarvoor nodig?',['Alleen aarde','Zonlicht, water en koolstofdioxide','Maanlicht en zout'],1,'Denk aan fotosynthese.','Met zonlicht maakt het blad van water en koolstofdioxide suiker en zuurstof.'],
+  ['“Mijn appelboompjes bloeien. Zonder een klein beestje komen er geen appels.”','Welk beestje?',['De bij','De mol','De slak'],0,'Wie vliegt van bloem naar bloem?','Bijen brengen stuifmeel van bloem naar bloem: dat heet bestuiving.'],
+  ['“Een tuinraadsel: ik heb een hoed maar geen hoofd, en een steel maar geen hand.”','Wat ben ik?',['Een spade','Een bloem','Een paddenstoel'],2,'Je vindt me in de herfst in het bos.','Een paddenstoel heeft een hoed en een steel.'],
+  ['“Ik zaai elke week 2 rijen. Mijn moestuin heeft 14 rijen.”','Na hoeveel weken is alles gezaaid?',['7','12','28'],0,'14 gedeeld door 2.','14 : 2 = 7 weken.']],
+ wies:[['Wies legt drie appels op de toonbank. “Twee munten per stuk, en je betaalt met tien.”','Hoeveel krijg je terug?',['3','4','6'],1,'Reken eerst uit wat de appels samen kosten.','3 × 2 = 6 munten; 10 − 6 = 4 munten terug.'],
+  ['“Een zak meel koop ik voor 5 munten en verkoop ik voor 8.”','Hoeveel winst maak ik?',['3','5','13'],0,'Winst is verkopen min inkopen.','8 − 5 = 3 munten winst.'],
+  ['“Mijn opa’s raadsel: hoe meer je ervan wegneemt, hoe groter ik word.”','Wat ben ik?',['Een taart','Een gat','Een stapel munten'],1,'Graaf maar eens in de grond.','Hoe meer zand je weghaalt, hoe groter het gat.'],
+  ['“Mijn weegschaal is in evenwicht: links een kilo appels, rechts vier gelijke gewichtjes.”','Hoe zwaar is één gewichtje?',['250 gram','400 gram','4 kilo'],0,'Een kilo is 1000 gram.','1000 gram : 4 = 250 gram.']],
+ vandalen:[['Meneer Van Dalen wijst naar de bovenverdieping die over de straat hangt.','Waarom bouwden ze vroeger zo?',['Zodat het huis lichter is','Om boven meer ruimte te krijgen dan beneden','Om regen binnen te laten'],1,'Belasting ging vaak over de grond die je huis innam.','De verdieping steekt uit: meer ruimte boven zonder meer grond te gebruiken.'],
+  ['“Mijn klok slaat elk heel uur, van 9 tot en met 12 uur ’s ochtends.”','Hoe vaak slaat hij een heel uur?',['3 keer','4 keer','12 keer'],1,'Tel 9, 10, 11 en 12.','Om 9, 10, 11 en 12 uur: 4 keer.'],
+  ['“Een raadsel uit mijn bibliotheek: ik heb toetsen, maar ik open geen enkele deur.”','Wat ben ik?',['Een slot','Een piano','Een kaart'],1,'Je hoort me in de muziekkamer.','Een piano heeft toetsen, maar geen sloten.'],
+  ['“Mijn bibliotheek heeft 6 kasten met 5 planken, en op elke plank staan 20 boeken.”','Hoeveel boeken heb ik?',['31','150','600'],2,'Eerst het aantal planken, dan de boeken.','6 × 5 = 30 planken; 30 × 20 = 600 boeken.']],
+ gerrit:[['Gerrit klopt op een vers gekapte stronk. “Kijk eens goed naar dit hout.”','Hoe zie je hoe oud de boom was?',['Door de jaarringen te tellen','Door de bladeren te tellen','Door de schors te meten'],0,'Elk jaar groeit er een laagje bij.','Elke ring is één jaar groei.'],
+  ['“Voor elke boom die ik kap, plant ik een nieuwe.”','Waarom?',['Omdat oude bomen giftig worden','Zodat het bos blijft bestaan','Omdat de vogels dat eisen'],1,'Wat gebeurt er als je alleen kapt?','Door steeds te herplanten blijft het bos er ook voor later.'],
+  ['“Een bosraadsel: ik blijf groen, ook in de winter, en ik heb naalden, maar ik naai nooit.”','Wat ben ik?',['Een eik','Een appelboom','Een den'],2,'Er staan er veel rond mijn huis.','Een den is een naaldboom die het hele jaar groen blijft.'],
+  ['“Ik zaag een stam van 12 meter in stukken van 3 meter.”','Hoe vaak moet ik zagen?',['3 keer','4 keer','12 keer'],0,'Tel de zaagsneden, niet de stukken.','Vier stukken zijn drie zaagsneden.']],
+ anke:[['Anke zet een volle emmer neer. “Onze koe geeft 20 liter melk per dag.”','Hoeveel is dat in een week?',['27 liter','140 liter','200 liter'],1,'Een week heeft 7 dagen.','7 × 20 = 140 liter.'],
+  ['“Ik draai en draai aan de karnton met room.”','Wat maak ik?',['Kaas','Brood','Boter'],2,'Je smeert het op je boterham.','Door room te karnen ontstaat boter.'],
+  ['“Een boerenraadsel: ik heb veel ogen, maar ik zie niets. Ik groei onder de grond.”','Wat ben ik?',['Een aardappel','Een mol','Een wortel'],0,'De ogen zijn de plekjes waar hij uitloopt.','Een aardappel heeft ogen waaruit nieuwe scheuten groeien.'],
+  ['“Soms laat ik een akker een jaar met rust.”','Waarom?',['Omdat er te weinig regen viel','Zodat de grond kan herstellen','Zodat de vogels er wonen'],1,'Planten halen voeding uit de grond.','In een braakjaar herstelt de grond zich en kan hij weer goed gewas dragen.']],
+ joost:[['Joost wijst naar een ruw blok. “Twee meter lang, één meter breed en één meter hoog.”','Hoeveel kubieke meter steen is dat?',['2','3','4'],0,'Lengte × breedte × hoogte.','2 × 1 × 1 = 2 kubieke meter.'],
+  ['Joost hakt heel voorzichtig, met kleine tikjes.','Waarom zo voorzichtig?',['Dan is mijn hamer stiller','Wat eraf is, kan er niet meer aan','Zo blijft de steen warm'],1,'Kun je steen weer vastplakken?','Bij steenhouwen haal je alleen weg; een fout kun je niet herstellen.'],
+  ['“Een raadsel van het plein: ik ben van steen, ik zwijg altijd en toch kent iedereen mijn gezicht.”','Wat ben ik?',['Een fontein','Een standbeeld','Een kerk'],1,'Zoiets maak ik in mijn werkplaats.','Een standbeeld heeft een gezicht, maar zegt nooit iets.'],
+  ['“Een boog van stenen houdt een hele brug omhoog, zonder lijm.”','Waarom is een boog zo sterk?',['De bovenste steen is het zwaarst','De stenen drukken tegen elkaar en leiden het gewicht naar de zijkanten','Er zit ijzer in de stenen'],1,'Waar gaat het gewicht naartoe?','In een boog duwen de stenen tegen elkaar en gaat het gewicht naar de pijlers.']]};
+function riddleButton(h){const list=RIDDLES[h.key];if(!list)return '';const done=(s.riddles?.[h.key]||[]).length;return '<button id="riddle">Raadsel van '+h.name.replace('Meneer ','')+' · '+done+'/'+list.length+'</button>'}
+function riddle(h,back){const list=RIDDLES[h.key],solved=s.riddles?.[h.key]||[];let i=list.findIndex((_,k)=>!solved.includes(k));const replay=i<0;if(replay)i=Math.floor(Math.random()*list.length);
+ const [story,q,choices,right,hint,why]=list[i],head='<small>'+h.place+' · RAADSEL '+(i+1)+' VAN '+list.length+'</small><h2>'+h.name+'</h2>';
+ const view=(extra='')=>{show(head+'<p>'+story+'</p><div class="question">'+q+'</div><div class="row">'+choices.map((c,j)=>'<button data-r="'+j+'">'+c+'</button>').join('')+'</div>'+extra+'<div class="row"><button id="hint">Hint</button><button id="rBack">Terug</button></div>');
+  $('rBack').onclick=back;$('hint').onclick=()=>view('<p class="okline">Hint: '+hint+'</p>');
+  document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{const j=+b.dataset.r;
+   if(j!==right){view('<p class="badline">Nog niet. '+hint+'</p>');return}
+   s.riddles??={};const first=!(s.riddles[h.key]||[]).includes(i);if(first){(s.riddles[h.key]??=[]).push(i);s.munten=(s.munten||0)+2}persist();updateHUD();
+   const more=(s.riddles[h.key]||[]).length<list.length;
+   show(head+'<p class="okline">Goed: '+choices[right]+'.</p><p>'+why+'</p><p>'+(first?'Je krijgt 2 munten.':replay?'Dit raadsel had je al opgelost.':'')+'</p><div class="row">'+(more?'<button class="primary" id="rNext">Volgend raadsel</button>':'')+'<button id="rBack">Terug</button></div>');
+   if(more)$('rNext').onclick=()=>riddle(h,back);$('rBack').onclick=back})};
+ view()}
 function interview(){
  const h=currentRoom.house,known=s.village?.[h.key],heading='<small>'+h.place+' · '+h.role+'</small><h2>'+h.name+'</h2>';
  const leave='<div class="row"><button id="endTalk">Gesprek sluiten</button></div>';
  function render(html){show(heading+html+leave);$('endTalk').onclick=closePanel}
  function ask(){
-  render('<p>'+h.task+'</p><div class="row">'+h.questions.map((q,i)=>'<button data-ask="'+i+'">'+q+'</button>').join('')+'</div>');
+  render('<p>'+h.task+'</p><div class="row">'+h.questions.map((q,i)=>'<button data-ask="'+i+'">'+q+'</button>').join('')+'</div>'+(known?'':'<div class="row">'+riddleButton(h)+'</div>'));if($('riddle'))$('riddle').onclick=()=>riddle(h,interview);
   document.querySelectorAll('[data-ask]').forEach(button=>button.onclick=()=>{
    const i=Number(button.dataset.ask);
    render('<p>“'+h.answers[i]+'”</p>'+(i===0?'<div class="question">'+h.check+'</div><div class="row">'+h.choices.map((c,j)=>'<button data-conclusion="'+j+'">'+c+'</button>').join('')+'</div>':'<button id="askAgain">Stel een andere vraag</button>'));
@@ -628,9 +688,9 @@ function interview(){
  // Residents with a tool offer it first; the research questions stay available.
  const offers=Object.keys(TOOLS).filter(k=>TOOLS[k].owner===h.key&&!s.tools[k]&&TOOLS[k].stage<=s.stage);
  function menu(){
-  if(!offers.length){if(known){render('<p>'+h.choices[h.right]+'</p><button id="againTalk">Gesprek herhalen</button>');$('againTalk').onclick=ask}else ask();return}
+  if(!offers.length){if(known){render('<p>'+h.choices[h.right]+'</p><div class="row"><button id="againTalk">Gesprek herhalen</button>'+riddleButton(h)+'</div>');$('againTalk').onclick=ask;if($('riddle'))$('riddle').onclick=()=>riddle(h,menu)}else ask();return}
   const id=offers[0],t=TOOLS[id];
-  render('<p>“'+t.intro+'”</p><div class="meter">'+t.name+' <b>'+(s.toolProgress[id]||0)+' / '+t.need+' goed</b></div><p>'+t.use+'</p><div class="row"><button class="primary" id="toolGo">'+((s.toolProgress[id]||0)?'Ga verder met de opdracht':'Start de opdracht')+'</button><button id="research">'+(known?'Gesprek herhalen':'Dorpsonderzoek')+'</button></div>');
+  render('<p>“'+t.intro+'”</p><div class="meter">'+t.name+' <b>'+(s.toolProgress[id]||0)+' / '+t.need+' goed</b></div><p>'+t.use+'</p><div class="row"><button class="primary" id="toolGo">'+((s.toolProgress[id]||0)?'Ga verder met de opdracht':'Start de opdracht')+'</button><button id="research">'+(known?'Gesprek herhalen':'Dorpsonderzoek')+'</button>'+riddleButton(h)+'</div>');if($('riddle'))$('riddle').onclick=()=>riddle(h,menu);
   $('toolGo').onclick=()=>toolQuest(id);$('research').onclick=()=>known?(render('<p>'+h.choices[h.right]+'</p><button id="againTalk">Gesprek herhalen</button>'),$('againTalk').onclick=ask):ask()
  }
  menu()
