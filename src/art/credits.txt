@@ -129,3 +129,12 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
 - Personages: haar en kleding van enkele Rocketbox-bewoners (MIT) zijn opnieuw ingekleurd (natuurlijke stoffen,
   blond en lichtbruin haar).
 - De bedding van de beekjes gebruikt de al vermelde Poly Haven-textuur rocky_gravel (CC0, zie 1.19.0).
+
+1.23.0
+- Rock Face 02 (https://polyhaven.com/a/rock_face_02) en Rock Moss Set 01 (https://polyhaven.com/a/rock_moss_set_01),
+  Poly Haven, CC0. Rotswanden in de kliffen, bij de brugkoppen en op de bergen; bemoste stenen langs de eilandranden.
+  Verkleind naar 2600/1400/700 en 420 driehoeken, texturen 1K en minder verzadigd.
+- Painted Wooden Table (https://polyhaven.com/a/painted_wooden_table) en Painted Wooden Chair 02
+  (https://polyhaven.com/a/painted_wooden_chair_02), Poly Haven, CC0. Boerentafel en stoelen bij Anke, stoel bij Gerrit.
+- Kliffen, metselwerk en akkers gebruiken de al vermelde texturen cliff_side, castle_wall_slates en path in een
+  driezijdige projectie; geen nieuwe texturen.

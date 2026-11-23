@@ -119,17 +119,22 @@ function createWorld(canvas) {
  // Scanned rocks replace the procedural stones once they have loaded. The original instanced mesh keeps
  // its place in the scene (bridges and landing pads toggle it), it takes a third of the stones itself and
  // carries the other two rock shapes as children, so they show and hide with it.
- function dressStones(meshes,names,shadow,tint,fit=1.1){Promise.all(names.map(Models.load)).then(rocks=>{
+ function dressStones(meshes,names,shadow,tint,fit=1.1,mat=null){Promise.all(names.map(Models.load)).then(rocks=>{
   const fix=new T.Matrix4().makeScale(fit,fit,fit),M=new T.Matrix4(),white=new T.Color(1,1,1);
   for(const m of meshes){const sets=rocks.map(()=>[]);for(let j=0;j<m.count;j++){m.getMatrixAt(j,M);const c=new T.Color();if(m.instanceColor)m.getColorAt(j,c);else c.set(0xd2d0c9);sets[j%rocks.length].push([M.clone().multiply(fix),tint?c.set(tint):c.lerp(white,.08)])}
-   rocks.forEach((r,k)=>{const list=sets[k];if(!list.length)return;let t=m;if(k){t=new T.InstancedMesh(r.geometry,r.material,list.length);t.castShadow=shadow;t.receiveShadow=true;m.add(t)}else{m.geometry=r.geometry;m.material=r.material;m.count=list.length}
+   rocks.forEach((r,k)=>{const list=sets[k];if(!list.length)return;let t=m;if(k){t=new T.InstancedMesh(r.geometry,mat||r.material,list.length);t.castShadow=shadow;t.receiveShadow=true;m.add(t)}else{m.geometry=r.geometry;m.material=mat||r.material;m.count=list.length}
     list.forEach(([q,c],j)=>{t.setMatrixAt(j,q);t.setColorAt(j,c)});t.instanceMatrix.needsUpdate=true;t.instanceColor.needsUpdate=true;t.computeBoundingSphere()})}
  }).catch(e=>console.warn('stones',e))}
  // Scanned props: placed once their model has loaded (shared geometry and textures per model).
  const scanReady=!!context&&typeof Models!=='undefined';
  function scanProp(name,x,y,z,ry=0,s=1,parent=null,fallback=null){const sc=Array.isArray(s)?s:[s,s,s];if(!scanReady){if(fallback)fallback();return null}
   const yy=parent?y:y+liftAt(x,z);return Models.load(name).then(r=>{const m=new T.Mesh(r.geometry,r.material);m.position.set(x,yy,z);m.rotation.y=ry;m.scale.set(sc[0],sc[1],sc[2]);m.castShadow=m.receiveShadow=true;(parent||scene).add(m);return m}).catch(e=>{console.warn('scan',name,e);if(fallback)fallback()})}
- function dressCrags(){Promise.all(['crag_a','crag_b'].map(Models.load)).then(([a,b])=>{a.material.color.setRGB(1.4,1.36,1.3);b.material.color.setRGB(1.4,1.36,1.3);return [a,b]}).then(([a,b])=>cragMeshes.forEach((m,k)=>{const r=k%2?b:a;m.geometry=r.geometry;m.material=r.material;m.scale.multiplyScalar(1.08)})).catch(e=>console.warn('crags',e))}
+ // (1.23) The mountain outcrops are scanned rock faces (Rock Face 02) turned away from their peak and sunk into the
+ // slope, so the flanks read as broken cliff bands instead of a pile of loose boulders; every third keeps a boulder scan.
+ function dressCrags(){Promise.all(['crag_a','crag_b','rockface_mid'].map(Models.load)).then(([a,b,f])=>{a.material.color.setRGB(1.4,1.36,1.3);b.material.color.setRGB(1.4,1.36,1.3);const fm=f.material.clone();fm.color.setRGB(.95,.93,.9);fm.side=T.DoubleSide;return [a,b,f,fm]}).then(([a,b,f,fm])=>cragMeshes.forEach((m,k)=>{const c=m.userData.crag;
+  if(c&&k%3!==2){const P=peaks.reduce((q,P)=>Math.hypot(c.x-P.x,c.z-P.z)<Math.hypot(c.x-q.x,c.z-q.z)?P:q,peaks[0]),dx=c.x-P.x,dz=c.z-P.z,s2=c.sc*.62;
+   m.geometry=f.geometry;m.material=fm;m.scale.set(s2*(1.05+.1*Math.sin(k)),s2*(.8+c.sy/c.sc*.35),s2);m.position.y=c.L+c.lo-.45*s2;m.rotation.set(-.12+.08*Math.sin(k*2.3),Math.atan2(dx,dz)+.35*Math.sin(k*1.7),.06*Math.cos(k),'YXZ');return}
+  const r=k%2?b:a;m.geometry=r.geometry;m.material=r.material;m.scale.multiplyScalar(1.08)})).catch(e=>console.warn('crags',e))}
  function flush(){
   for(const [geo,rows] of batches){
    const groups=[rows.filter(r=>!woodenColors.has(r[1])),rows.filter(r=>woodenColors.has(r[1]))];
@@ -138,18 +143,59 @@ function createWorld(canvas) {
   }
   batches.clear()
  }
- // Scanned layered cliff (Poly Haven cliff_side) for every island underside: one shared material.
- let cliffMat=null;function cliffPhoto(){if(!context||typeof Models==='undefined')return null;if(!cliffMat){const map=Models.texture('cliff_diff.jpg',true),nor=Models.texture('cliff_nor.jpg');map.repeat.set(.75,.75);nor.repeat.set(.75,.75);
-  cliffMat=new T.MeshStandardMaterial({vertexColors:true,map,normalMap:nor,roughness:.95,side:T.DoubleSide});cliffMat.color.setRGB(2.2,2.08,1.95)}return cliffMat}
+ // (1.23) Island cliffs. The scanned layered cliff (Poly Haven cliff_side) is projected from three sides in world space
+ // (triplanar), so it never stretches over ledges or tapering rows, at two scales against visible tiling, with its normal
+ // map blended the same way. Moss settles on the upward-facing ledges. Shared by every island underside and the
+ // hanging masses, which also makes the scanned stones under the islands read as the same rock.
+ let cliffMat=null;
+ function triplanar(m,{scale=1/2.6,moss=.85,bounce=1.05,desat=.5}={}){m.onBeforeCompile=sh=>{sh.uniforms.tpScale={value:scale};sh.uniforms.tpMoss={value:moss};sh.uniforms.tpBounce={value:bounce};
+  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vTpPos;varying vec3 vTpNor;').replace('#include <project_vertex>',`#include <project_vertex>
+   vec4 tpw=vec4(transformed,1.);vec3 tpn=objectNormal;
+   #ifdef USE_INSTANCING
+    tpw=instanceMatrix*tpw;tpn=mat3(instanceMatrix)*tpn;
+   #endif
+   vTpPos=(modelMatrix*tpw).xyz;vTpNor=normalize(mat3(modelMatrix)*tpn);`);
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vTpPos;varying vec3 vTpNor;uniform float tpScale,tpMoss,tpBounce;')
+   .replace('#include <map_fragment>',`
+   vec3 tpN=normalize(vTpNor+vec3(1e-5,2e-5,1e-5));vec3 tpB=pow(abs(tpN),vec3(4.))+1e-4;tpB/=tpB.x+tpB.y+tpB.z;vec3 tpP=vTpPos*tpScale;
+   vec4 tpA=texture2D(map,tpP.zy)*tpB.x+texture2D(map,tpP.xz)*tpB.y+texture2D(map,tpP.xy)*tpB.z;
+   vec3 tpQ=vTpPos*tpScale*.29+vec3(.37,.11,.53);
+   vec4 tpC=texture2D(map,tpQ.zy)*tpB.x+texture2D(map,tpQ.xz)*tpB.y+texture2D(map,tpQ.xy)*tpB.z;
+   vec4 tpCol=mix(tpA,tpC,.38);tpCol.rgb=mix(vec3(dot(tpCol.rgb,vec3(.3,.45,.25))),tpCol.rgb,${(1-desat).toFixed(2)});
+   float tpL=dot(tpC.rgb,vec3(.33));
+   float tpMossAmt=tpMoss*smoothstep(.42,.78,tpN.y+(tpL-.45)*.9);
+   tpCol.rgb=mix(tpCol.rgb,vec3(.105,.14,.045)*(.55+1.6*dot(tpA.rgb,vec3(.33))),tpMossAmt);
+   diffuseColor*=tpCol;`).replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n   totalEmissiveRadiance+=diffuseColor.rgb*vec3(.62,.58,.56)*tpBounce*smoothstep(.35,-.85,tpN.y);')
+   .replace('#include <normal_fragment_maps>',m.normalMap?`
+   {vec3 wN=normalize(vTpNor+vec3(1e-5,2e-5,1e-5));vec3 bl=pow(abs(wN),vec3(4.))+1e-4;bl/=bl.x+bl.y+bl.z;vec3 P=vTpPos*tpScale;
+    vec3 nX=texture2D(normalMap,P.zy).xyz*2.-1.,nY=texture2D(normalMap,P.xz).xyz*2.-1.,nZ=texture2D(normalMap,P.xy).xyz*2.-1.;
+    nX.xy*=normalScale;nY.xy*=normalScale;nZ.xy*=normalScale;
+    nX=vec3(nX.xy+wN.zy,abs(nX.z)*wN.x);nY=vec3(nY.xy+wN.xz,abs(nY.z)*wN.y);nZ=vec3(nZ.xy+wN.xy,abs(nZ.z)*wN.z);
+    vec3 wn=normalize(nX.zyx*bl.x+nY.xzy*bl.y+nZ.xyz*bl.z+wN*1e-3);
+    normal=normalize((viewMatrix*vec4(wn,0.)).xyz);
+    #ifdef DOUBLE_SIDED
+     normal*=faceDirection;
+    #endif
+   }`:'#include <normal_fragment_maps>')};
+  m.customProgramCacheKey=()=>'triplanar'+scale+moss+bounce+desat;return m}
+ function cliffPhoto(){if(!context||typeof Models==='undefined')return null;if(!cliffMat){const map=Models.texture('cliff_diff.jpg',true),nor=Models.texture('cliff_nor.jpg');
+  cliffMat=triplanar(new T.MeshStandardMaterial({vertexColors:true,map,normalMap:nor,normalScale:new T.Vector2(1.35,1.35),roughness:.93,side:T.DoubleSide}));cliffMat.color.setRGB(1.55,1.53,1.52)}return cliffMat}
+ // (1.23) Turf: the grass photo at two scales against visible tiling, and large drier and lusher patches from a third,
+ // very coarse sample, so a 25 m lawn is no longer one even green.
+ let turfM=null;function turfMat(){if(turfM)return turfM;turfM=new T.MeshStandardMaterial({vertexColors:true,map:turf,roughness:1,side:T.DoubleSide});
+  turfM.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <map_fragment>',`vec4 g1=texture2D(map,vMapUv),g2=texture2D(map,vMapUv*.27+vec2(.31,.17)),g3=texture2D(map,vMapUv*.061+vec2(.7,.2)),g4=texture2D(map,vMapUv*.017+vec2(.13,.58));
+   float lush=smoothstep(.3,.7,dot(g3.rgb+g4.rgb,vec3(.33))*1.15-.12);vec4 gc=mix(g1,g2,.42);gc.rgb*=mix(vec3(1.1,1.05,.84),vec3(.94,1.06,.92),lush);diffuseColor*=gc;`)};
+  turfM.customProgramCacheKey=()=>'turf123';return turfM}
+ // Deterministic 3D value noise for the cliff shapes (no random numbers, so nothing placed later moves).
+ const hash3=(x,y,z)=>{const n=Math.sin(x*127.1+y*311.7+z*74.7)*43758.5453;return n-Math.floor(n)};
+ function vnoise(x,y,z){const xi=Math.floor(x),yi=Math.floor(y),zi=Math.floor(z),xf=x-xi,yf=y-yi,zf=z-zi,u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf),w=zf*zf*(3-2*zf),L=(a,b,t)=>a+(b-a)*t,c=(i,j,k)=>hash3(xi+i,yi+j,zi+k);
+  return L(L(L(c(0,0,0),c(1,0,0),u),L(c(0,1,0),c(1,1,0),u),v),L(L(c(0,0,1),c(1,0,1),u),L(c(0,1,1),c(1,1,1),u),v),w)*2-1}
+ const fbm3=(x,y,z)=>vnoise(x,y,z)*.55+vnoise(x*2.03+5.2,y*2.03,z*2.03)*.28+vnoise(x*4.1,y*4.1+1.7,z*4.1)*.17;
  // Rounded grass lip, smooth cliff with soil band and rock, tapering to a point. The walkable top stays flat.
  function island(x,z,r,land,depth=15,h=0){
   for(let i=0;i<684;i++)rnd(); // keeps every later random placement exactly where it was
   const N=96,s=(Math.abs(x*13.7+z*7.1)%97),rim=a=>1+.013*Math.sin(a*9)+.008*Math.sin(a*17);
   const n=(a,y)=>.55*Math.sin(a*3+s)+.3*Math.sin(a*7+y*.35+s*1.7)+.15*Math.sin(a*13-y*.6+s*2.3);
-  // underside: a soil band under the turf, then rock strata that step inwards in ledges down to a ragged tip
-  const strata=[.0,.07,.11,.2,.24,.34,.38,.5,.54,.66,.7,.8,.86,.93,1];
-  const profile=[[1.012,-.13,0],[1.02,-.45,1],[1.0,-1.0,1],...strata.slice(1).map((t,i)=>{const ledge=i%2?.06:0;return [Math.max(.015,(1-Math.pow(t,1.35))*.97-ledge),-1.0-t*(depth*1.22-1.0),t<.45?2:3]})];
-  const band=[0x45642c,0x5a4634,0x7d7871,0x57545c];
   const top=[],topC=[],topUv=[],topIdx=[],cliff=[],cliffC=[],cliffUv=[],cliffIdx=[],c=new T.Color(),grassTint=new T.Color(land).lerp(new T.Color(0x9cc07c),.6);
   top.push(x,h,z);c.copy(grassTint);topC.push(c.r,c.g,c.b);topUv.push(0,0);
   const fr=[.3,.6,.85,1,1.012,1.022];
@@ -157,15 +203,24 @@ function createWorld(canvas) {
    const px=x+Math.cos(a)*rad,pz=z+Math.sin(a)*rad;top.push(px,h+y,pz);c.copy(grassTint).multiplyScalar(ring>=4?.78-(ring-4)*.12:.93+.07*Math.sin(a*5+s));topC.push(c.r,c.g,c.b);topUv.push((px-x)/6,(pz-z)/6)}
   for(let i=0;i<N;i++)topIdx.push(0,1+i+1,1+i);
   for(let ring=0;ring<fr.length-1;ring++)for(let i=0;i<N;i++){const a=1+ring*(N+1)+i,b=a+N+1;topIdx.push(a,a+1,b,a+1,b+1,b)}
-  const rows=profile.length;
-  for(let k=0;k<rows;k++){const [rr,yy,bi]=profile[k],deep=k>=3;
-   for(let i=0;i<=N;i++){const a=i/N*Math.PI*2,rad=r*rr*(deep?1+.11*n(a,yy):rim(a)),wob=deep?n(a*1.3,yy*2)*depth*.012+.08*Math.sin(a*29+k*2.1+s):0;
-    const crag=deep?1+.07*Math.sin(a*41+s+k)+.05*Math.sin(a*67+yy)+.04*Math.sin(a*23-k*1.7):1;const px=x+Math.cos(a)*rad*crag,py=h+yy+wob,pz=z+Math.sin(a)*rad*crag;cliff.push(px,py,pz);
-    c.set(band[bi]).lerp(new T.Color(band[Math.min(3,bi+1)]),(.5+.5*n(a*2,yy))*.6).multiplyScalar(1-k/rows*.25);cliffC.push(c.r,c.g,c.b);cliffUv.push(a*r/4,py/4)}}
-  for(let k=0;k<rows-1;k++)for(let i=0;i<N;i++){const a=k*(N+1)+i,b=a+N+1;cliffIdx.push(a,b,a+1,a+1,b,b+1)}
+  // (1.23) underside: a thin soil band under the turf, then a tall weathered rock wall that steps in at ledges of
+  // overhanging strata and tapers in spurs to a ragged tip. Shaped by 3D noise in world metres (so neighbouring rows
+  // and islands never repeat), with vertical gullies; the triplanar rock material does the rest.
+  const far=Math.hypot(x,z)>100,NC=Math.round(Math.min(far?64:144,Math.max(48,r*5.6))),K=far?20:r>=14?34:r>=8?24:18,D=depth*1.22,band=[0x4a3c2c,0x948f86,0x9c978e,0x77736c],sp=3+Math.floor(s%3),ph=s*.37;
+  for(let k=0;k<K;k++){const t=k/(K-1),y=-.3-Math.pow(t,1.12)*(D-.3);
+   const base=t<.3?1.018-.075*(t/.3):t<.68?.943-.45*Math.pow((t-.3)/.38,1.15):Math.max(.02,.493*Math.pow(1-(t-.68)/.32,1.55));
+   const amp=t<.03?.004:t<.12?.03+.4*(t-.03):t<.6?.07:.07+.2*(t-.6)/.4;
+   for(let i=0;i<=NC;i++){const a=i/NC*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a),wx=x+ca*r,wz=z+sa*r;
+    const nz=fbm3(wx/6.5,(h+y)/4.2,wz/6.5),big=fbm3(ca*1.4+s,t*1.8,sa*1.4),gul=Math.pow(Math.abs(Math.sin(a*r*.52+nz*2.4)),10)*(t<.06?0:.06);
+    const f=(t*(6.5+1.5*big)+.25*nz+.13*Math.sin(k*1.7+s))%1,ledge=t<.04||t>.9?0:(f<.2?-.055*(f/.2):-.055*(1-(f-.2)/.8))*(.6+.8*Math.abs(nz));
+    const spur=t>.45?Math.pow(Math.max(0,Math.cos(a*sp+ph+big*1.2)),3)*Math.min(1,(t-.45)/.3):0;
+    const rad=r*(base*(t<.05?rim(a):1)*(1+(t>.08?.13*big+.35*spur*(t-.45):0))+ledge*Math.min(1,base*1.4))*(1+amp*nz)-r*gul*base;
+    const px=x+ca*rad,py=h+y+(t>.05?nz*.45:0)-spur*D*.22*Math.max(0,t-.45),pz=z+sa*rad;cliff.push(px,py,pz);
+    const bi=t<.035?0:t<.35?1:t<.75?2:3;c.set(band[bi]).lerp(new T.Color(band[Math.min(3,bi+1)]),.5+.5*nz).multiplyScalar(1-t*.22);cliffC.push(c.r,c.g,c.b);cliffUv.push(a*r/4,py/4)}}
+  for(let k=0;k<K-1;k++)for(let i=0;i<NC;i++){const a=k*(NC+1)+i,b=a+NC+1;cliffIdx.push(a,a+1,b,a+1,b+1,b)}
   for(const [points,tints,uv,index,map] of [[top,topC,topUv,topIdx,turf],[cliff,cliffC,cliffUv,cliffIdx,rockMap]]){
    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(points,3));g.setAttribute('color',new T.Float32BufferAttribute(tints,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(index);g.computeVertexNormals();
-   const rock=map===rockMap,m=new T.Mesh(g,rock&&cliffPhoto()||new T.MeshStandardMaterial({vertexColors:true,map,roughness:1,flatShading:rock,side:T.DoubleSide}));m.receiveShadow=map===turf;m.castShadow=rock;scene.add(m)
+   const rock=map===rockMap,m=new T.Mesh(g,rock&&cliffPhoto()||(!rock&&turfMat())||new T.MeshStandardMaterial({vertexColors:true,map,roughness:1,flatShading:rock,side:T.DoubleSide}));m.receiveShadow=map===turf;m.castShadow=rock;scene.add(m)
   }
   // hanging rocks under the island and roots dangling from the soil band (own random stream, absolute heights)
   let q=Math.floor(s*1000)+7;const R=()=>(q=(q*16807)%2147483647)/2147483647;liftOff=true;
@@ -217,8 +272,10 @@ function createWorld(canvas) {
    cord(mx,my,mz,bx,by,bz,.045,0x6b5446,barkTrunk);ends.push([ex,ey-L,ez,1,a],[bx,by-L,bz,.75,b])}
   liftOff=false;
   ends.forEach(([ex,ey,ez,k,a],i)=>{const s0=h*cluster*k*(.85+hs(70+i)*.35);
-   shape(bushGeo,tones[i%tones.length],ex,ey-s0*.15,ez,s0,s0*.72,s0,a*2);
-   const ox=Math.cos(a)*s0*.6,oz=Math.sin(a)*s0*.6;shape(bushGeo,tones[(i+1)%tones.length],ex+ox,ey+s0*.18,ez+oz,s0*.72,s0*.55,s0*.72,a*3)});
+   shape(bushGeo,tones[i%tones.length],ex,ey-s0*.15,ez,s0,s0*.86,s0,a*2);
+   const ox=Math.cos(a)*s0*.6,oz=Math.sin(a)*s0*.6;shape(bushGeo,tones[(i+1)%tones.length],ex+ox,ey+s0*.18,ez+oz,s0*.72,s0*.7,s0*.72,a*3);
+   // (1.23) a darker inner cluster under each crown, so from the side a tree has volume instead of a thin parasol of cards
+   shape(bushGeo,new T.Color(tones[(i+2)%tones.length]).multiplyScalar(.72).getHex(),ex-ox*.6,ey-s0*.55,ez-oz*.6,s0*.8,s0*.62,s0*.8,a*5)});
   shape(bushGeo,tones[0],x+(hs(90)-.5)*h*.1,fork+h*.42,z+(hs(91)-.5)*h*.1,h*cluster*.9,h*cluster*.6,h*cluster*.9,hs(92)*6);
   return ends}
  function cherry(x,z,h){lastPine=null;canopies.push({x,z,y:h*.45+liftAt(x,z),h:h*.6,r:h*.5});
@@ -230,6 +287,10 @@ function createWorld(canvas) {
  }
  const frontPanel=surfaced(new T.PlaneGeometry(),'front'),sidePanel=surfaced(new T.PlaneGeometry(),'side');
  const masonry=surfaced(cube.clone(),'masonry'),slate=surfaced(cube.clone(),'slate');
+ // (1.23) Masonry was a 203 x 290 px photo stretched once over every block, plinth and tower. Now the 1K dressed-stone
+ // scan, projected in world metres from three sides: a 5 m plinth and a 40 cm post show stones of the same size.
+ const stoneTri=scanReady?triplanar(new T.MeshStandardMaterial({map:Models.texture('wallslate_diff.jpg',true),normalMap:Models.texture('wallslate_nor.jpg'),normalScale:new T.Vector2(1.2,1.2),roughness:.92}),{scale:1/2.2,moss:0,bounce:0,desat:.1}):null;
+ if(stoneTri)masonry.userData.surface=stoneTri;
  const rope=new T.CylinderGeometry(1,1,1,7),iron=0x39372e;
  function cord(x1,y1,z1,x2,y2,z2,r,color,geo=rope){
   const dx=x2-x1,dy=y2-y1,dz=z2-z1,len=Math.hypot(dx,dy,dz);
@@ -433,8 +494,11 @@ function createWorld(canvas) {
   if(stone){const tone=x>30?0xf4ecdc:0xc8c0b6;shape(stoneWall,tone,x,h/2,z,w,h,d);for(const sx of [-1,1])for(const sz of [-1,1])for(let k=0;k<6;k++)shape(stoneWall,tone,x+sx*(w/2-.12+(k%2?.06:0)),.3+k*.55,z+sz*(d/2-.12+(k%2?0:.06)),.42+(k%2?.18:0),.34,.42+(k%2?0:.18));
    let P=frame(x,0,front,0);
    doorAt(P,-.22*w,0,0,0x5d3f2a);
-   P(ember,0xffffff,.26*w,1.0,.03,.95,.7,.06);P(masonry,0x8c7f72,.26*w,1.42,.12,1.25,.16,.3);P(masonry,0x8c7f72,.26*w,.58,.12,1.25,.16,.3);for(const s of [-1,1])P(masonry,0x8c7f72,.26*w+s*.56,1.0,.12,.16,.95,.3);
-   P(cube,0x3a3a3c,.05*w,.42,1.25,.7,.22,.32);P(cube,0x2c2c2e,.05*w,.2,1.25,.32,.4,.26);P(cone,0x3a3a3c,.05*w+.48,.45,1.25,.12,.32,.12,Math.PI/2);
+   // (1.23) only the smithy (Mara, x<30) has a forge in its front wall: a dark firebox with glowing coals at the bottom
+   // and the anvil before it; the stonemason (Joost) gets a framed window instead of a second forge
+   if(x<30){P(cube,0x120a06,.26*w,1.0,.01,.95,.7,.06);P(ember,0xffffff,.26*w,.74,.04,.9,.2,.06);P(masonry,0x8c7f72,.26*w,1.42,.12,1.25,.16,.3);P(masonry,0x8c7f72,.26*w,.58,.12,1.25,.16,.3);for(const s of [-1,1])P(masonry,0x8c7f72,.26*w+s*.56,1.0,.12,.16,.95,.3);
+   P(cube,0x3a3a3c,.05*w,.42,1.25,.7,.22,.32);P(cube,0x2c2c2e,.05*w,.2,1.25,.32,.4,.26);P(cone,0x3a3a3c,.05*w+.48,.45,1.25,.12,.32,.12,Math.PI/2)}
+   else windowAt(P,.26*w,1.75,0,.8,.9,0x5a4a3c,true);
    P(cyl,0x6b4a30,-.48*w,.42,.75,.34,.84,.34);solids.add({x:x-.48*w,z:front+.75,r:.36,base:0,top:.86});solids.add({x:x+.05*w+.1,z:front+1.25,w:.5,d:.2,base:0,top:.55});
    for(const side of [-1,1]){P=frame(x+side*w/2,0,z,side*Math.PI/2);windowAt(P,0,1.75,0,.7,.82,0x5a4a3c,false)}
    gables(x,z,w,d,h,rise,false);roof(x,z,w,d,h,rise,slate,0xbcb2a6,.42);
@@ -671,12 +735,13 @@ function createWorld(canvas) {
   // the scanned vintage airship (Evan16, CC BY 4.0) replaces the drawn one once loaded: bow forward, envelope in the
   // warm cream of the title art, about 24 m long
   if(scanReady)Models.load('sf_airship').then(r=>{const m=new T.Mesh(r.geometry,r.material);const S=.56;m.scale.setScalar(S);m.rotation.y=Math.PI;m.position.y=-9.9*S;
-   if(Array.isArray(m.material))m.material[1].color.setRGB(1.08,.98,.84);g.add(m);body.visible=false;ship.props=[]}).catch(e=>console.warn('airship',e));
+   // (1.23) envelope in warm oiled canvas and a wooden gondola, like the airship on the title art
+   if(Array.isArray(m.material)){m.material[0].color.setRGB(.95,.5,.22);m.material[0].roughness=.85;m.material[0].metalness=0;m.material[0].metalnessMap=null;m.material[0].needsUpdate=true;m.material[1].color.setRGB(1.75,1.32,.95);m.material[1].metalness=.25;m.material[1].needsUpdate=true}g.add(m);body.visible=false;ship.props=[]}).catch(e=>console.warn('airship',e));
   return g}
  // Falling water: streaks of foam race down, the sheet frays at the edges and dissolves into mist.
  const cascadeUniforms={time:{value:0}};
- function cascadeMaterial(tint=0xcfe7ef,opacity=.92){return new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,fog:true,
-  uniforms:T.UniformsUtils.merge([T.UniformsLib.fog,{tint:{value:new T.Color(tint)},opacity:{value:opacity}}]),
+ function cascadeMaterial(tint=0xcfe7ef,opacity=.92,lip=1){return new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,fog:true,
+  uniforms:T.UniformsUtils.merge([T.UniformsLib.fog,{tint:{value:new T.Color(tint)},opacity:{value:opacity},lip:{value:lip}}]),
   vertexShader:`#include <common>
 #include <fog_pars_vertex>
 varying vec2 vUv;void main(){vUv=uv;vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;
@@ -684,7 +749,7 @@ varying vec2 vUv;void main(){vUv=uv;vec4 mvPosition=modelViewMatrix*vec4(positio
 }`,
   fragmentShader:`#include <common>
 #include <fog_pars_fragment>
-uniform float time;uniform vec3 tint;uniform float opacity;varying vec2 vUv;
+uniform float time;uniform vec3 tint;uniform float opacity;uniform float lip;varying vec2 vUv;
 float hh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float nz(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hh(i),hh(i+vec2(1,0)),f.x),mix(hh(i+vec2(0,1)),hh(i+vec2(1,1)),f.x),f.y);}
 void main(){float y=vUv.y;
@@ -692,7 +757,7 @@ void main(){float y=vUv.y;
  float edge=smoothstep(0.,.25,vUv.x)*smoothstep(1.,.75,vUv.x);
  float holes=smoothstep(.18,.5,nz(vec2(vUv.x*7.,vUv.y*2.2+time*1.6)));
  float a=edge*(.45+.55*s)*mix(.55,1.,holes)*smoothstep(0.,.3,y);
- float foam=smoothstep(.9,1.,y);
+ float foam=smoothstep(.9,1.,y)*lip*smoothstep(1.,.975,y);a*=mix(smoothstep(1.,.84,y),smoothstep(1.,.985,y),lip);
  vec3 col=mix(tint*.78,vec3(1.),clamp(s*.75+foam,0.,1.));
  gl_FragColor=vec4(col,clamp(a+foam*.35,0.,1.)*opacity);
 #include <fog_fragment>
@@ -813,10 +878,11 @@ void main(){float u=vUv.x,v=vUv.y;
   for(let i=0;i<rings;i++)for(let j=0;j<segs;j++){const a=i*segs+j,b=i*segs+(j+1)%segs,c2=(i+1)*segs+j,d=(i+1)*segs+(j+1)%segs;idx.push(a,c2,b,b,c2,d)}
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(col,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));g.setAttribute('rocky',new T.Float32BufferAttribute(rocky,1));g.setAttribute('snow',new T.Float32BufferAttribute(snowy,1));g.setIndex(idx);g.computeVertexNormals();
   // grass on the gentle slopes, bare rock where it gets steep: two textures blended per vertex
-  const hillMat=new T.MeshStandardMaterial({map:turf,vertexColors:true,roughness:.95});
+  // (1.23) double-sided: where the camera or a view grazes the slope you see rock, never through the hill into the boulders
+  const hillMat=new T.MeshStandardMaterial({map:turf,vertexColors:true,roughness:.95,side:T.DoubleSide});
   hillMat.onBeforeCompile=sh=>{sh.uniforms.rockTex={value:context&&typeof Models!=='undefined'?Models.texture('alp_diff.jpg',true):loadSurface('rock-grey.jpg')};
-   sh.vertexShader='attribute float rocky;\nattribute float snow;\nvarying float vRocky;\nvarying float vSnow;\n'+sh.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\nvRocky=rocky;vSnow=snow;');
-   sh.fragmentShader='uniform sampler2D rockTex;\nvarying float vRocky;\nvarying float vSnow;\n'+sh.fragmentShader.replace('#include <map_fragment>','vec4 grassT=texture2D(map,vMapUv);vec4 rockT=texture2D(rockTex,vMapUv*.7);diffuseColor*=mix(grassT*vec4(.92,1.02,.78,1.),rockT*vec4(1.05,1.02,.98,1.),clamp(vRocky,0.,1.));float sn=clamp(vSnow*1.7-(.55-rockT.g)*2.2-vRocky*.45,0.,1.);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.94,.97,1.)*(.9+.1*rockT.r),sn);')};
+   sh.vertexShader='attribute float rocky;\nattribute float snow;\nvarying float vRocky;\nvarying float vSnow;\nvarying vec3 vHP;varying vec3 vHN;\n'+sh.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\nvRocky=rocky;vSnow=snow;').replace('#include <project_vertex>','#include <project_vertex>\nvHP=(modelMatrix*vec4(transformed,1.)).xyz;vHN=normalize(mat3(modelMatrix)*objectNormal);');
+   sh.fragmentShader='uniform sampler2D rockTex;\nvarying float vRocky;\nvarying float vSnow;\nvarying vec3 vHP;varying vec3 vHN;\n'+sh.fragmentShader.replace('#include <map_fragment>','vec4 grassT=texture2D(map,vMapUv);vec3 hb=pow(abs(normalize(vHN+vec3(1e-5,2e-5,1e-5))),vec3(4.))+1e-4;hb/=hb.x+hb.y+hb.z;vec3 hp=vHP*.18;vec4 rockT=texture2D(rockTex,hp.zy)*hb.x+texture2D(rockTex,hp.xz)*hb.y+texture2D(rockTex,hp.xy)*hb.z;diffuseColor*=mix(grassT*vec4(.92,1.02,.78,1.),rockT*vec4(1.05,1.02,.98,1.),clamp(vRocky,0.,1.));float sn=clamp(vSnow*1.7-(.55-rockT.g)*2.2-vRocky*.45,0.,1.);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.94,.97,1.)*(.9+.1*rockT.r),sn);')};
   const hill=new T.Mesh(g,hillMat);hill.receiveShadow=hill.castShadow=true;scene.add(hill);
   // crags: faceted rock outcrops on the steep flanks and around the summit
   const cragGeo=new T.IcosahedronGeometry(1,2);{const q=cragGeo.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),k=1+.28*Math.sin(x*4.1+y*2.3)*Math.cos(z*3.7)+.14*Math.sin(y*7+x*5);q.setXYZ(i,x*k*1.1,y*k*.8,z*k)}cragGeo.computeVertexNormals()}
@@ -825,7 +891,7 @@ void main(){float u=vUv.x,v=vUv.y;
   // so the downhill side never hangs in the air; the uphill side disappears into the mountain.
   function placeCrag(x,z,sc,sy,L,r1,r2,r3){let lo=mountainH(x,z);for(let i=0;i<10;i++){const a=i/10*Math.PI*2;for(const f of [.55,1.05])lo=Math.min(lo,mountainH(x+Math.cos(a)*sc*f,z+Math.sin(a)*sc*.9*f))}
    const gx=mountainH(x+.4,z)-mountainH(x-.4,z),gz=mountainH(x,z+.4)-mountainH(x,z-.4),m=new T.Mesh(cragGeo,cragMat);
-   cragMeshes.push(m);m.position.set(x,L+lo+sy*.1,z);m.scale.set(sc,sy,sc*.9);m.rotation.set(Math.atan(gz/.8)*.45+r1*.3-.15,r2*6,-Math.atan(gx/.8)*.45+r3*.3-.15,'YXZ');m.castShadow=m.receiveShadow=true;scene.add(m);
+   cragMeshes.push(m);m.userData.crag={x,z,L,lo,sc,sy};m.position.set(x,L+lo+sy*.1,z);m.scale.set(sc,sy,sc*.9);m.rotation.set(Math.atan(gz/.8)*.45+r1*.3-.15,r2*6,-Math.atan(gx/.8)*.45+r3*.3-.15,'YXZ');m.castShadow=m.receiveShadow=true;scene.add(m);
    solids.add({x,z,r:sc*.8,base:L+lo-1,top:L+lo+sy*.95});rockAt(x,z,sc*.8)}
   let cs=733;const cr=()=>(cs=(cs*16807)%2147483647)/2147483647;
   for(let k=0,made=0;k<220&&made<16;k++){const a=cr()*6.28,rr=1.5+cr()*(peak.R-2),x=peak.x+Math.cos(a)*rr,z=peak.z+Math.sin(a)*rr,h=mountainH(x,z),sl=Math.hypot(mountainH(x+.3,z)-h,mountainH(x,z+.3)-h)/.3;
@@ -848,7 +914,7 @@ void main(){float u=vUv.x,v=vUv.y;
   const stream=new T.Mesh(bg,brookMaterial(run/3));stream.material.uniforms.time=cascadeUniforms.time;stream.renderOrder=2;scene.add(stream);
   wetStones(brook,(x,z)=>mountainH(x,z),.35);brookBed(brook,(x,z)=>mountainH(x,z),t=>(.32+.35*t)*1.35,60);
   const [ex,ez]=brook[brook.length-1],fallMat=new T.MeshBasicMaterial({map:loadSurface('cascade.png'),transparent:true,depthWrite:false,side:T.DoubleSide});fallMat.map.wrapT=T.RepeatWrapping;fallMat.map.repeat.set(1,3);
-  for(const [wd,off,op,sd] of [[2.4,0,.95,0],[3.4,.3,.45,2],[1.3,.12,.75,4]]){const fall=new T.Mesh(fallGeo(wd,26,sd),cascadeMaterial(0xd5ecf3,op));fall.material.uniforms.time=cascadeUniforms.time;fall.position.set(ex+.35+off,-12.9,ez+.2);fall.rotation.y=Math.PI/2-.12;fall.renderOrder=3;scene.add(fall)}
+  for(const [wd,off,op,sd] of [[2.4,0,.95,0],[3.4,.3,.45,2],[1.3,.12,.75,4]]){const fall=new T.Mesh(fallGeo(wd,26,sd),cascadeMaterial(0xd5ecf3,op,sd===0?1:0));fall.material.uniforms.time=cascadeUniforms.time;fall.position.set(ex+.35+off,-12.9,ez+.2);fall.rotation.y=Math.PI/2-.12;fall.renderOrder=3;scene.add(fall)}
   mist(ex+1.2,-24,ez,9);mist(ex+.8,.4,ez+.2,2.2);
   torrents.push(stream);
   // a small pool where the brook starts, fed by a spring among the rocks
@@ -877,7 +943,7 @@ void main(){float u=vUv.x,v=vUv.y;
   const stream=new T.Mesh(bg,brookMaterial(run/3));stream.material.uniforms.time=cascadeUniforms.time;stream.renderOrder=2;scene.add(stream);torrents.push(stream);
   liftOff=true;wetStones(B,(x,z)=>L+mountainH(x,z),.38);liftOff=false;brookBed(B,(x,z)=>L+mountainH(x,z),t=>(.3+.38*t)*1.35,48);
   const [ex,ez]=B[B.length-1],ang=Math.atan2(ex-I.x,ez-I.z),ox=Math.sin(ang),oz=Math.cos(ang),fallH=I.r*.8+10;
-  for(const [wd,off,op,sd] of [[2.2,.25,.95,1],[3.2,.5,.45,3],[1.2,.35,.75,5]]){const fall=new T.Mesh(fallGeo(wd,fallH,sd),cascadeMaterial(0xd5ecf3,op));fall.material.uniforms.time=cascadeUniforms.time;fall.position.set(ex+ox*off,L-fallH/2+.12,ez+oz*off);fall.rotation.y=ang;fall.renderOrder=3;scene.add(fall)}
+  for(const [wd,off,op,sd] of [[2.2,.25,.95,1],[3.2,.5,.45,3],[1.2,.35,.75,5]]){const fall=new T.Mesh(fallGeo(wd,fallH,sd),cascadeMaterial(0xd5ecf3,op,sd===1?1:0));fall.material.uniforms.time=cascadeUniforms.time;fall.position.set(ex+ox*off,L-fallH/2+.12,ez+oz*off);fall.rotation.y=ang;fall.renderOrder=3;scene.add(fall)}
   mist(ex+ox*1.2,L-fallH+2,ez+oz*1.2,8);mist(ex+ox*.6,L+.4,ez+oz*.6,2);
   // Springs should not inherit the river's animated UV offset (PR #8). Share image pixels, not texture transforms.
   const poolMaterial=HL.flow.clone();poolMaterial.map=HL.flow.map.clone();poolMaterial.map.repeat.set(1,1);
@@ -1133,7 +1199,7 @@ void main(){float u=vUv.x,v=vUv.y;
   millDebris=group(-68,0,-62);for(const [x,z,r,k] of [[2,2.4,.4,1],[-1.4,2.8,1.2,.8],[.9,3.3,2.1,.7],[2.6,1.4,.3,.9]])shape(stoneGeo,0x9d9384,x,.22*k,z,.6*k,.42*k,.5*k,r,0,0,millDebris);
   for(const [x,z,r,t] of [[-.4,3.6,.5,.25],[1.6,3.0,1.9,-.2],[-2.2,2.0,1.1,.35]])shape(cube,0x8a6a48,x,.12,z,.13,.09,2.3,r,t,0,millDebris);solids.add({x:-68,z:-62,r:2.6,base:0,top:9});keepOut(-68,-62,4.2);
   hut(-50,-67,6,1,true);keepOut(-50,-67,4.8);tradeSign(-52.88,3.55,-64.4,0,'BOERDERIJ','boer');if(scanReady){scanProp('sf_ladder',-45.9,0,-64.4,.9,1);solids.add({x:-45.9,z:-64.4,r:.55,base:0,top:1.85});keepOut(-45.9,-64.4,1)}
-  {const wx=-62,wz=-54,ring=new T.CylinderGeometry(1,1,1,24,1,true);ring.userData.surface=new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xd8cfbf,roughness:.95,side:T.DoubleSide});
+  {const wx=-62,wz=-54,ring=new T.CylinderGeometry(1,1,1,24,1,true);ring.userData.surface=stoneTri?Object.assign(stoneTri.clone(),{side:T.DoubleSide}):new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xd8cfbf,roughness:.95,side:T.DoubleSide});if(stoneTri){ring.userData.surface.onBeforeCompile=stoneTri.onBeforeCompile;ring.userData.surface.customProgramCacheKey=stoneTri.customProgramCacheKey;ring.userData.surface.color.set(0xd8cfbf)}
    // fieldstone well: an open stone ring with a capstone rim, dark water, a timber frame with a shingle roof, a crank, rope and bucket
    shape(ring,0xffffff,wx,.45,wz,.85,.9,.85);shape(ring,0xffffff,wx,.45,wz,.66,.9,.66);shape(new T.TorusGeometry(.76,.11,6,24),0xcfc4b0,wx,.92,wz,1,1,1,0,0,Math.PI/2);shape(cyl,0x1c2a30,wx,.55,wz,.66,.02,.66);
    for(const o of [-.78,.78])shape(beam,0xffffff,wx+o,1.45,wz,.12,1.9,.12);shape(beam,0xffffff,wx,2.36,wz,1.9,.1,.12);
@@ -1141,16 +1207,22 @@ void main(){float u=vUv.x,v=vUv.y;
    shape(cyl,0x6b4f3a,wx,1.78,wz,.09,1.45,.09,0,0,Math.PI/2);shape(beam,0x3a3a3c,wx+.86,1.7,wz+.12,.04,.04,.3);cord(wx,1.78,wz,wx,1.12,wz,.012,0x8a7350);
    shape(cyl,0x7a5a3c,wx,1.0,wz,.13,.2,.13);shape(new T.TorusGeometry(.13,.012,4,16),0x3a3a3c,wx,1.08,wz,1,1,1,0,0,Math.PI/2);solids.add({x:wx,z:wz,r:.95,base:0,top:2.9});keepOut(wx,wz,1.8)}
   const straw=canvasTex(256,256,c=>{c.fillStyle='#c4a256';c.fillRect(0,0,256,256);for(let i=0;i<1400;i++){const x=Math.random()*256,y=Math.random()*256,l=6+Math.random()*16,a=1.25+Math.random()*.6;c.strokeStyle=['#e3c779','#a8833f','#d6b768','#8f6d33'][i%4];c.lineWidth=.8+Math.random();c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l);c.stroke()}});straw.wrapS=straw.wrapT=T.RepeatWrapping;
-  const strawMat=new T.MeshStandardMaterial({map:straw,roughness:1}),hayGeo=new T.LatheGeometry([[0,0],[1.3,0],[1.4,.45],[1.36,1.25],[1.15,1.95],[.8,2.5],[.4,2.85],[0,2.95]].map(([r,y])=>new T.Vector2(r,y)),28);hayGeo.userData.surface=strawMat;
+  const soilMat=triplanar(new T.MeshStandardMaterial({map:loadSurface('path.jpg'),roughness:1}),{scale:1/1.4,moss:0,bounce:0,desat:.25}),soilBox=withSurface(cube.clone(),soilMat),soilRidge=withSurface(cyl.clone(),soilMat);
+  const strawMat=new T.MeshStandardMaterial({map:straw,roughness:1}),hayProfile=[[0,0],[1.18,0],[1.38,.18],[1.45,.5],[1.42,.95],[1.36,1.3],[1.25,1.7],[1.08,2.08],[.86,2.42],[.6,2.7],[.34,2.88],[.12,2.98],[0,3.0]],hayGeo=new T.LatheGeometry(hayProfile.map(([r,y])=>new T.Vector2(r,y)),56);
+  // (1.23) a hand-built rick: the lathe is roughened with noise (lumps, a slight lean, a ragged skirt) instead of a smooth egg
+  {const q=hayGeo.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i),y=q.getY(i),z=q.getZ(i),rr=Math.hypot(x,z);if(rr<1e-4)continue;
+    const n=fbm3(x*1.7,y*1.9,z*1.7),skirt=y<.25?.06*Math.sin(Math.atan2(z,x)*23):0,k=1+.09*n+skirt+(y<.6?.03:0);q.setXYZ(i,x*k+.05*y,y*(1+.03*n),z*k)}hayGeo.computeVertexNormals()}
+  hayGeo.userData.surface=strawMat;
   const baleGeo=new T.CylinderGeometry(1,1,1,28);baleGeo.userData.surface=strawMat;
   const wheatGeo=plantGeo((pos,idx)=>{for(let k=0;k<9;k++){const a=k*2.4,r0=.03+.09*((k*7)%5)/5,x=Math.cos(a)*r0,z=Math.sin(a)*r0,h=.72+.12*((k*3)%4)/3,lean=.05*Math.cos(a*3);
     for(const [ox,oz] of [[.006,0],[0,.006]]){const b=pos.length/3;pos.push(x-ox,0,z-oz,x+ox,0,z+oz,x+lean+ox,h,z+oz,x+lean-ox,h,z-oz);idx.push(b,b+1,b+2,b,b+2,b+3)}
     leafSet(pos,idx,x+lean,h-.03,z,a,1.32,.14,.04)}},new T.MeshStandardMaterial({color:0xffffff,side:T.DoubleSide,roughness:.8}));
   // fruit trees: the same limb structure, low and spreading, with a green crown (1.21.1)
-  function appleTree(x,z,h){lastPine=null;appleTrees.push({x,z,h,y:liftAt(x,z)});limbTree(x,z,h,[0x4f7d32,0x5b8b3b,0x3f6e2c],.95,.2);
+  function appleTree(x,z,h){lastPine=null;appleTrees.push({x,z,h,y:liftAt(x,z)});limbTree(x,z,h,[0x46682c,0x52733a,0x3a5a28],.95,.2);
    for(let k=0;k<12;k++){const a=k*2.4+z,e=.1+(k%4)*.2,r=1.25*Math.cos(e);shape(appleGeo,k%3?0xb3262a:0xc9572c,x+Math.cos(a)*r,h*.62+Math.sin(e)*.8,z+Math.sin(a)*r,.07,.07,.07)}}
-  function field(x0,x1,z0,z1,crop,stone=false,gate=0){const cx=(x0+x1)/2,cz=(z0+z1)/2,gx=cx+gate;shape(cube,0x6b4a2e,cx,.04,cz,x1-x0,.08,z1-z0);
-   for(let z=z0+.5;z<z1-.3;z+=.8){shape(cube,0x5e4128,cx,.12,z,x1-x0-.4,.16,.42);for(let x=x0+.45;x<x1-.3;x+=crop?.42:.7){const j=Math.sin(x*12.9+z*7.3);crop?shape(wheatGeo,j>0?0xd9b862:0xc9a552,x+j*.05,.16,z,1,.9+.12*j,1,j*3):(shape(leafGeo,j>0?0x5d8f4c:0x6b9a52,x,.14,z,1.7,1.05,1.7,j*3),shape(ball,0x9cc37a,x,.24,z,.1,.09,.1))}}
+  // (1.23) tilled soil (triplanar earth) with rounded ridges; plants stand a little off the line, vary in size and leave gaps
+  function field(x0,x1,z0,z1,crop,stone=false,gate=0){const cx=(x0+x1)/2,cz=(z0+z1)/2,gx=cx+gate;shape(soilBox,0xd2bea4,cx,.04,cz,x1-x0,.08,z1-z0);
+   for(let z=z0+.5;z<z1-.3;z+=.8){shape(soilRidge,0xe2d0b6,cx,.08,z,.12,x1-x0-.4,.24,0,Math.PI/2);for(let x=x0+.45;x<x1-.3;x+=crop?.42:.7){const j=Math.sin(x*12.9+z*7.3),j2=Math.sin(x*4.1-z*9.7),j3=Math.sin(x*31.7+z*3.3);if(j3>.86)continue;const px=x+j2*.07,pz=z+j*.08,sc=.82+.3*(j2*.5+.5);crop?shape(wheatGeo,j>0?0xd9b862:0xc9a552,px,.16,pz,sc,(.85+.15*j)*sc,sc,j*3):(shape(leafGeo,j>0?0x5d8f4c:0x6b9a52,px,.14,pz,1.7*sc,1.05*sc,1.7*sc,j*3+j2),shape(ball,0x9cc37a,px,.23,pz,.1*sc,.09*sc,.1*sc))}}
    // a scanned dry-stone wall (Sketchfab, CC-BY) around the vegetable plot; post-and-rail fence elsewhere or as fallback
    // both fields have a gate in the side facing the farm path (z0); it stands open, swung into the field
    const fence=()=>{for(let x=x0;x<=x1+.01;x+=2){for(const z of [z0,z1])if(z!==z0||Math.abs(x-gx)>.9)shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}for(let z=z0;z<=z1+.01;z+=2){for(const x of [x0,x1])shape(beam,0xffffff,x,.55,z,.1,1.1,.1)}
@@ -1175,7 +1247,7 @@ void main(){float u=vUv.x,v=vUv.y;
    scanProp('bucket2',-60.75,0,-55.15,.6,.75);solids.add({x:-60.75,z:-55.15,r:.25,base:0,top:.3});
    scanProp('picnic_table',-60,0,-70,.3,1);solids.add({x:-60,z:-70,r:1.25,base:0,top:.78});keepOut(-60,-70,2);
   }
-  {const hx=-44.5,hz=-64.5;shape(hayGeo,0xffffff,hx,0,hz,1,1,1,hx);for(const y of [.55,1.4])shape(new T.TorusGeometry(1.39,.03,4,32),0x6b5636,hx,y,hz,1,1,1,0,0,Math.PI/2);solids.add({x:hx,z:hz,r:1.35,base:0,top:2.9});keepOut(hx,hz,2)
+  {const hx=-44.5,hz=-64.5;shape(hayGeo,0xffffff,hx,0,hz,1,1,1,hx);for(const [y,rr] of [[.62,1.43],[1.5,1.3]])shape(new T.TorusGeometry(rr,.035,5,40),0x6b5636,hx,y,hz,1,1,1,0,0,Math.PI/2);{let hs=91;const hr=()=>(hs=(hs*16807)%2147483647)/2147483647;for(let i=0;i<46;i++){const a=hr()*6.28,d=1.25+hr()*.9;shape(cube,i%3?0xc9a64e:0xb08b3c,hx+Math.cos(a)*d,.02,hz+Math.sin(a)*d,.02,.012,.35+hr()*.3,hr()*3.14)}}solids.add({x:hx,z:hz,r:1.35,base:0,top:2.9});keepOut(hx,hz,2)
    for(let i=0;i<3;i++)shape(baleGeo,0xffffff,-57+i*1.3,.45,-63.6,.45,.9,.45,0,0,Math.PI/2);solids.add({x:-55.7,z:-63.6,w:2,d:.5,base:0,top:.9});keepOut(-55.7,-63.6,2)}
   lamp(-54,-56.6,0,null,1);solids.add({x:-54,z:-56.6,r:.22,base:0,top:3.2});keepOut(-54,-56.6,.8);
   for(let i=0;i<6;i++)scatter(farm,1,(x,z)=>{if(!free(farm,x,z,2.4))return false;const h=4+((x*7+z*3)%1+1)%1*1.2;appleTree(x,z,h);solids.add({x,z,r:.3,base:0,top:h});solids.add({x,z,r:1.7,base:h*.45,top:h*1.1});keepOut(x,z,2.4);return true});for(let i=0;i<8;i++)tree(farm,5,8);for(let i=0;i<6;i++)boulder(farm,0x9d9b84,.6,1.1);tufts(farm,40);
@@ -1187,7 +1259,7 @@ void main(){float u=vUv.x,v=vUv.y;
    craneHook=group(cx+4.6,0,cz-1.4);craneHook.userData={rope:shape(rope,0x3a3a3c,0,3.4,0,.025,5.9,.025,0,0,0,craneHook),block:shape(masonry,0xd5cfc0,0,.4,0,1.1,.8,.8,.3,0,0,craneHook),live:false};shape(cyl,0x3a3a3c,cx+.7,.7,cz,.3,.9,.3,0,Math.PI/2);
    solids.add({x:cx,z:cz,r:.6,base:0,top:8});keepOut(cx,cz,1.6);keepOut(cx+4.6,cz-1.4,1.2)}
   // the quarry face: three cut terraces of pale limestone stepping up towards the rim, rubble at the foot
-  {const cliff=withSurface(cube.clone(),new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xf4eedf,roughness:.95}));
+  {const cliff=withSurface(cube.clone(),stoneTri||new T.MeshStandardMaterial({map:masonry.userData.surface.map,color:0xf4eedf,roughness:.95}));
    for(let tier=0;tier<3;tier++){const d=10.3+tier*2.1,h=1.25+tier*1.3;let k=0;for(let a=-1.2;a<=1.2;a+=.16){k++;const x=quarry.x+Math.cos(a)*d,z=quarry.z+Math.sin(a)*d;if((k+tier*3)%9===0||clear.some(([a2,b2,r2])=>Math.hypot(x-a2,z-b2)<r2+1.1))continue;
      const j=Math.sin(a*23+tier*5),hh=h+.3*j;shape(stoneGeo,0xffffff,x,hh*.42,z,d*.1+.55,hh*.62,1.25,-a-Math.PI/2+j*.3,.05*j,.04*j);solids.add({x,z,r:1.2,base:0,top:hh})}}
    for(let i=0;i<18;i++){const a=-1.2+i*.14,d=9.6+.5*Math.sin(i*3.1),x=quarry.x+Math.cos(a)*d,z=quarry.z+Math.sin(a)*d,s=.35+.3*Math.abs(Math.sin(i*1.7));if(clear.some(([a2,b2,r2])=>Math.hypot(x-a2,z-b2)<r2+.4))continue;shape(stoneGeo,0xffffff,x,s*.3,z,s,s*.7,s,i)}
@@ -1353,7 +1425,7 @@ void main(){float u=vUv.x,v=vUv.y;
  const beamMat=fade=>new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,blending:T.CustomBlending,blendEquation:T.AddEquation,blendSrc:T.SrcAlphaFactor,blendDst:T.OneFactor,blendSrcAlpha:T.ZeroFactor,blendDstAlpha:T.OneFactor,
   uniforms:{fade:{value:fade?1:0}},
   vertexShader:'varying vec2 vUv;varying float vEdge;void main(){vUv=uv;vec4 mv=modelViewMatrix*vec4(position,1.);vec3 n=normalize(normalMatrix*normal);vEdge=abs(dot(n,normalize(-mv.xyz)));gl_Position=projectionMatrix*mv;}',
-  fragmentShader:'uniform float fade;varying vec2 vUv;varying float vEdge;void main(){float v=vUv.y,g=fade>.5?v:(v>.2?.7*(1.-v)/.8:.7+.3*(.2-v)/.2);float a=g*pow(vEdge,1.8)*.42;gl_FragColor=vec4(1.,.886,.627,a);}'});
+  fragmentShader:'uniform float fade;varying vec2 vUv;varying float vEdge;void main(){float v=vUv.y,g=fade>.5?v:(v>.2?.7*(1.-v)/.8:.7+.3*(.2-v)/.2);float a=clamp(max(g,0.)*pow(clamp(vEdge,1e-4,1.),1.8)*.42,0.,1.);gl_FragColor=vec4(1.,.886,.627,a);}'});
  const beaconBeam=new T.Mesh(new T.CylinderGeometry(2.6,.6,70,24,1,true),beamMat(false));beaconBeam.position.set(BX,lamp9+LH+35,BZ);scene.add(beaconBeam);
  const sweep=new T.Group();sweep.position.set(BX,lamp9+LH,BZ);scene.add(sweep);
  // the drawn fallback tower has its lantern room lower: move crystal, glass, light and beams down if it is built after all
@@ -1445,9 +1517,13 @@ void main(){float u=vUv.x,v=vUv.y;
  const doorTarget=context?new T.WebGLRenderTarget(192,432,{type:T.HalfFloatType}):null,doorCam=new T.PerspectiveCamera(64,192/432*1.55,.3,420);
  const doorView=new T.MeshBasicMaterial({map:doorTarget?doorTarget.texture:null,color:doorTarget?0xffffff:0xa9c3cb,toneMapped:false});
  // Woven rugs: border in the house colour, a band pattern and wool noise.
- function rugMaterial(color){const c=document.createElement('canvas');c.width=256;c.height=192;const g=c.getContext('2d'),base=new T.Color(color),css=(k,l=0)=>{const q=base.clone().offsetHSL(0,0,l);return `rgb(${q.r*255*k|0},${q.g*255*k|0},${q.b*255*k|0})`};
-  g.fillStyle=css(.5);g.fillRect(0,0,256,192);g.fillStyle='#9c8257';g.fillRect(14,14,228,164);g.fillStyle=css(.72,.04);g.fillRect(20,20,216,152);
-  for(let y=40;y<150;y+=26){g.fillStyle=css(.62);g.fillRect(30,y,196,6);for(let x=38;x<222;x+=20){g.fillStyle='rgba(214,190,140,.55)';g.beginPath();g.moveTo(x,y+3);g.lineTo(x+5,y-1);g.lineTo(x+10,y+3);g.lineTo(x+5,y+7);g.fill()}}
+ // (1.23) every resident has an own rug: diamonds (0), a striped rag rug (1), a medallion (2) or a check (3) in their colours
+ function rugMaterial(color,style=0){const c=document.createElement('canvas');c.width=256;c.height=192;const g=c.getContext('2d'),base=new T.Color(color),css=(k,l=0)=>{const q=base.clone().offsetHSL(0,0,l);return `rgb(${Math.min(255,q.r*255*k)|0},${Math.min(255,q.g*255*k)|0},${Math.min(255,q.b*255*k)|0})`};
+  g.fillStyle=css(.62);g.fillRect(0,0,256,192);g.fillStyle='#9c8257';g.fillRect(14,14,228,164);g.fillStyle=css(1.0,.06);g.fillRect(20,20,216,152);
+  if(style===1){const tones=[css(1.15,.1),'#cdb88a',css(.7),'#6d8a8a','#b5643c',css(1.3,.16),'#e2d2a8'];for(let y=20,k=0;y<172;k++){const h=6+((k*7)%5)*3;g.fillStyle=tones[k%tones.length];g.fillRect(20,y,216,h);y+=h}}
+  else if(style===2){g.fillStyle=css(.6);g.beginPath();g.ellipse(128,96,70,46,0,0,7);g.fill();g.fillStyle='#c9a86a';g.beginPath();g.ellipse(128,96,46,28,0,0,7);g.fill();g.fillStyle=css(1.1,.08);g.beginPath();g.ellipse(128,96,26,15,0,0,7);g.fill();for(const [x,y] of [[40,40],[216,40],[40,152],[216,152]]){g.fillStyle='#c9a86a';g.beginPath();g.ellipse(x,y,12,9,0,0,7);g.fill()}}
+  else if(style===3){for(let y=20;y<172;y+=19)for(let x=20;x<236;x+=27){if(((x-20)/27+(y-20)/19)%2<1){g.fillStyle=css(.72);g.fillRect(x,y,27,19)}}}
+  else for(let y=40;y<150;y+=26){g.fillStyle=css(.62);g.fillRect(30,y,196,6);for(let x=38;x<222;x+=20){g.fillStyle='rgba(214,190,140,.55)';g.beginPath();g.moveTo(x,y+3);g.lineTo(x+5,y-1);g.lineTo(x+10,y+3);g.lineTo(x+5,y+7);g.fill()}}
   for(let i=0;i<5000;i++){g.fillStyle=`rgba(${Math.random()<.5?0:255},${Math.random()<.5?20:240},20,${Math.random()*.06})`;g.fillRect(Math.random()*256,Math.random()*192,1,2)}
   for(let x=0;x<256;x+=4){g.fillStyle='#d8c497';g.fillRect(x,0,2,6);g.fillRect(x,186,2,6)}
   const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.anisotropy=4;return new T.MeshStandardMaterial({map:t,roughness:1})}
@@ -1462,8 +1538,9 @@ void main(){float u=vUv.x,v=vUv.y;
     if(frnd()<.07){xx+=.1+frnd()*.08;continue}const lean=frnd()<.08?.2:0;build(cube,col,xx+w/2,y0+y+h/2,cz,w,h,.2+frnd()*.05,0,lean);if(frnd()<.5)build(cube,0xc9a24a,xx+w/2,y0+y+h*.82,cz+.105,w*1.02,.012,.012);xx+=w+.006}}};
   const herbBundle=(x,y,z,k)=>{build(cyl,0x8a7350,x,y+.2,z,.008,.4,.008);build(cyl,0x8a6a48,x,y-.005,z,.022,.04,.022);mesh(herbBundleGeo,driedMats[k%4],x,y,z,1,1,1,k*1.1)};
   const mesh=(geo,material,x,y,z,sx=1,sy=1,sz=1,ry=0,rx=0,rz=0)=>{const m=new T.Mesh(geo,material);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.rotation.set(rx,ry,rz);m.castShadow=m.receiveShadow=true;room.add(m);return m};
+  const look={linde:[0x2f6272,2,0xe9e4d4],bram:[0x5d6c37,0,0xf2dcb4],mara:[0x7c2c22,1],tomas:[0x5f7a3a,1,0xe4e7cd],wies:[0x9c4a26,3,0xf4e1c0],vandalen:[0x6c1f2c,2,0xefe0c6],gerrit:[0x8c6a40,3,0xd9c39c],anke:[0xb4583a,1,0xf6ead0],joost:[0x5a5852,0]}[house.key]||[house.color,0,0xf3e6cf];
   const stoneRoom=i===2||house.stone;build(stoneRoom?stoneFloor:woodFloor,0xffffff,0,-.14,0,10,.28,10);
-  const wall=stoneRoom?surfaced(cube.clone(),'masonry'):withSurface(cube.clone(),new T.MeshStandardMaterial({map:plasterMap.clone(),color:0xf3e6cf,roughness:.95}));wall.userData.surface.map.repeat.set(stoneRoom?4:3,stoneRoom?2:1.4);wall.userData.surface.map.needsUpdate=true;
+  const wall=stoneRoom?surfaced(cube.clone(),'masonry'):withSurface(cube.clone(),new T.MeshStandardMaterial({map:plasterMap.clone(),color:look[2]||0xf3e6cf,roughness:.95}));wall.userData.surface.map.repeat.set(stoneRoom?4:3,stoneRoom?2:1.4);wall.userData.surface.map.needsUpdate=true;
   const H=house.manor?8.8:4.6;if(house.manor)wall.userData.surface.map.repeat.set(3,2.6);
   build(wall,0xefdfbc,0,H/2,-5,10.3,H,.22);
   for(const side of [-1,1]){
@@ -1482,7 +1559,7 @@ void main(){float u=vUv.x,v=vUv.y;
   for(const xx of [-3.24,-2,-.76])build(beam,wood,xx,2.6,-4.75,.11,1.58,.12);
   for(const yy of [1.85,2.6,3.35])build(beam,wood,-2,yy,-4.75,2.59,.09,.12);
   build(beam,wood,-2,1.8,-4.66,2.8,.1,.3);
-  mesh(new T.PlaneGeometry(3.2,2.4),rugMaterial(house.color),.3,.03,.9,1,1,1,0,-Math.PI/2);build(plank,0xefcf94,0,.035,4.05,1.85,.06,.78);
+  mesh(new T.PlaneGeometry(3.2,2.4),rugMaterial(look[0],look[1]),.3,.03,.9,1,1,1,0,-Math.PI/2);build(plank,0xefcf94,0,.035,4.05,1.85,.06,.78);
   lantern(0,3.4,-1.2,room);
   const lamp=new T.PointLight(0xffb36a,9,11,1.6);lamp.position.set(0,3.0,-1.2);room.add(lamp);
   const accent=new T.PointLight(0xff8a3a,0,8,1.8);room.add(accent);
@@ -1577,13 +1654,16 @@ void main(){float u=vUv.x,v=vUv.y;
    for(let r2=0;r2<4;r2++)for(let k=0;k<5-r2%2;k++)build(cyl,0x92583f,4.3,.2+r2*.38,-3.8+k*.42+(r2%2)*.21,.18,1.1,.18,0,0,Math.PI/2);solid(4.3,-3,1.2,2.3);
    table(1.4,-4.1,2.6,.9);build(beam,0x4a3426,.7,1.0,-4.0,.06,.07,.8,0,0,0);build(cube,0x8a9397,.7,1.0,-3.55,.26,.06,.16);build(beam,0x4a3426,1.5,1.0,-4.1,.06,.07,.8);build(cube,0x8a9397,1.5,1.0,-3.65,.3,.06,.2);
    build(cube,0x9aa3a6,2.3,.99,-4.2,.9,.02,.22);for(let k=0;k<6;k++)build(cube,0xd9bc8a,2.0+k*.12,.97,-3.85,.06,.01,.03,k);
-   build(beam,0x6e4a2e,-3.2,.45,2.6,2.1,.12,1.0);legs(-3.2,.45,2.6,2.1,1.0,.4);build(cube,0x7a3b2e,-3.2,.58,2.6,2.0,.14,.95);build(cube,0xe8dcc0,-4.0,.7,2.6,.4,.1,.7);solid(-3.2,2.6,2.1,1.0);
+   {const bx=-3.2,bz=2.6;for(const sz of [-1,1])build(beam,0x6e4a2e,bx,.34,bz+sz*.5,2.12,.14,.07);for(const [px,ph] of [[-1.06,1.0],[1.06,.66]])for(const sz of [-1,1])build(beam,0x5e3e26,bx+px,ph/2,bz+sz*.5,.09,ph,.09);
+    build(planks,0x7a5536,bx-1.06,.72,bz,.05,.5,.95);build(planks,0x7a5536,bx+1.06,.5,bz,.05,.26,.95);for(let k=0;k<6;k++)build(beam,0x8a6a48,bx-.85+k*.34,.39,bz,.07,.03,.96);
+    build(cube,0xd8ccae,bx-.02,.5,bz,2.0,.17,.9);build(cube,0x6f4a32,bx+.38,.6,bz,1.26,.05,1.0);for(const sz of [-1,1])build(cube,0x6f4a32,bx+.38,.46,bz+sz*.505,1.26,.28,.02);build(cube,0x8d6a44,bx+.38,.632,bz,1.26,.012,1.01);
+    build(ball,0xeee4cc,bx-.72,.62,bz,.3,.08,.38)}if(scanReady)scanProp('pw_chair',-3.25,0,-.55,-Math.PI/2,1,room);solid(-3.2,2.6,2.1,1.0);
    for(const [x2,y2] of [[-1.2,2.4],[-.4,2.3]])build(beam,0x4a3426,x2,y2,-4.86,.07,.9,.05,0,0,.5);
    stations=[{x:1.4,z:-3.25,h:0,clip:'work'},{x:3.4,z:-1.2,face:[4.3,-1.2],clip:'take'},{x:-3.2,z:-.6,face:[-4.3,-2.2],clip:'look2'}];
   }
   if(house.key==='anke'){
    // farm kitchen: long table with bread and cheese, an oven, a butter churn, milk cans, sacks and crates
-   table(-2.3,-3.7,2.8,1.0,.9,0x8a6a48);goods.loaf(room,-3.2,.95,-3.7,.6);goods.cheese(room,-2.4,.95,-3.6,.55,true);goods.basket(room,-1.4,.95,-3.75,.7);goods.jar(room,-1.0,.95,-3.4,0,.5);
+   if(scanReady){scanProp('pw_table',-2.3,0,-3.7,0,1,room);solid(-2.3,-3.7,2.45,1.0);scanProp('pw_chair',-3.9,0,-3.7,Math.PI/2,1,room);scanProp('pw_chair',-.7,0,-3.65,-Math.PI/2,1,room);solid(-3.9,-3.7,.6,.6);solid(-.7,-3.65,.6,.6)}else table(-2.3,-3.7,2.8,1.0,.9,0x8a6a48);goods.loaf(room,-3.2,.95,-3.7,.6);goods.cheese(room,-2.4,.95,-3.6,.55,true);goods.basket(room,-1.4,.95,-3.75,.7);goods.jar(room,-1.0,.95,-3.4,0,.5);
    // bread oven: a brick dome on a stone base, an arched mouth with embers, the iron door leaning beside it, a flue
    {const os=(g,rx,ry)=>{if(scanReady&&typeof Models!=='undefined'){const [map,nor]=[Models.texture('wallslate_diff.jpg',true).clone(),Models.texture('wallslate_nor.jpg').clone()];for(const t of [map,nor]){t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(rx,ry);t.needsUpdate=true}g.userData={surface:new T.MeshStandardMaterial({map,normalMap:nor,roughness:.92})}}else g.userData={surface:masonry.userData.surface};return g};build(os(cube.clone(),2.4,1.1),0xcfc4b0,3.7,.45,-4.1,1.9,.9,1.2);build(os(ovenDome,3.4,1.2),0xd09a74,3.7,.9,-4.2,.92,.86,.62)}build(halfDisc,0xffffff,3.7,.9,-3.57,.34,.34,1);
    build(wheel,0xb6a48c,3.7,.9,-3.56,.38,.38,.6,0,0,0);mesh(ball,flame,3.7,.96,-3.75,.22,.1,.14);build(cube,0x2b2926,4.42,.62,-3.46,.46,.44,.035,.35);build(cyl,0x8a7f72,3.7,2.45,-4.42,.14,2.3,.14);solid(3.7,-4.1,2.0,1.2);
@@ -1757,8 +1837,9 @@ void main(){float u=vUv.x,v=vUv.y;
   const marker=shape(wheel,0xffc65a,0,2.4,0,.29,.29,.29,0,0,0,g);return {g,x,z,type,i,marker}});
  const probe={stage:9,harvest:{},builds:[]};
  const grassAreas=(count,r)=>{const out=[];for(let k=0;k<islands.length;k++){const {x,z,r:R,lift}=islands[k];let made=0,tries=0;const quota=k<3?count/3:count/12;
-  while(made<quota&&tries++<count*4){const a=r()*Math.PI*2,d=Math.sqrt(r())*(R-.7),px=x+Math.cos(a)*d,pz=z+Math.sin(a)*d;
-   if((k<3?nearPaving(px,pz,k,-.15):false)||nearTrail(px,pz,-.1)||k>=3&&mountainH(px,pz)>.04||solids.blocked(px,pz,probe,lift,.18,.5)||Math.abs(px)<2.9&&[-21,-81].some(q=>Math.abs(pz-q)<2.9))continue;out.push([px,pz,lift]);made++}}
+  while(made<quota&&tries++<count*7){const a=r()*Math.PI*2,d=Math.sqrt(r())*(R-.7),px=x+Math.cos(a)*d,pz=z+Math.sin(a)*d;
+   const patch=Math.max(0,Math.min(1,(fbm3(px/7.5,k*3.1,pz/7.5)+.12)/.45));if(r()>.22+.78*patch)continue;
+   if((k<3?nearPaving(px,pz,k,-.15):false)||nearTrail(px,pz,-.1)||k>=3&&mountainH(px,pz)>.04||solids.blocked(px,pz,probe,lift,.18,.5)||Math.abs(px)<2.9&&[-21,-81].some(q=>Math.abs(pz-q)<2.9))continue;out.push([px,pz,lift,.78+.62*patch]);made++}}
   {let made=0,tries=0;while(made<count/9&&tries++<count*2){const a=r()*Math.PI*2,d=Math.sqrt(r())*(lobe.r-.7),px=lobe.x+Math.cos(a)*d,pz=lobe.z+Math.sin(a)*d;if(Math.hypot(px,pz)<24.5||mountainH(px,pz)>.04||brookDist(px,pz)<.9||solids.blocked(px,pz,probe,0,.18,.5))continue;out.push([px,pz]);made++}}
   return out};
  const meadow=context?Nature.grass(scene,grassAreas,24000,77):[];
@@ -2006,6 +2087,31 @@ void main(){float u=vUv.x,v=vUv.y;
  function firLod(c){if(!firSet||firAt.distanceToSquared(c)<6)return;firAt.copy(c);
   for(const {trees,tiers} of firSet){const n=[0,0,0];for(const t of trees){if(felled.has(t.id))continue;const d=Math.hypot(t.x-c.x,t.z-c.z,(t.y-c.y)*.5),l=d<24?0:d<80?1:2;tiers[l].setMatrixAt(n[l]++,t.m)}
    tiers.forEach((m,l)=>{m.count=n[l];m.visible=n[l]>0;m.instanceMatrix.needsUpdate=true})}}
- if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));Models.load('sf_bookshelf').then(r=>r.material.color.setHex(0xa8876a)).catch(()=>{});dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb39c86);dressCrags();dressStumps();plantFirs()}
+ // (1.23) Scanned rock (Poly Haven Rock Face 02 and Rock Moss Set 01, CC0) on the walkable islands, instanced per model.
+ // Rock faces stand in the upper cliff wall facing outwards: big ones beside and under every bridge head (that is
+ // where you look at the cliffs from), a ring of medium ones below the turf and a lower ring of light ones. Mossy
+ // stones break up the grass rim, except at bridge heads, paths and where two islands meet.
+ function scanInstances(name,list,{shadow=true,tint=null}={}){if(!scanReady||!list.length)return;Models.load(name).then(r=>{const mat=tint?r.material.clone():r.material;if(tint)mat.color.setRGB(...tint);if(/rockface/.test(name))mat.side=T.DoubleSide;
+  const m=new T.InstancedMesh(r.geometry,mat,list.length),o=new T.Object3D();
+  list.forEach((q,j)=>{o.position.set(q[0],q[1],q[2]);o.rotation.set(q[4]||0,q[3]||0,q[5]||0,'YXZ');o.scale.set(q[6],q[7]??q[6],q[8]??q[6]);o.updateMatrix();m.setMatrixAt(j,o.matrix)});
+  m.castShadow=shadow;m.receiveShadow=true;m.computeBoundingSphere();scene.add(m)}).catch(e=>console.warn('scan',name,e))}
+ {const walk=[...islands,{x:lobe.x,z:lobe.z,r:lobe.r,lift:0,lobe:true}],heads=[];let rs=4242;const rr=()=>(rs=(rs*16807)%2147483647)/2147483647;
+  bridges.forEach(b=>{heads.push({I:b.from,x:b.ax,z:b.az,hw:b.hw,y:b.ya});heads.push({I:b.to,x:b.bx,z:b.bz,hw:b.hw,y:b.yb})});
+  const inside=(x,z,self)=>walk.some(J=>J!==self&&Math.hypot(x-J.x,z-J.z)<J.r-.3);
+  const nearHead=(I,a,m)=>heads.some(H=>H.I===I&&Math.abs(Math.atan2(Math.sin(a-Math.atan2(H.z-I.z,H.x-I.x)),Math.cos(a-Math.atan2(H.z-I.z,H.x-I.x))))*I.r<H.hw+m);
+  const hi=[],mid=[],lo=[],moss=[[],[],[],[],[],[]],face=(I,a,top,sc,rad,list)=>{const ca=Math.cos(a),sa=Math.sin(a),px=I.x+ca*rad,pz=I.z+sa*rad;
+   list.push([px,top-4.73*sc,pz,Math.atan2(ca,sa)+(rr()-.5)*.3,(rr()-.5)*.12,(rr()-.5)*.1,sc*(.95+rr()*.15),sc,sc])};
+  heads.forEach(H=>{const I=H.I,a0=Math.atan2(H.z-I.z,H.x-I.x);for(const sg of [-1,1]){const a=a0+sg*(H.hw+3.4)/I.r;face(I,a,I.lift-.4,1.3+rr()*.25,I.r*1.0-1.9,hi)}
+   face(I,a0,H.y-2.2,1.15,I.r*.98-1.6,mid)});
+  walk.forEach(I=>{const D=(I.r*.95)*1.22,tier2=I.lift-.3-Math.pow(.2,1.12)*(D-.3);
+   for(let a=rr()*.4;a<Math.PI*2;a+=18/I.r){if(nearHead(I,a,4.5))continue;const x=I.x+Math.cos(a)*I.r,z=I.z+Math.sin(a)*I.r;if(inside(x,z,I))continue;face(I,a,I.lift-.35-rr()*.4,1.05+rr()*.35,I.r-1.7,mid)}
+   for(let a=9/I.r+rr()*.3;a<Math.PI*2;a+=26/I.r){const x=I.x+Math.cos(a)*I.r,z=I.z+Math.sin(a)*I.r;if(inside(x,z,I)||nearHead(I,a,1))continue;face(I,a,tier2+1.5,1.1+rr()*.4,I.r*.96-1.8,lo)}
+   for(let a=rr();a<Math.PI*2;a+=(5.6+rr()*3.6)/I.r){const ca=Math.cos(a),sa=Math.sin(a),x=I.x+ca*I.r,z=I.z+sa*I.r;
+    if(nearHead(I,a,2.5)||inside(x,z,I)||nearTrail(x,z,1.6))continue;const k=Math.floor(rr()*6),sc=.42+rr()*.5,rad=I.r*(1+.004*Math.sin(a*9))-.35-rr()*.5;
+    moss[k].push([I.x+ca*rad,I.lift-.55-sc*.35,I.z+sa*rad,rr()*6.28,(rr()-.5)*.3,(rr()-.5)*.3,sc,sc*(.8+rr()*.4),sc])}});
+  const rockTint=[.92,.9,.88];scanInstances('rockface',hi,{tint:rockTint});scanInstances('rockface_mid',mid,{tint:rockTint});scanInstances('rockface_lo',lo,{shadow:false,tint:rockTint});
+  moss.forEach((list,k)=>scanInstances('rmoss_'+(k+1),list));
+  window.__cliffCounts={hi:hi.length,mid:mid.length,lo:lo.length,moss:moss.reduce((n,l)=>n+l.length,0)}}
+ if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));Models.load('sf_bookshelf').then(r=>r.material.color.setHex(0xa8876a)).catch(()=>{});dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb6b0a6,1.1,triplanar(new T.MeshStandardMaterial({map:Models.texture('cliff_diff.jpg',true),normalMap:Models.texture('cliff_nor.jpg'),normalScale:new T.Vector2(1.35,1.35),roughness:.93,color:new T.Color(1.5,1.47,1.45)}),{scale:1/2.2}));dressCrags();dressStumps();plantFirs()}
  return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),rooms,enterRoom,outfit:hero.outfit,rig:()=>hero.rig?.(),appleTrees,trees:pines.map((t,i)=>({i:'t'+i,type:'hout',kind:'tree',x:t.x,z:t.z,y:t.y,max:2,regrow:300000})),rocks:rocks.map((r,i)=>({i:'r'+i,type:'steen',kind:'rock',x:r.x,z:r.z,y:r.y,r:r.r,max:2,regrow:180000})),fellSync,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,housePlots,siteCheck,houseGhost:d=>{houseGhostDesign=d||null;houseSync(houseLastS,houseGhostDesign)},houseLocal:(x,z)=>houseNow?houseLocal(x,z):null,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
 }
