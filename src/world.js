@@ -535,7 +535,8 @@ function createWorld(canvas) {
   board.scale.set(2.4,.6,.06);board.position.set(x,4.95,front+.1);board.castShadow=true;scene.add(board);
   const fruit=createGoods();for(let i=0;i<3;i++){const cz=front+.75+i*.62;shape(cube,0x8a6a48,x-2.05,.12,cz,.66,.24,.54);fruit.crate(scene,x-2.05,.24,cz,i===2?'pear':'apple',i,.62,.5)}
   solids.add({x:x-2.05,z:front+1.37,w:.36,d:.95,base:0,top:.6});
-  for(const [bx,bz] of [[x+2.1,front+.9],[x+2.15,front+1.6]]){shape(cyl,0x7a5232,bx,.42,bz,.3,.84,.3);for(const yy of [.18,.66])shape(cyl,0x3b3a36,bx,yy,bz,.315,.05,.315);solids.add({x:bx,z:bz,r:.33,base:0,top:.86})}
+  // (1.25) the two barrels by the stall are the scanned oak barrel (Poly Haven Wine Barrel 01), like everywhere else
+  for(const [bx,bz,ry] of [[x+2.1,front+.9,.4],[x+2.15,front+1.6,2.3]]){if(scanReady)scanProp('wine_barrel',bx,0,bz,ry,.98);else{shape(cyl,0x7a5232,bx,.42,bz,.3,.84,.3);for(const yy of [.18,.66])shape(cyl,0x3b3a36,bx,yy,bz,.315,.05,.315)}solids.add({x:bx,z:bz,r:.33,base:0,top:.86})}
   fruit.sack(scene,x+1.2,0,front+1.9,.75);fruit.sack(scene,x+1.7,0,front+1.85,.68);
  }
  // ---- Trade signs (1.22, house audit PR #9): every resident's house shows its trade. A wrought-iron bracket with a
@@ -1269,8 +1270,15 @@ void main(){float u=vUv.x,v=vUv.y;
   workshop(47,-84,4.4,true);keepOut(47,-84,3.8);tradeSign(49.1,2.95,-82.07,0,'STEENHOUWER','steen');
   {const bx=52.8,bz=-84.2;for(let i=0;i<3;i++)for(let j=0;j<2;j++)shape(masonry,0xdad4c4,bx+(i-1)*1.12,.38+j*.76,bz,1.05,.74,.9,.02*Math.sin(i+j*3));shape(masonry,0xdad4c4,bx,1.9,bz,1.05,.74,.9,.2);
    solids.add({x:bx,z:bz,w:1.75,d:.5,base:0,top:2.3});keepOut(bx,bz,2.2)}
-  {const kx=59.5,kz=-76.5;shape(cube,0x5a4632,kx,.75,kz,1.5,.7,.95,.5);for(const o of [-.5,.5])for(const s of [-1,1]){shape(wheel,iron,kx+o*Math.cos(.5)+s*.5*Math.sin(.5),.32,kz-o*Math.sin(.5)+s*.5*Math.cos(.5),.3,.3,.6,.5)}
-   for(let i=0;i<4;i++)shape(stoneGeo,0xc4bfb0,kx+(i%2-.5)*.5,1.15,kz+(i>>1)*.4-.2,.32,.24,.3,i);solids.add({x:kx,z:kz,r:1.0,base:0,top:1.3});keepOut(kx,kz,1.6)}
+  // (1.25) the stone cart: a hand-built two-wheeled cart (crafts.js) loaded with cut blocks and three scanned stones
+  {const kx=59.5,kz=-76.5,ry=.5;
+   if(typeof Crafts!=='undefined'){const g=group(kx,0,kz),cart=Crafts.stoneCart(),fy=.62;g.rotation.y=ry;g.add(cart);
+    const blk=new T.MeshStandardMaterial({map:loadSurface('rock-grey.jpg'),color:0xf2ece0,roughness:.9});for(const [x,z,r,w,h,d] of [[-.42,.16,.12,.5,.27,.34],[.18,-.2,-.1,.42,.24,.3],[-.2,-.18,.5,.36,.22,.28]]){const b=new T.Mesh(cube,blk);b.scale.set(w,h,d);b.position.set(x,fy+h/2+(x>0?0:.002),z);b.rotation.y=r;b.castShadow=b.receiveShadow=true;g.add(b)}
+    if(scanReady)Promise.all(['stone_a','stone_b','stone_c'].map(Models.load)).then(rocks=>[[.5,.2,.34,0],[.58,-.18,.3,1],[-.12,.22,.26,2]].forEach(([x,z,size,i],k)=>{const r=rocks[i];r.geometry.computeBoundingBox();const bb=r.geometry.boundingBox,sz=new T.Vector3();bb.getSize(sz);const sc=size/Math.max(sz.x,sz.y,sz.z),m=new T.Mesh(r.geometry,r.material);
+     m.scale.setScalar(sc);m.position.set(x,fy-bb.min.y*sc-.01,z);m.rotation.y=k*2.1;m.castShadow=m.receiveShadow=true;g.add(m)})).catch(()=>{});
+    solids.add({x:kx,z:kz,r:1.0,base:0,top:1.25});solids.add({x:kx+1.5*Math.cos(ry),z:kz-1.5*Math.sin(ry),r:.45,base:0,top:.65});keepOut(kx,kz,1.8);keepOut(kx+1.5*Math.cos(ry),kz-1.5*Math.sin(ry),1)}
+   else{shape(cube,0x5a4632,kx,.75,kz,1.5,.7,.95,ry);for(const o of [-.5,.5])for(const s of [-1,1]){shape(wheel,iron,kx+o*Math.cos(ry)+s*.5*Math.sin(ry),.32,kz-o*Math.sin(ry)+s*.5*Math.cos(ry),.3,.3,.6,ry)}
+    for(let i=0;i<4;i++)shape(stoneGeo,0xc4bfb0,kx+(i%2-.5)*.5,1.15,kz+(i>>1)*.4-.2,.32,.24,.3,i);solids.add({x:kx,z:kz,r:1.0,base:0,top:1.3});keepOut(kx,kz,1.6)}}
   lamp(50.5,-77.2,0,null,1);solids.add({x:50.5,z:-77.2,r:.22,base:0,top:3.2});keepOut(50.5,-77.2,.8);
   for(let i=0;i<4;i++)tree(quarry,5,7.5);for(let i=0;i<14;i++)boulder(quarry,0xb9b4a6,.45,1.2);tufts(quarry,24);
 
@@ -1294,7 +1302,9 @@ void main(){float u=vUv.x,v=vUv.y;
     shape(masonry,0xd9d1c2,bx,.6,bz,len,.12,.3,ry);shape(masonry,0xe5ddd0,bx,1.33,bz,len+.1,.1,.32,ry);
     for(let j=0;j<6;j++){const t=(j+.5)/6-.5,c=Math.cos(ry),s2=Math.sin(ry);shape(baluster,0xffffff,bx+c*t*len,.66,bz-s2*t*len,1,1,1)}
     solids.add({x:bx,z:bz,r:.6,base:0,top:1.4});solids.add({x:bx+Math.cos(ry)*len*.33,z:bz-Math.sin(ry)*len*.33,r:.45,base:0,top:1.4});solids.add({x:bx-Math.cos(ry)*len*.33,z:bz+Math.sin(ry)*len*.33,r:.45,base:0,top:1.4})}
-   shape(cyl,brass,px+.6,1.55,pz,.13,1.6,.13,0,-.75);for(const a of [0,2.1,4.2])cord(px+.2,1.2,pz,px+.2+Math.cos(a)*.55,.5,pz+Math.sin(a)*.55,.025,0x4a3a2a);
+   // (1.25) the lookout's telescope: a brass refractor on an oak tripod (crafts.js) instead of a bare brass cylinder
+   if(typeof Crafts!=='undefined'){const g=group(px+.2,.515,pz);g.add(Crafts.telescope(.62));solids.add({x:px+.2,z:pz,r:.42,base:.5,top:1.95})}
+   else{shape(cyl,brass,px+.6,1.55,pz,.13,1.6,.13,0,-.75);for(const a of [0,2.1,4.2])cord(px+.2,1.2,pz,px+.2+Math.cos(a)*.55,.5,pz+Math.sin(a)*.55,.025,0x4a3a2a)}
    solids.add({x:px,z:pz,r:rr+1.05,base:0,top:.5});keepOut(px,pz,rr+1.8)}
   // the signal fire: an iron brazier on a stone plinth, lit at the end of level 2
   {const fx=63,fz=-128,bowl=new T.CylinderGeometry(.72,.42,.42,18,1,true);bowl.userData.surface=new T.MeshStandardMaterial({color:0x3a3a3c,side:T.DoubleSide,metalness:.6,roughness:.5});

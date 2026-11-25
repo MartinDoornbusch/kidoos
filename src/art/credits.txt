@@ -138,3 +138,8 @@ Avatar Library (MIT). Animal gaits are posed procedurally for Skybound.
   (https://polyhaven.com/a/painted_wooden_chair_02), Poly Haven, CC0. Boerentafel en stoelen bij Anke, stoel bij Gerrit.
 - Kliffen, metselwerk en akkers gebruiken de al vermelde texturen cliff_side, castle_wall_slates en path in een
   driezijdige projectie; geen nieuwe texturen.
+
+1.25.0
+- Steenkar (Steengroeve) en telescoop (Valkenrots): voor dit spel in code gebouwd (crafts.js), geen model van derden.
+  Ze gebruiken de al vermelde eikenhouttextuur en grijze rotstextuur (Poly Haven, CC0).
+- Tonnen bij de handelspost: Wine Barrel 01 (https://polyhaven.com/a/wine_barrel_01), Poly Haven, CC0, net als elders.
