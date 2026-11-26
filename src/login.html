@@ -57,6 +57,14 @@ h1{font:900 clamp(64px,13vw,120px)/.94 Barlow,Impact,sans-serif;letter-spacing:-
 <section class="card" id="done" hidden>
  <p class="label" id="doneLabel">INGELOGD</p>
  <a class="primary" href="/">Naar de expeditie <span>➜</span></a>
+ <div class="codes" id="pinbox" hidden>
+  <p class="note" id="pinNote">Kies een eigen pincode van 6 tot 8 cijfers. Die staat alleen versleuteld op de server.</p>
+  <label><span>Huidige pincode</span><input id="pCur" type="password" inputmode="numeric" autocomplete="current-password" maxlength="8"></label>
+  <label><span>Nieuwe pincode</span><input id="pNew" type="password" inputmode="numeric" autocomplete="new-password" maxlength="8"></label>
+  <label><span>Nog een keer</span><input id="pRep" type="password" inputmode="numeric" autocomplete="new-password" maxlength="8"></label>
+  <button class="primary" id="pinSave" style="justify-content:center">Pincode opslaan</button>
+  <p class="msg" id="pinMsg" role="status"></p>
+ </div>
  <div class="codes" id="codes" hidden>
   <p class="note">Stel hier de inlogcodes van de kinderen in: 4 tot 8 cijfers, voor ieder een eigen code. De codes worden alleen versleuteld bewaard; ook hier zie je ze daarna niet meer terug.</p>
   <label><span>Niek<small id="stNiek">…</small></span><input id="cNiek" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="····"></label>
@@ -64,7 +72,7 @@ h1{font:900 clamp(64px,13vw,120px)/.94 Barlow,Impact,sans-serif;letter-spacing:-
   <button class="primary" id="save" style="justify-content:center">Codes opslaan</button>
   <p class="msg" id="codeMsg" role="status"></p>
  </div>
- <div class="row"><a class="link" href="/api/logout">Uitloggen op dit apparaat</a><span></span></div>
+ <div class="row"><a class="link" href="/api/logout">Uitloggen op dit apparaat</a><button class="link" id="pinToggle" hidden>Pincode wijzigen</button></div>
 </section>
 </main>
 <script>
@@ -72,7 +80,7 @@ h1{font:900 clamp(64px,13vw,120px)/.94 Barlow,Impact,sans-serif;letter-spacing:-
 const $=id=>document.getElementById(id);let who=null,code='';
 const loggedIn=()=>{const m=/(?:^|;\s*)sq_who=(Niek|Floor|Ouder)/.exec(document.cookie);return m?m[1]:null};
 function show(id){for(const s of ['pick','enter','done'])$(s).hidden=s!==id}
-function dots(){const max=who==='Ouder'?4:Math.max(4,code.length);$('dots').innerHTML=Array.from({length:Math.min(8,max)},(_,i)=>'<span class="'+(i<code.length?'on':'')+'"></span>').join('');$('ok').disabled=code.length<4}
+function dots(){const max=Math.max(4,code.length);$('dots').innerHTML=Array.from({length:Math.min(8,max)},(_,i)=>'<span class="'+(i<code.length?'on':'')+'"></span>').join('');$('ok').disabled=code.length<4}
 function pick(w){who=w;code='';$('enterLabel').textContent=w==='Ouder'?'PINCODE OUDER':'CODE VAN '+w.toUpperCase();$('msg').textContent='';$('msg').className='msg';show('enter');dots()}
 function press(k){if(k==='back')code=code.slice(0,-1);else if(k==='ok')return send();else if(code.length<8)code+=k;dots()}
 async function send(){if(code.length<4)return;$('ok').disabled=true;$('msg').className='msg';$('msg').textContent='Even kijken…';
@@ -81,14 +89,26 @@ async function send(){if(code.length<4)return;$('ok').disabled=true;$('msg').cla
   code='';dots();
   $('msg').textContent=b.error==='geen-code'?'Voor '+who+' is nog geen code ingesteld. Vraag je ouder om in te loggen en een code te kiezen.':b.error==='wacht'?'Te vaak een verkeerde code. Probeer het over '+Math.ceil(b.seconds/60)+' minuten opnieuw.':b.error==='code'?'Die code klopt niet.'+(b.left!=null&&b.left<4?' Nog '+b.left+' '+(b.left===1?'poging':'pogingen')+'.':''):r.status===503?'Inloggen kan nu even niet. Probeer het later opnieuw.':'Er ging iets mis. Probeer het opnieuw.'}
  catch{code='';dots();$('msg').textContent='Geen verbinding. Probeer het opnieuw.'}}
-async function done(w,fresh){$('doneLabel').textContent='INGELOGD ALS '+w.toUpperCase();show('done');$('codes').hidden=w!=='Ouder';if(w==='Ouder')status();else if(fresh)setTimeout(()=>{location.href='/'},700)}
-async function status(){try{const r=await fetch('/api/codes'),b=await r.json();for(const k of ['Niek','Floor'])$('st'+k).textContent=b.set?.[k]?'code ingesteld · leeg laten om te houden':'nog geen code'}catch{}}
+async function done(w,fresh){$('doneLabel').textContent='INGELOGD ALS '+w.toUpperCase();show('done');$('codes').hidden=w!=='Ouder';$('pinToggle').hidden=w!=='Ouder';if(w==='Ouder')status();else if(fresh)setTimeout(()=>{location.href='/'},700)}
+// (1.26.1) while the old parent pincode is still in use the parent must choose a new one first: until then the codes
+// and the way into the game stay hidden
+function mustChange(on){$('pinbox').hidden=!on&&$('pinbox').dataset.open!=='1';$('codes').hidden=on;document.querySelector('#done .primary').hidden=on;
+ $('pinNote').textContent=on?'De oude pincode is niet meer veilig. Kies eerst een eigen pincode van 6 tot 8 cijfers; daarna werkt de oude niet meer.':'Kies een eigen pincode van 6 tot 8 cijfers. Die staat alleen versleuteld op de server.'}
+async function status(){try{const p=await fetch('/api/parent'),q=await p.json();mustChange(!!q.mustChange)}catch{}
+ try{const r=await fetch('/api/codes'),b=await r.json();for(const k of ['Niek','Floor'])$('st'+k).textContent=b.set?.[k]?'code ingesteld · leeg laten om te houden':'nog geen code'}catch{}}
+$('pinToggle').onclick=()=>{$('pinbox').dataset.open='1';$('pinbox').hidden=false;$('pCur').focus()};
+$('pinSave').onclick=async()=>{const m=$('pinMsg'),cur=$('pCur').value.trim(),next=$('pNew').value.trim();m.className='msg';
+ if(!/^\d{6,8}$/.test(next)){m.textContent='De nieuwe pincode moet 6 tot 8 cijfers zijn.';return}if(next!==$('pRep').value.trim()){m.textContent='De twee nieuwe pincodes zijn niet gelijk.';return}
+ try{const r=await fetch('/api/parent',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({current:cur,next})}),b=await r.json().catch(()=>({}));
+  if(r.ok){m.className='msg good';m.textContent='Nieuwe pincode opgeslagen. De oude werkt niet meer.';for(const id of ['pCur','pNew','pRep'])$(id).value='';$('pinbox').dataset.open='';mustChange(false);setTimeout(()=>{$('pinbox').hidden=true},2500);return}
+  m.textContent=b.error==='huidig'?'De huidige pincode klopt niet.'+(b.left!=null&&b.left<4?' Nog '+b.left+' '+(b.left===1?'poging':'pogingen')+'.':''):b.error==='wacht'?'Te vaak een verkeerde pincode. Probeer het over '+Math.ceil(b.seconds/60)+' minuten opnieuw.':b.error==='zelfde'?'Kies een andere pincode dan de huidige.':b.error==='kindcode'?'Die pincode is al de code van een kind. Kies een andere.':b.error==='vorm'?'De nieuwe pincode moet 6 tot 8 cijfers zijn.':b.error==='ouder'?'Log opnieuw in als ouder.':'Opslaan lukte niet.'}
+ catch{m.textContent='Geen verbinding.'}};
 $('save').onclick=async()=>{const body={Niek:$('cNiek').value.trim(),Floor:$('cFloor').value.trim()};const m=$('codeMsg');m.className='msg';
  if(!body.Niek&&!body.Floor){m.textContent='Vul minstens één code in.';return}
  for(const [k,v] of Object.entries(body))if(v&&!/^\d{4,8}$/.test(v)){m.textContent='De code van '+k+' moet 4 tot 8 cijfers zijn.';return}
  try{const r=await fetch('/api/codes',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}),b=await r.json().catch(()=>({}));
   if(r.ok){m.className='msg good';m.textContent='Opgeslagen voor '+b.changed.join(' en ')+'.';$('cNiek').value=$('cFloor').value='';status()}
-  else m.textContent=b.error==='gelijk'?'Niek en Floor hebben elk een eigen code nodig.':b.error==='vorm'?'Een code is 4 tot 8 cijfers.':b.error==='ouder'?'Log opnieuw in als ouder.':'Opslaan lukte niet.'}
+  else m.textContent=b.error==='gelijk'?'Niek en Floor hebben elk een eigen code nodig.':b.error==='vorm'?'Een code is 4 tot 8 cijfers.':b.error==='ouder-code'?'Een kindcode mag niet gelijk zijn aan de ouderpincode.':b.error==='ouder'?'Log opnieuw in als ouder.':'Opslaan lukte niet.'}
  catch{m.textContent='Geen verbinding.'}};
 $('pad').innerHTML=['1','2','3','4','5','6','7','8','9','back','0','ok'].map(k=>'<button data-k="'+k+'"'+(k==='ok'?' class="ok" id="ok"':k==='back'?' class="back" aria-label="Wissen"':'')+'>'+(k==='back'?'⌫':k==='ok'?'OK':k)+'</button>').join('');
 $('pad').onclick=e=>{const b=e.target.closest('button');if(b)press(b.dataset.k)};

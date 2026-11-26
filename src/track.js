@@ -1,5 +1,5 @@
 "use strict";
-// Practice and play time per profile. Kept on this device and, once a parent has linked the device,
+// Practice and play time per profile. Kept on this device and, on every device where somebody is logged in (1.26.1),
 // sent every few minutes to the family overview. Only active time counts: a minute without any
 // key, tap or click stops the clock, and a hidden tab never counts.
 const Track=(()=>{
@@ -20,12 +20,12 @@ const Track=(()=>{
  const link=()=>{try{return JSON.parse(localStorage.getItem(LINK))}catch{return null}};
  const post=(url,body,keepalive=false)=>fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),keepalive});
  // game() builds a small snapshot of the save; it is only called when a sync is actually due.
- async function sync(game,force=false){const l=link();if(!l||!data||!profile)return false;if(!force&&(!dirty||Date.now()-lastSync<120e3))return false;
+ // (1.26.1) a device on which somebody is logged in syncs without linking: the server knows who it is from the cookie
+ const loggedIn=()=>/(?:^|;\s*)sq_who=(Niek|Floor|Ouder)/.test(document.cookie);
+ function device(){let l=link();if(!l&&loggedIn()){l={device:Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>b.toString(16).padStart(2,'0')).join(''),at:Date.now()};localStorage.setItem(LINK,JSON.stringify(l))}return l}
+ async function sync(game,force=false){const l=device();if(!l||!data||!profile)return false;if(!force&&(!dirty||Date.now()-lastSync<120e3))return false;
   lastSync=Date.now();dirty=false;save();try{const r=await post('/api/sync',{token:l.token,device:l.device,kid:profile,game:game(),stats:data},document.hidden);if(!r.ok)throw Error(r.status);return true}catch{dirty=true;return false}}
- async function linkDevice(pin){const r=await post('/api/link',{pin});if(!r.ok)throw Error(r.status===403?'pincode':r.status===503?'opslag':'netwerk');
-  const {token}=await r.json(),device=link()?.device||Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>b.toString(16).padStart(2,'0')).join('');
-  localStorage.setItem(LINK,JSON.stringify({token,device,at:Date.now()}));dirty=true;return true}
- async function overview(pin){const r=await post('/api/overview',{pin});if(!r.ok)throw Error(r.status===403?'pincode':r.status===503?'opslag':'netwerk');return r.json()}
+ async function overview(){const r=await post('/api/overview',{});if(!r.ok)throw Error(r.status===403?'ouder':r.status===503?'opslag':'netwerk');return r.json()}
  const minutesToday=()=>Math.round((data?.days[today()]?.practice||0)/60);
- return {load,save,tick,answer,sync,linkDevice,unlink:()=>localStorage.removeItem(LINK),linked:()=>!!link(),overview,minutesToday,today}
+ return {load,save,tick,answer,sync,unlink:()=>localStorage.removeItem(LINK),linked:()=>!!link(),overview,minutesToday,today}
 })();

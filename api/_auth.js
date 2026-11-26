@@ -31,3 +31,14 @@ export function codeOk(code,rec){if(!codeShape(code)||!rec?.salt||!rec?.hash)ret
 export const LOCK={tries:8,window:15*60e3};
 export function lockLeft(f,now=Date.now()){return f&&f.n>=LOCK.tries&&now-f.since<LOCK.window?Math.ceil((LOCK.window-(now-f.since))/1000):0}
 export function addMiss(f,now=Date.now()){return !f||now-f.since>=LOCK.window?{n:1,since:now}:{n:f.n+1,since:f.since}}
+
+// (1.26.1) The parent pincode lives only on the server. Once the parent has chosen one (6 to 8 digits) it is stored as a
+// salted scrypt hash in auth/parent.json, like the children's codes. Until then the old pincode still opens the parent
+// account, once, so the parent can choose the new one; its unsalted hash below was public (repo and game script) and is
+// worthless as soon as auth/parent.json exists. A storage error never falls back to the old pincode.
+const LEGACY=process.env.SQ_LEGACY_PARENT_HASH||'9caefa318f0fca222dc0efb95e4587ef916a1a78395cf9aeb07a812fbbbe602d';
+export const PARENT_PATH='auth/parent.json';
+export const parentShape=c=>typeof c==='string'&&/^\d{6,8}$/.test(c);
+export async function parentCheck(code,store){let rec;try{rec=await store.read(PARENT_PATH)}catch{return {ok:false,error:true}}
+ if(rec?.hash)return {ok:codeOk(code,rec),legacy:false};
+ const ok=typeof code==='string'&&crypto.createHash('sha256').update('skybound:'+code.trim()).digest('hex')===LEGACY;return {ok,legacy:true}}

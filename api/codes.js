@@ -1,7 +1,7 @@
 // The parent sets or changes the children's login codes. Only a device logged in as Ouder may do this.
 // GET tells which children already have a code; POST {Niek:'1234', Floor:'5678'} stores new codes (salted hashes only).
 import {configured,store} from './_shared.js';
-import {KIDS,whoFrom,codeShape,hashCode,codeOk} from './_auth.js';
+import {KIDS,whoFrom,codeShape,hashCode,codeOk,PARENT_PATH} from './_auth.js';
 export default async function handler(req,res){
  res.setHeader('cache-control','no-store');
  if(!configured())return res.status(503).json({error:'opslag'});
@@ -13,6 +13,8 @@ export default async function handler(req,res){
  for(const k of KIDS){if(b[k]==null||b[k]==='')continue;const c=String(b[k]).trim();if(!codeShape(c))return res.status(400).json({error:'vorm',kid:k});want[k]=c}
  // two children never share a code, or one could log in as the other
  for(const [k,c] of Object.entries(want)){const o=KIDS.find(x=>x!==k);if(want[o]===c||(!want[o]&&codeOk(c,codes[o])))return res.status(400).json({error:'gelijk'})}
+ // nor the parent's pincode (1.26.1)
+ const parent=await store.read(PARENT_PATH).catch(()=>null);if(parent?.hash&&Object.values(want).some(c=>codeOk(c,parent)))return res.status(400).json({error:'ouder-code'});
  for(const [k,c] of Object.entries(want)){codes[k]=hashCode(c);changed.push(k)}
  if(changed.length)await store.write('auth/codes.json',codes);
  res.status(200).json({ok:true,changed,set:Object.fromEntries(KIDS.map(k=>[k,!!codes[k]]))})}
