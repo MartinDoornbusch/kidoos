@@ -14,7 +14,7 @@ const Crafts=(()=>{
    brass:new T.MeshStandardMaterial({color:0xcca865,metalness:.92,roughness:.28}),
    bronze:new T.MeshStandardMaterial({color:0x8a6638,metalness:.88,roughness:.34}),
    black:new T.MeshStandardMaterial({color:0x17191b,metalness:.25,roughness:.42}),
-   glass:new T.MeshStandardMaterial({color:0x2c4f63,metalness:.55,roughness:.03,envMapIntensity:1.8})};
+   glass:new T.MeshStandardMaterial({color:0x1e2c33,metalness:.35,roughness:.06,envMapIntensity:1.25})};
   return mats}
  // wood texture: .3 m across the grain, 1.6 m along it
  const GU=.3,GV=1.6;let seed=1;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
@@ -153,7 +153,7 @@ const Crafts=(()=>{
   for(const s of [-1,1])for(let i=0;i<6;i++){const y=y0+.12+i*.21;k.add('paleWood',board(Lg-.2,.2,.04),mx(0,y+.1,s*(W/2-.02)))}
   for(const s of [-1,1])k.add('paleWood',board(.04,H,W),mx(s*(Lg/2-.1),y0+.12+H/2,0));
   k.add('paleWood',board(Lg-.2,.05,W),mx(0,y0+.15,0));
-  for(const s of [-1,1])for(let i=0;i<7;i++){const x=-3+i*1;k.add('glass',new T.BoxGeometry(.5,.38,.02),mx(x,y0+.12+H*.62,s*(W/2+.005)));k.add('darkWood',board(.6,.05,.05),mx(x,y0+.12+H*.62+.22,s*(W/2+.02)));k.add('darkWood',board(.6,.05,.05),mx(x,y0+.12+H*.62-.22,s*(W/2+.02)))}
+  for(const s of [-1,1])for(let i=0;i<7;i++){const x=-3+i*1;k.add('glass',new T.BoxGeometry(.5,.38,.02),mx(x,y0+.12+H*.62,s*(W/2+.005)));k.add('darkWood',board(.6,.05,.05),mx(x,y0+.12+H*.62+.22,s*(W/2+.02)));k.add('darkWood',board(.6,.05,.05),mx(x,y0+.12+H*.62-.22,s*(W/2+.02)));for(const e of [-.29,.29])k.add('darkWood',board(.05,.49,.05),mx(x+e,y0+.12+H*.62,s*(W/2+.02)));k.add('darkWood',board(.025,.38,.03),mx(x,y0+.12+H*.62,s*(W/2+.02)))}
   for(const s of [-1,1]){k.add('brass',rod(.025,.025,Lg-.3,8),mx(0,y0+H+.5,s*(W/2-.05),0,0,Math.PI/2));for(let i=0;i<9;i++)k.add('brass',rod(.02,.02,.48,6),mx(-3.8+i*.95,y0+H+.33,s*(W/2-.05)))}
   return k.build(new T.Group())}
  // The crystal tree at the heart of the Wolkenkruin: a twisted dark trunk that splits into branches, each ending in a

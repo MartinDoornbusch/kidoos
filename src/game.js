@@ -110,7 +110,7 @@ function area(){return world.islands.reduce((a,b)=>dist(a)<dist(b)?a:b)}
 function restore(){Track.save();Track.load(profile);currentRoom=null;world.enterRoom(null);resetSteering();world.outfit(profile==="Floor"?"Nova":"Flint");race=null;let data;try{data=JSON.parse(localStorage.getItem(key()))}catch{}s=data?.version===1?Object.assign(newSave(),data):newSave();
  if(s.log.chapter!==7){s.previousGermanLog=s.log;s.log={chapter:7,turn:0,items:{}}}
  let pos=s.position;Object.assign(p,{x:pos?.x??0,z:pos?.z??13,y:pos?.y??0,vy:0,speed:0,heading:pos?.yaw??0,on:false,glide:false});view.yaw=pos?.yaw??0;if(world.ground(p.x,p.z,s)<-20||world.blocked(p.x,p.z,s,p.y))respawn();world.sync(s);world.equip(s.tools);world.scarf(s.scarf);if(s.dogFriend)world.fauna?.befriend()}
-function respawn(){let anchor=world.islands[Math.min(s.stage,2)];Object.assign(p,{x:0,z:anchor.z+8,y:world.ground(0,anchor.z+8,s),vy:0,on:true,speed:0,glide:false});if(playing)notify('Terug op vaste grond. Je uitrusting is mee.')}
+function respawn(){if(s.skyAt===1){s.skyAt=0;world.sync(s)}let anchor=world.islands[Math.min(s.stage,2)];Object.assign(p,{x:0,z:anchor.z+8,y:world.ground(0,anchor.z+8,s),vy:0,on:true,speed:0,glide:false});if(playing)notify('Terug op vaste grond. Je uitrusting is mee.')}
 function show(html){resetSteering();if(race&&!race.paused)race.paused=performance.now();keys.clear();joyX=joyZ=0;$('joy').firstElementChild.style.transform='';$('content').innerHTML=html;if(!$('panel').open)$('panel').showModal()}
 $('panel').addEventListener('close',()=>{if(race?.paused){race.start+=performance.now()-race.paused;delete race.paused}keys.clear();if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur()});
 function closePanel(){$('panel').close();updateHUD()}
@@ -441,12 +441,22 @@ function houseView(){if(!world?.houseGhost)return;world.houseGhost((s.level||1)>
 function startLevel5(){if(!l3Ready()||!world?.sky){notify('Level 5 laden lukt niet.');return}if(!ConstructionCampaign.state(s,L5.id).ok){const r=ConstructionCampaign.start(s,{id:L5.id,blueprintId:L5.blueprint,plotId:L5.plot,x:L5.x,z:L5.z});if(!r.ok){notify('Level 5 starten lukt niet.');return}s=r.save}
  s.level=5;world.sync(s);persist();updateHUD();const story=ConstructionStory.get(L5.blueprint);
  show('<small>LEVEL 5 · DE WOLKENKRUIN</small><h2>'+story.title+'</h2><p>'+story.intro+'</p><p>Je herstelt het luchtschip in vijf fases: onderzoek het wrak, bouw een kiel, timmer de gondel, vul de ballon en zet de motor erin. Elke fase begint bij een bewoner met een vraag in jouw vak. Je kompas wijst de weg.</p><div class="row"><button class="primary" id="l5go">Op weg naar de Valkenrots</button></div>');$('l5go').onclick=closePanel}
-// The flight takes 28 seconds: you stand on the gondola roof, steering is off, the camera stays yours to turn.
-function fly(from){if(!l5Done())return;if(from===0&&s.skyAt===1){notify('De Hemelvaarder ligt aan de Wolkenkruin. Vlieg eerst terug.');return}ride={kind:'air',from,t:0,dur:28};p.ride=true;closePanel();{const q=world.sky.fly(from?1:0,!!from);view.yaw=q.h;view.look=0}notify(from?'Terug naar de Valkenrots. Houd je vast!':'Alle touwen los! De Hemelvaarder stijgt op.');updateHUD()}
-function arrivePanel(){show('<small>DE WOLKENKRUIN</small><h2>Boven de wolken</h2><p>Je bent de eerste in honderd jaar die hier aanlegt. In het midden staat de kristalboom, verderop een kring van runenstenen. Bij de boom staat een zuil met de hemelkaart.</p><p>Beloning: 10 munten. Vlieg terug met De Hemelvaarder vanaf de landingsplaats.</p>'+buttons());back()}
-function skymapPanel(){const today=new Date().toDateString(),done=s.skyChart===today;
- show('<small>WOLKENKRUIN · DE HEMELKAART</small><h2>De hemelkaart</h2><p>In het brons staan sterrenbeelden die de oude zeevaarders gebruikten om de weg te vinden. Wie elke dag een vraag van de kaart goed beantwoordt, krijgt 3 munten.</p><div class="row">'+(done?'<p>Kom morgen terug voor een nieuwe sterrenvraag.</p>':'<button class="primary" id="star">Sterrenvraag</button>')+'</div>'+buttons());back();
- if($('star'))$('star').onclick=()=>askOne(subject(),{kicker:'WOLKENKRUIN · HEMELKAART',title:'De sterrenvraag',lead:'Eén goed antwoord en de kaart licht op.'},ok=>{if(ok){s.skyChart=today;s.munten=(s.munten||0)+3;persist();updateHUD()}return {head:ok?'De kaart licht op! +3 munten':'Nog niet goed',note:ok?'Morgen staat er een nieuwe vraag op de kaart.':'Probeer het nog eens.',buttons:[['Sluiten',closePanel,true]]}})}
+// The flight takes 28 seconds along a fixed course. You stand on the gondola roof and steer the ship a few metres off
+// that course, left and right with A/D and up and down with W/S (or the stick), to catch the eight wind sparks.
+const steerTip=()=>matchMedia('(pointer:coarse)').matches?'Stuur met de stick':'Stuur met A/D en W/S';
+function fly(from){if(!l5Done())return;if(from===0&&s.skyAt===1){s.skyAt=0;world.sky.land(0)}// (the ship comes back for a pilot who left the Wolkenkruin another way)
+ ride={kind:'air',from,t:0,dur:28,ox:0,oy:0,vx:0,vy:0,got:0};p.ride=true;closePanel();world.sky.sparksReset?.();{const q=world.sky.fly(from?1:0,!!from);view.yaw=q.h;view.look=0}
+ notify((from?'Terug naar de Valkenrots. ':'Alle touwen los! ')+steerTip()+' en vang de windvonken.');updateHUD()}
+// Wind sparks pay one coin each, at most eight coins a day, so flying back and forth is fun but not a coin farm.
+function sparkCoins(got){const today=new Date().toDateString();if(!s.sparkDay||s.sparkDay.d!==today)s.sparkDay={d:today,n:0};const c=Math.max(0,Math.min(got,8-s.sparkDay.n));s.sparkDay.n+=c;s.munten=(s.munten||0)+c;
+ return got?'Je ving '+got+' van de 8 windvonken'+(c?' · +'+c+(c===1?' munt':' munten'):' · vandaag geen vonkmunten meer')+'.':'Geen windvonken gevangen. '+steerTip()+' en vlieg er dwars doorheen.'}
+function arrivePanel(spark=''){show('<small>DE WOLKENKRUIN</small><h2>Boven de wolken</h2><p>Je bent de eerste in honderd jaar die hier aanlegt. In het midden staat de kristalboom, verderop een kring van runenstenen. Bij de boom staat een zuil met de hemelkaart.</p><p>Beloning: 10 munten. '+spark+' Vlieg terug met De Hemelvaarder vanaf de landingsplaats.</p>'+buttons());back()}
+// (1.26) The sky chart asks one question a day (+3 coins). Each day it is answered, one more of the seven rune stones
+// around it lights up; the seventh wakes the ring: a column of light and a one-time reward of 25 coins.
+function skymapPanel(){const today=new Date().toDateString(),done=s.skyChart===today,n=Math.min(7,s.skyRunes||0);
+ show('<small>WOLKENKRUIN · DE HEMELKAART</small><h2>De hemelkaart</h2><p>In het brons staan sterrenbeelden die de oude zeevaarders gebruikten om de weg te vinden. Wie elke dag een vraag van de kaart goed beantwoordt, krijgt 3 munten.</p><p>'+(n>=7?'De runenkring is wakker: alle zeven runen branden.':'Elke dag met een goed antwoord gaat er een rune in de kring branden. Runen verlicht: <b>'+n+' van 7</b>. Bij zeven ontwaakt de kring.')+'</p><div class="row">'+(done?'<p>Kom morgen terug voor een nieuwe sterrenvraag.</p>':'<button class="primary" id="star">Sterrenvraag</button>')+'</div>'+buttons());back();
+ if($('star'))$('star').onclick=()=>askOne(subject(),{kicker:'WOLKENKRUIN · HEMELKAART',title:'De sterrenvraag',lead:'Eén goed antwoord en de kaart licht op.'},ok=>{let wake=false;if(ok){s.skyChart=today;s.munten=(s.munten||0)+3;s.skyRunes=Math.min(7,(s.skyRunes||0)+1);if(s.skyRunes>=7&&!s.skyCrown){s.skyCrown=true;s.munten+=25;wake=true}world.sync(s);persist();updateHUD()}
+  return {head:wake?'De runenkring ontwaakt! +28 munten':ok?'De kaart licht op! +3 munten':'Nog niet goed',note:wake?'Alle zeven runen branden en er schiet een lichtzuil omhoog uit de kring.':ok?'Rune '+s.skyRunes+' van 7 brandt. Morgen staat er een nieuwe vraag op de kaart.':'Probeer het nog eens.',buttons:[['Sluiten',closePanel,true]]}})}
 function startLevel4(){if(!houseReady()){notify('Level 4 laden lukt niet.');return}s.level=4;houseDraft();persist();houseView();updateHUD();const story=ConstructionStory.get(L4.blueprint);
  show('<small>LEVEL 4 · MIJN HUIS</small><h2>'+story.title+'</h2><p>'+story.intro+'</p><p>Eerst ontwerp je het: kies een bouwkavel, draai het huis, kies gevel, houtwerk, dak, vloer, deur en ramen. Het ontwerp staat als doorzichtig huis op de kavel. Daarna bouw je het in vijf fases, net als de wachttoren.</p><div class="row"><button class="primary" id="design">Ontwerp je huis</button><button id="back">Later</button></div>');back();$('design').onclick=designPanel}
 // design: one panel for everything that may still change; parts already built are locked
@@ -573,11 +583,17 @@ const canvas=$('world');canvas.onpointerdown=e=>{if(playing){canvas.setPointerCa
 function pitchBy(d){let pt=(view.look||0)>0?view.look:-(view.height-3.9)/6.1;pt=Math.max(-1,Math.min(1,pt+d));if(pt>=0){view.look=pt;view.height=3.9}else{view.look=0;view.height=3.9-pt*6.1}}
 function move(dt){
  // (1.26) Flying De Hemelvaarder: you stand on the gondola roof; on arrival you step onto the landing stage.
- if(ride&&ride.kind==='air'){ride.t+=dt;const k=Math.min(1,ride.t/ride.dur),e=k*k*(3-2*k),f=ride.from?1-e:e,q=world.sky.fly(f,!!ride.from);
+ if(ride&&ride.kind==='air'){ride.t+=dt;const k=Math.min(1,ride.t/ride.dur),e=k*k*(3-2*k),f=ride.from?1-e:e,cl=v=>Math.max(-1,Math.min(1,v));
+  const turn=cl(joyX+Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'))),climb=cl(-joyZ+Number(keys.has('w')||keys.has('arrowup'))-Number(keys.has('s')||keys.has('arrowdown'))),ease=1-Math.exp(-dt*3);
+  ride.vx+=(turn*5.5-ride.vx)*ease;ride.vy+=(climb*3.2-ride.vy)*ease;ride.ox=Math.max(-5.5,Math.min(5.5,ride.ox+ride.vx*dt));ride.oy=Math.max(-3,Math.min(3,ride.oy+ride.vy*dt));
+  // the offset fades in after take-off and out before landing, so the ship always leaves and docks on its mooring
+  const w=Math.max(0,Math.min(1,k/.1,(1-k)/.1));world.sky.steer?.(ride.ox*w,ride.oy*w,-ride.vx*.035*w,ride.vy*.03*w);const q=world.sky.fly(f,!!ride.from);
+  if(q.got){ride.got+=q.got;notify(ride.got===8?'Alle 8 windvonken! Wat een vlieger.':'Windvonk! '+ride.got+' van 8')}
+  if(!drag){const d=Math.atan2(Math.sin(q.h-view.yaw),Math.cos(q.h-view.yaw));view.yaw+=d*(1-Math.exp(-dt*1.2))}
   Object.assign(p,{x:q.x,y:q.y,z:q.z,vy:0,on:true,speed:0,glide:false,heading:q.h});
-  if(k>=1){const to=ride.from?0:1,sk=world.sky.data,d=to?sk.dockB:sk.dock;world.sky.land(to);s.skyAt=to;const h=to?Math.atan2(sk.dir.x,sk.dir.z):Math.PI;
+  if(k>=1){const ride0=ride,to=ride.from?0:1,sk=world.sky.data,d=to?sk.dockB:sk.dock;world.sky.land(to);s.skyAt=to;const h=to?Math.atan2(sk.dir.x,sk.dir.z):Math.PI;
    Object.assign(p,{x:d.x,z:d.z,y:world.ground(d.x,d.z,s,(to?sk.isle.lift:13)+2),heading:h,vy:0,on:true});view.yaw=h;p.ride=false;ride=null;resetSteering();
-   if(to===1&&!s.skyVisited){s.skyVisited=true;s.munten=(s.munten||0)+10;arrivePanel()}else notify(to?'Welkom terug op de Wolkenkruin.':'Terug op de Valkenrots.');persist();updateHUD()}
+   const spark=sparkCoins(ride0.got);if(to===1&&!s.skyVisited){s.skyVisited=true;s.munten=(s.munten||0)+10;arrivePanel(spark)}else notify((to?'Welkom terug op de Wolkenkruin. ':'Terug op de Valkenrots. ')+spark);persist();updateHUD()}
   return}
  // Riding the cable car: the gondola carries you, steering is off until you arrive.
  if(ride){ride.t+=dt;const k=Math.min(1,ride.t/ride.dur),e=k*k*(3-2*k),f=ride.from?1-e:e,c=world.cable.at(f);
