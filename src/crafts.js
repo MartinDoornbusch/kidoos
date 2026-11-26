@@ -179,7 +179,7 @@ const Crafts=(()=>{
  // (1.26, level 6) A small glasshouse: plank skirt, oak frame, glass walls and a glass gable roof, a door at the -x end
  // and two potting benches inside. Along +x, L long, W wide; the floor is at y 0.
  function greenhouse(L=3.2,W=2.3,H=1.9,R=.9){seed=113;const k=kit(),sk=.45,hw=W/2,hl=L/2;
-  if(!M().pane)M().pane=new T.MeshStandardMaterial({color:0xdff0f2,transparent:true,opacity:.24,roughness:.04,metalness:.15,envMapIntensity:1.6,depthWrite:false,side:T.DoubleSide});
+  if(!M().pane)M().pane=new T.MeshStandardMaterial({color:0xdff0f2,transparent:true,opacity:.24,roughness:.22,metalness:.05,envMapIntensity:1.2,depthWrite:false,side:T.DoubleSide});
   // skirt (with the door gap at -x) and the floor
   for(const sz of [-1,1])k.add('wood',board(L,sk,.05),mx(0,sk/2,sz*(hw-.025)));k.add('wood',board(.05,sk,W),mx(hl-.025,sk/2,0));for(const sz of [-1,1])k.add('wood',board(.05,sk,hw-.45),mx(-hl+.025,sk/2,sz*(hw/2+.225)));
   k.add('paleWood',board(L-.1,.04,W-.1),mx(0,.02,0));
