@@ -8,7 +8,7 @@ function cleanStats(st){const days={},skills={};
  const sessions=(Array.isArray(st?.sessions)?st.sessions:[]).slice(-80).map(x=>({start:num(x?.start),end:num(x?.end),play:num(x?.play),practice:num(x?.practice),q:num(x?.q),ok:num(x?.ok)}));
  return {days,skills,sessions}}
 function cleanGame(g){g=g||{};return {stage:num(g.stage),level:num(g.level),munten:num(g.munten),hout:num(g.hout),steen:num(g.steen),planken:num(g.planken),
- tools:(Array.isArray(g.tools)?g.tools:[]).slice(0,12).map(t=>String(t).slice(0,30)),village:num(g.village),best:num(g.best),tower:num(g.tower),house:num(g.house)}}
+ tools:(Array.isArray(g.tools)?g.tools:[]).slice(0,12).map(t=>String(t).slice(0,30)),village:num(g.village),best:num(g.best),tower:num(g.tower),house:num(g.house),sky:Math.min(num(g.sky),6),runes:Math.min(num(g.runes),7)}}
 export default async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'method'});
  if(!configured())return res.status(503).json({error:'opslag'});
