@@ -1,6 +1,6 @@
 # Skybound · StudyQuest
 
-3D-leergame voor Niek (havo 2) en Floor (havo 3): drie zwevende eilanden, een gedoofd baken en onderweg oefenen met Duits, geschiedenis en Nederlands.
+3D-leergame voor Niek (havo 2) en Floor (havo 3): een archipel van zwevende eilanden in zes levels, van een gedoofd baken tot een tuin boven de wolken, en onderweg oefenen met geschiedenis en Nederlands (Duits als losse trainer).
 
 - Live: https://studyquest-dativ-maze.vercel.app
 - Alles staat in `src/`: gewone HTML, CSS en JavaScript met three.js, zonder buildstap.
@@ -57,4 +57,17 @@ Open daarna http://localhost:8080.
 | `scenery.js`, `pilot.js` | Personages en animatie |
 | `learning.js`, `history.js`, `nederlands.js` | Vragenbanken Duits, geschiedenis, Nederlands |
 | `woorden.html`, `trainer.js` | Losse woordentrainer |
-| `checks/route.html` | Automatische routetest |
+| `crafts.js` | Handgebouwde props: steenkar, telescoop, luchtschipdok, kas, waterloop |
+| `checks/*.test.js` | Unit-tests voor bouwprojecten, campagne en huisplanner (`node src/checks/<bestand>`) |
+
+## Tests
+
+`npm test` draait alles achter elkaar:
+
+- `tests/auth.test.mjs`: inloggen, codes, ouderpincode, overzicht en synchronisatie (in-memory opslag).
+- `src/checks/*.test.js`: bouwprojecten, campagne en huisplanner.
+- `tests/game/run.mjs`: het spel zelf in headless Chromium. `progress` speelt de hele campagne van level 1 tot en met 6
+  via dezelfde knoppen en vraagschermen als een speler; `physics` lopen, draaien, camera en botsingen; `ui` vakken,
+  beheer alleen voor de ouder, gereedschapsbalk en atlas; `phone` staand telefoonbeeld; `flight` windvonken en runenkring.
+  Nodig: `npm i --no-save playwright && npx playwright install chromium` (of `PLAYWRIGHT_PATH`). Eén scenario:
+  `node tests/game/run.mjs progress`.

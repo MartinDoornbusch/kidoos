@@ -1,7 +1,7 @@
 "use strict";
 const assert = require("node:assert/strict");
 const B = require("../construction-projects.js");
-assert.deepEqual(Object.keys(B.BLUEPRINTS).sort(), ["vakwerkhuis", "wachttoren_ruine"]);
+assert.deepEqual(Object.keys(B.BLUEPRINTS).sort(), ["luchtschip", "vakwerkhuis", "wachttoren_ruine", "wolkentuin"]);
 for (const id of Object.keys(B.BLUEPRINTS)) {
   let p = B.create({ id: "demo-" + id, blueprintId: id, plotId: "plot-01", x: 12, z: 10 });
   let bag = { hout: 100, steen: 100, planken: 100, munten: 13 };
