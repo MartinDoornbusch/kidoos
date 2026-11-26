@@ -2177,7 +2177,7 @@ void main(){float u=vUv.x,v=vUv.y;
      const n=Math.ceil((a1-a0)*(r0+.45)/.55);for(let i=0;i<=n;i++){const a=a0+i/n*(a1-a0);solids.add({x:S.x+Math.cos(a)*(r0+.45),z:S.z+Math.sin(a)*(r0+.45),r:.48,base:0,top:h,when:when(2)})}}}
    blocks(list,g)}
   // the trough: from under the spout to just past the rim, falling 35 cm, on six trestles
-  {let rim=8;while(rim<16&&Math.hypot(S.x+dir.x*rim-W.x,S.z+dir.z*rim-W.z)<W.r*.93)rim+=.1;const len=rim+1.15-1.6;G.len=len;G.rim=rim;
+  {let rim=8;while(rim<16&&Math.hypot(S.x+dir.x*rim-W.x,S.z+dir.z*rim-W.z)<W.r*.93)rim+=.1;const len=rim+2.1-1.6;G.len=len;G.rim=rim;
    const legs=[.4,2.2,3.7,5.8,7.8,Math.min(9.6,rim-2.1)],a=Crafts.aqueduct(len,1.3,.95,legs),g=skyG.gTrough=group(S.x+dir.x*1.6,0,S.z+dir.z*1.6);g.rotation.y=-aT;g.add(a.group);G.yAt=a.yAt;
    for(const x of legs)solids.add({x:S.x+dir.x*(1.6+x),z:S.z+dir.z*(1.6+x),r:.45,base:0,top:1.55,when:when(3)});for(let x=.9;x<len-1;x+=1.0)solids.add({x:S.x+dir.x*(1.6+x),z:S.z+dir.z*(1.6+x),r:.3,base:.85,top:1.6,when:when(3)})}
   // the glasshouse east of the spring, its door towards the spring
