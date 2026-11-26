@@ -9,12 +9,12 @@ const Crafts=(()=>{
  let mats=null;
  function M(){if(mats)return mats;
   const oak=(color,rough)=>new T.MeshStandardMaterial({map:surf('timber_oak.jpg'),normalMap:surf('timber_oak_nor.jpg',true),normalScale:new T.Vector2(1.1,1.1),roughness:rough,color});
-  mats={wood:oak(0xd8c9b2,.86),darkWood:oak(0x9a7656,.62),
+  mats={bark:new T.MeshStandardMaterial({map:surf('timber_oak.jpg'),normalMap:surf('timber_oak_nor.jpg',true),color:0x5a4a4e,roughness:.8}),glow:new T.MeshStandardMaterial({color:0xffe2a0,emissive:0xffb050,emissiveIntensity:3}),crystal:new T.MeshStandardMaterial({color:0xa8ecff,emissive:0x3fc6ff,emissiveIntensity:1.5,metalness:.1,roughness:.12,transparent:true,opacity:.92}),crystalB:new T.MeshStandardMaterial({color:0xd8b8ff,emissive:0x9a5cff,emissiveIntensity:1.4,metalness:.1,roughness:.12,transparent:true,opacity:.92}),wood:oak(0xd8c9b2,.86),paleWood:oak(0xfff0d8,.88),darkWood:oak(0x9a7656,.62),
    iron:new T.MeshStandardMaterial({color:0x35322e,metalness:.65,roughness:.52}),
    brass:new T.MeshStandardMaterial({color:0xcca865,metalness:.92,roughness:.28}),
    bronze:new T.MeshStandardMaterial({color:0x8a6638,metalness:.88,roughness:.34}),
    black:new T.MeshStandardMaterial({color:0x17191b,metalness:.25,roughness:.42}),
-   glass:new T.MeshStandardMaterial({color:0x2c4f63,metalness:.55,roughness:.03,envMapIntensity:1.8})};
+   glass:new T.MeshStandardMaterial({color:0x1e2c33,metalness:.35,roughness:.06,envMapIntensity:1.25})};
   return mats}
  // wood texture: .3 m across the grain, 1.6 m along it
  const GU=.3,GV=1.6;let seed=1;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
@@ -89,5 +89,116 @@ const Crafts=(()=>{
   k.add('brass',lathe([[0,-.06],[.012,-.06],[.012,.22],[.016,.23],[.017,.27],[0,.27]],16),at(mx(-.1,0,0)));k.add('black',new T.CylinderGeometry(.009,.009,.02,10),at(mx(-.1,-.07,0)));
   for(const y of [.02,.2]){k.add('brass',new T.BoxGeometry(.05,.012,.012),at(mx(-.075,y,0)));k.add('brass',new T.TorusGeometry(.015,.003,6,14),at(mx(-.1,y,0,Math.PI/2)))}
   return k.build(new T.Group())}
- return {stoneCart,telescope}
+ // Built once, shared by every copy: a player may put down dozens of blocks.
+ const cache=new Map();
+ function shared(name,make){if(!cache.has(name)){const g=make();g.updateMatrixWorld(true);cache.set(name,g.children.map(m=>[m.geometry,m.material]))}
+  const g=new T.Group();for(const [geo,mat] of cache.get(name)){const m=new T.Mesh(geo,mat);m.castShadow=m.receiveShadow=true;g.add(m)}return g}
+
+ // The building block (2 x 1.12 x 2 m, stackable and climbable): an oak frame with four corner posts, four boards a
+ // side with a diagonal brace, a deck of seven planks on top and iron corner brackets.
+ function block(){return shared('block',()=>{seed=41;const k=kit(),H=1.12,P=.16;
+  for(const sx of [-1,1])for(const sz of [-1,1])k.add('darkWood',board(P,H,P),mx(sx*(1-P/2),H/2,sz*(1-P/2)));
+  for(const s of [-1,1])for(let i=0;i<4;i++){const y=.03+i*.265+.125;k.add('paleWood',board(2-2*P+.02,.25,.05),mx(0,y,s*.955,0,(rnd()-.5)*.006));k.add('paleWood',board(.05,.25,2-2*P+.02),mx(s*.955,y,0,0,(rnd()-.5)*.006))}
+  for(const s of [-1,1]){const d=Math.atan2(H-.2,2-2*P-.1);k.add('paleWood',board(Math.hypot(2-2*P-.1,H-.2),.11,.03),mx(0,H/2,s*.99,0,0,s*d));k.add('paleWood',board(.03,.11,Math.hypot(2-2*P-.1,H-.2)),mx(s*.99,H/2,0,-s*d,0,0))}
+  for(let i=0;i<7;i++)k.add('paleWood',board(2,.045,.27),mx(0,H-.0225,-1+.143+i*.2857,0,0,(rnd()-.5)*.004));
+  for(const sx of [-1,1])for(const sz of [-1,1])for(const y of [.1,H-.12]){k.add('iron',new T.BoxGeometry(.22,.08,.012),mx(sx*(1-.11),y,sz*1.006));k.add('iron',new T.BoxGeometry(.012,.08,.22),mx(sx*1.006,y,sz*(1-.11)))}
+  return k.build(new T.Group())})}
+
+ // A garden bench: three seat slats, two back slats leaning back, legs with stretchers and armrests.
+ function bench(){return shared('bench',()=>{seed=53;const k=kit();
+  for(let i=0;i<3;i++)k.add('wood',board(1.3,.035,.13),mx(0,.46,.12-i*.145));
+  for(const y of [.66,.82])k.add('wood',board(1.3,.11,.03),mx(0,y,-.25+(y-.6)*.12,-.14,0,0));
+  for(const sx of [-1,1]){const x=sx*.58;k.add('darkWood',board(.06,.44,.06),mx(x,.22,.15));
+   const [L,m]=span(new T.Vector3(x,0,-.2),new T.Vector3(x,.9,-.27));k.add('darkWood',rod(.03,.028,L,6),m);
+   k.add('darkWood',board(.06,.04,.48),mx(x,.66,-.04));k.add('darkWood',board(.05,.18,.05),mx(x,.56,.15));
+   k.add('darkWood',board(.04,.05,.34),mx(x,.12,-.02))}
+  k.add('darkWood',board(1.12,.05,.04),mx(0,.12,-.02));k.add('iron',new T.BoxGeometry(1.12,.02,.02),mx(0,.44,-.02));
+  return k.build(new T.Group())})}
+
+ // A planter: a plank box with corner posts and a rim, filled with soil; the plants are added by the world.
+ function planter(){return shared('planter',()=>{seed=61;const k=kit(),L=1.0,W=.5,H=.48;
+  for(const sx of [-1,1])for(const sz of [-1,1])k.add('darkWood',board(.06,H,.06),mx(sx*(L/2-.03),H/2,sz*(W/2-.03)));
+  for(let i=0;i<2;i++){const y=.03+i*.215+.1;for(const s of [-1,1]){k.add('wood',board(L-.1,.2,.025),mx(0,y,s*(W/2-.012)));k.add('wood',board(.025,.2,W-.1),mx(s*(L/2-.012),y,0))}}
+  for(const s of [-1,1]){k.add('darkWood',board(L+.04,.03,.06),mx(0,H+.015,s*(W/2-.01)));k.add('darkWood',board(.06,.03,W+.04),mx(s*(L/2-.01),H+.015,0))}
+  k.add('soil',new T.BoxGeometry(L-.06,.04,W-.06),mx(0,H-.04,0));
+  return k.build(new T.Group())})}
+ // (1.26, level 5) The airship dock: a timber mooring mast with a ladder and a ring at the top, and a plank landing
+ // stage on posts. The mast's foot stands at the origin; the stage reaches out along -z (towards the ship).
+ function mast(H=9){seed=71;const k=kit(),b=.62,t=.26;
+  for(const sx of [-1,1])for(const sz of [-1,1]){const [L,m]=span(new T.Vector3(sx*b,0,sz*b),new T.Vector3(sx*t,H,sz*t));k.add('darkWood',rod(.09,.07,L,8),m)}
+  for(let i=0;i<5;i++){const y0=.4+i*1.7,y1=y0+1.7,w0=b+(t-b)*y0/H,w1=b+(t-b)*y1/H;for(const [ax,az,bx,bz] of [[-1,-1,1,-1],[1,-1,1,1],[1,1,-1,1],[-1,1,-1,-1]]){const f=i%2,[L,m]=span(new T.Vector3(ax*w0,f?y1:y0,az*w0),new T.Vector3(bx*w1,f?y0:y1,bz*w1));k.add('wood',rod(.035,.035,L,6),m)}
+   for(const [ax,az,bx,bz] of [[-1,-1,1,-1],[1,-1,1,1],[1,1,-1,1],[-1,1,-1,-1]]){const [L,m]=span(new T.Vector3(ax*w0,y0,az*w0),new T.Vector3(bx*w0,y0,bz*w0));k.add('wood',rod(.04,.04,L,6),m)}}
+  for(const sx of [-1,1]){const [L,m]=span(new T.Vector3(sx*.22,0,-b-.12),new T.Vector3(sx*.18,H-.6,-t-.1));k.add('wood',rod(.03,.03,L,6),m)}
+  for(let y=.35;y<H-.7;y+=.32){const w=b+(t-b)*y/H,z=-w-.12+(b-w)*0;k.add('wood',rod(.022,.022,.44,6),mx(0,y,-(b+(t-b)*y/H)-.12+.0,0,0,Math.PI/2))}
+  k.add('darkWood',board(.9,.12,.9),mx(0,H+.06,0));k.add('iron',new T.TorusGeometry(.32,.045,8,24),mx(0,H+.5,0,0,0,0));k.add('iron',rod(.04,.04,.4,8),mx(0,H+.22,0));
+  k.add('brass',new T.CylinderGeometry(.11,.11,.22,12),mx(0,H+.95,0));k.add('glow',new T.SphereGeometry(.09,12,8),mx(0,H+.95,0));
+  return k.build(new T.Group())}
+ function landing(w=4.2,d=4.6){seed=73;const k=kit();
+  for(let i=0;i<Math.round(w/.22);i++){const x=-w/2+.11+i*.22;k.add('paleWood',board(.2,.05,d),mx(x,.32,-d/2+.1,0,(rnd()-.5)*.01))}
+  for(const x of [-w/2+.15,0,w/2-.15])k.add('darkWood',board(.14,.14,d),mx(x,.22,-d/2+.1));
+  for(const x of [-w/2+.15,w/2-.15])for(const z of [.1,-d/2+.1,-d+.2]){k.add('darkWood',rod(.08,.08,1.2,8),mx(x,-.3,z));k.add('darkWood',rod(.06,.06,1.1,8),mx(x,.85,z))}
+  for(const x of [-w/2+.15,w/2-.15])k.add('wood',board(.07,.07,d),mx(x,1.32,-d/2+.1));
+  return k.build(new T.Group())}
+ // Sawhorses, the bare keel with its ribs (stage 2), and the planked gondola hull with windows and a rail (stage 3).
+ function trestle(k,x,z){for(const s of [-1,1]){const [L,m]=span(new T.Vector3(x-.35,0,z+s*.5),new T.Vector3(x,.85,z+s*.5));k.add('darkWood',rod(.04,.04,L,6),m);const [L2,m2]=span(new T.Vector3(x+.35,0,z+s*.5),new T.Vector3(x,.85,z+s*.5));k.add('darkWood',rod(.04,.04,L2,6),m2)}k.add('wood',board(.12,.1,1.3),mx(x,.9,z))}
+ const ribPts=(w,h,n=9)=>Array.from({length:n},(_,i)=>{const a=Math.PI*(i/(n-1));return new T.Vector3(Math.cos(a)*w/2,h-Math.sin(a)*h*.95,0)});
+ function keel(){seed=79;const k=kit(),Lk=8.2;for(const x of [-3,0,3])trestle(k,x,0);
+  k.add('darkWood',board(Lk,.16,.22),mx(0,1.03,0));k.add('darkWood',board(.2,1.1,.2),mx(-Lk/2,1.5,0,0,0,.3));
+  for(let i=0;i<9;i++){const x=-3.6+i*.9,pts=ribPts(1.9,1.3);for(let j=1;j<pts.length;j++){const a=pts[j-1].clone().add(new T.Vector3(x,.98,0)),b=pts[j].clone().add(new T.Vector3(x,.98,0));const [L,m]=span(new T.Vector3(a.x,a.y,a.z+a.x-x),new T.Vector3(b.x,b.y,b.z+b.x-x));}
+   for(let j=1;j<pts.length;j++){const a=new T.Vector3(x,1.0+pts[j-1].y,pts[j-1].x),b=new T.Vector3(x,1.0+pts[j].y,pts[j].x),[L,m]=span(a,b);k.add('wood',rod(.045,.045,L,6),m)}}
+  for(const s of [-1,1])k.add('wood',board(Lk-.6,.07,.07),mx(0,2.28,s*.95));
+  return k.build(new T.Group())}
+ function gondola(){seed=83;const k=kit(),Lg=8.2,W=1.9,H=1.3;for(const x of [-3,0,3])trestle(k,x,0);
+  const y0=.98;k.add('darkWood',board(Lg,.16,.24),mx(0,y0+.05,0));
+  for(const s of [-1,1])for(let i=0;i<6;i++){const y=y0+.12+i*.21;k.add('paleWood',board(Lg-.2,.2,.04),mx(0,y+.1,s*(W/2-.02)))}
+  for(const s of [-1,1])k.add('paleWood',board(.04,H,W),mx(s*(Lg/2-.1),y0+.12+H/2,0));
+  k.add('paleWood',board(Lg-.2,.05,W),mx(0,y0+.15,0));
+  for(const s of [-1,1])for(let i=0;i<7;i++){const x=-3+i*1;k.add('glass',new T.BoxGeometry(.5,.38,.02),mx(x,y0+.12+H*.62,s*(W/2+.005)));k.add('darkWood',board(.6,.05,.05),mx(x,y0+.12+H*.62+.22,s*(W/2+.02)));k.add('darkWood',board(.6,.05,.05),mx(x,y0+.12+H*.62-.22,s*(W/2+.02)));for(const e of [-.29,.29])k.add('darkWood',board(.05,.49,.05),mx(x+e,y0+.12+H*.62,s*(W/2+.02)));k.add('darkWood',board(.025,.38,.03),mx(x,y0+.12+H*.62,s*(W/2+.02)))}
+  for(const s of [-1,1]){k.add('brass',rod(.025,.025,Lg-.3,8),mx(0,y0+H+.5,s*(W/2-.05),0,0,Math.PI/2));for(let i=0;i<9;i++)k.add('brass',rod(.02,.02,.48,6),mx(-3.8+i*.95,y0+H+.33,s*(W/2-.05)))}
+  return k.build(new T.Group())}
+ // The crystal tree at the heart of the Wolkenkruin: a twisted dark trunk that splits into branches, each ending in a
+ // cluster of tall glowing crystals. Returns the group; the crystals are one mesh, so the world can pulse their glow.
+ function crystalTree(){seed=97;const k=kit(),pts=[];for(let i=0;i<=14;i++){const y=i/14*4.2;pts.push([.55*(1-i/14)**1.4+.16+.08*Math.sin(i*1.7),y])}
+  const trunk=lathe(pts,18),q=trunk.attributes.position;for(let i=0;i<q.count;i++){const y=q.getY(i),a=y*.9,c=Math.cos(a),s=Math.sin(a),x=q.getX(i),z=q.getZ(i);q.setX(i,x*c-z*s+.25*Math.sin(y*1.3));q.setZ(i,x*s+z*c)}trunk.computeVertexNormals();k.add('bark',trunk,mx(0,0,0));
+  const tips=[];for(let i=0;i<7;i++){const a=i/7*Math.PI*2+.3,base=new T.Vector3(.12*Math.cos(a),3.2+(i%3)*.35,.12*Math.sin(a)),tip=new T.Vector3(Math.cos(a)*(1.6+(i%2)*.6),4.6+(i%3)*.5,Math.sin(a)*(1.6+(i%2)*.6));const [L,m]=span(base,tip);k.add('bark',rod(.11,.05,L,8),m);tips.push(tip)}
+  tips.push(new T.Vector3(0,5.2,0));
+  for(const [ti,tp] of tips.entries())for(let j=0;j<6;j++){const g=new T.OctahedronGeometry(1,0);g.scale(.11+.05*rnd(),.38+.35*rnd(),.11+.05*rnd());const d=new T.Vector3(rnd()-.5,.9+rnd()*.6,rnd()-.5).normalize(),pos=tp.clone().addScaledVector(d,.2+rnd()*.3);
+   k.add(j%3===2?'crystalB':'crystal',g,new T.Matrix4().compose(pos,new T.Quaternion().setFromUnitVectors(Y,d),S1))}
+  return k.build(new T.Group())}
+ const soilMat=()=>M().soil||(M().soil=new T.MeshStandardMaterial({color:0x3a2a1c,roughness:1}));soilMat();
+ // (1.26, level 6) The Wolkentuin's waterloop: a plank trough on splayed trestles, running along +x from h0 down to h1
+ // over len metres. Legs stand at the given distances; the world lays the water ribbon in it (inner floor at y(x)+.06).
+ function aqueduct(len,h0,h1,legs){seed=101;const k=kit(),drop=h0-h1,ang=Math.atan2(drop,len),slen=Math.hypot(len,drop),yAt=x=>h0-drop*x/len;
+  const tr=(x,y,z,rz=0)=>mx(x,y,z,0,0,rz-ang);
+  k.add('wood',board(slen,.04,.4),tr(len/2,(h0+h1)/2,0));for(const sz of [-1,1]){k.add('wood',board(slen,.22,.04),tr(len/2,(h0+h1)/2+.11,sz*.18));k.add('darkWood',board(slen,.035,.07),tr(len/2,(h0+h1)/2+.235,sz*.18))}
+  for(let x=.6;x<len-.2;x+=1.1)for(const sz of [-1,1])k.add('iron',board(.05,.24,.012),tr(x,yAt(x)+.11,sz*.207));
+  k.add('wood',board(.04,.22,.36),mx(.02,h0+.11,0));
+  for(const x of legs){const y=yAt(x)-.03;for(const sz of [-1,1]){const [L,m]=span(new T.Vector3(x,0,sz*.42),new T.Vector3(x,y-.05,sz*.2));k.add('darkWood',rod(.045,.038,L,7),m)}
+   k.add('wood',board(.08,.08,.62),mx(x,y-.07,0));const [L2,m2]=span(new T.Vector3(x,.25,-.36),new T.Vector3(x,y-.12,.22));k.add('darkWood',rod(.025,.025,L2,6),m2)}
+  return {group:k.build(new T.Group()),yAt,ang}}
+ // (1.26, level 6) A small glasshouse: plank skirt, oak frame, glass walls and a glass gable roof, a door at the -x end
+ // and two potting benches inside. Along +x, L long, W wide; the floor is at y 0.
+ function greenhouse(L=3.2,W=2.3,H=1.9,R=.9){seed=113;const k=kit(),sk=.45,hw=W/2,hl=L/2;
+  if(!M().pane)M().pane=new T.MeshStandardMaterial({color:0xdff0f2,transparent:true,opacity:.24,roughness:.22,metalness:.05,envMapIntensity:1.2,depthWrite:false,side:T.DoubleSide});
+  // skirt (with the door gap at -x) and the floor
+  for(const sz of [-1,1])k.add('wood',board(L,sk,.05),mx(0,sk/2,sz*(hw-.025)));k.add('wood',board(.05,sk,W),mx(hl-.025,sk/2,0));for(const sz of [-1,1])k.add('wood',board(.05,sk,hw-.45),mx(-hl+.025,sk/2,sz*(hw/2+.225)));
+  k.add('paleWood',board(L-.1,.04,W-.1),mx(0,.02,0));
+  // posts, plates, sills and the door frame
+  const xs=[-hl,-hl/2,0,hl/2,hl];for(const x of xs)for(const sz of [-1,1])k.add('darkWood',board(.08,H,.08),mx(x+(x===-hl?.04:x===hl?-.04:0),H/2,sz*(hw-.04)));
+  for(const sz of [-.42,.42])k.add('darkWood',board(.08,H,.08),mx(-hl+.04,H/2,sz));for(const sz of [-hw/2,hw/2])k.add('darkWood',board(.08,H,.08),mx(hl-.04,H/2,sz));
+  for(const sz of [-1,1]){k.add('darkWood',board(L,.09,.1),mx(0,H,sz*(hw-.04)));k.add('darkWood',board(L,.06,.08),mx(0,sk+.03,sz*(hw-.04)))}
+  for(const sx of [-1,1])k.add('darkWood',board(.1,.09,W),mx(sx*(hl-.04),H,0));k.add('darkWood',board(.08,.06,W),mx(hl-.04,sk+.03,0));k.add('darkWood',board(.08,.08,.92),mx(-hl+.04,H-.1,0));
+  // gable rafters at every post line and the ridge
+  const pitch=Math.atan2(R,hw),raf=Math.hypot(R,hw);for(const x of xs)for(const sz of [-1,1])k.add('darkWood',board(.07,.08,raf+.08),mx(x+(x===-hl?.04:x===hl?-.04:0),H+R/2,sz*hw/2,sz*pitch,0,0));
+  k.add('darkWood',board(L+.12,.1,.1),mx(0,H+R+.02,0));
+  // glass: long walls, roof planes, the closed end, beside and above the door, and the two gable triangles
+  for(const sz of [-1,1]){k.add('pane',new T.BoxGeometry(L-.06,H-sk-.04,.012),mx(0,(H+sk)/2,sz*(hw-.04)));k.add('pane',new T.BoxGeometry(L+.06,.012,raf+.06),mx(0,H+R/2+.03,sz*hw/2,sz*pitch,0,0))}
+  k.add('pane',new T.BoxGeometry(.012,H-sk-.04,W-.06),mx(hl-.04,(H+sk)/2,0));for(const sz of [-1,1])k.add('pane',new T.BoxGeometry(.012,H-sk-.04,hw-.46),mx(-hl+.04,(H+sk)/2,sz*(hw/2+.23)));k.add('pane',new T.BoxGeometry(.012,.14,.84),mx(-hl+.04,H-.18,0));
+  const tri=new T.BufferGeometry();tri.setAttribute('position',new T.Float32BufferAttribute([0,0,-hw,0,0,hw,0,R,0],3));tri.setAttribute('uv',new T.Float32BufferAttribute([0,0,1,0,.5,1],2));tri.computeVertexNormals();
+  for(const sx of [-1,1])k.add('pane',tri,mx(sx*(hl-.04),H,0));
+  // the door, standing open a little, and the two potting benches
+  {k.add('darkWood',board(.05,1.5,.06),mx(-hl-.32,.78,-.4,0,.9,0));k.add('darkWood',board(.05,.06,.8),mx(-hl-.06,1.5,-.12,0,.9,0));k.add('darkWood',board(.05,.06,.8),mx(-hl-.06,.08,-.12,0,.9,0));k.add('wood',board(.04,.55,.78),mx(-hl-.06,.38,-.12,0,.9,0));k.add('pane',new T.BoxGeometry(.012,.9,.74),mx(-hl-.06,1.08,-.12,0,.9,0))}
+  for(const sz of [-1,1]){k.add('wood',board(L-.5,.05,.5),mx(.1,.8,sz*(hw-.36)));for(const x of [-hl+.4,hl-.3])k.add('darkWood',board(.06,.78,.06),mx(x,.39,sz*(hw-.36)));k.add('wood',board(L-.5,.04,.4),mx(.1,.3,sz*(hw-.36)))}
+  return k.build(new T.Group())}
+ return {stoneCart,telescope,block,bench,planter,mast,landing,keel,gondola,crystalTree,aqueduct,greenhouse,mats:M}
 })();

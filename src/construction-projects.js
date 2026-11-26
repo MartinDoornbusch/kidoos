@@ -20,6 +20,30 @@ const ConstructionProjects = (() => {
         { id: "interior", title: "Deuren en inrichting", cost: { steen: 1, planken: 3 }, questions: 1, visual: "interior" }
       ]
     },
+    luchtschip: {
+      id: "luchtschip",
+      title: "De Hemelvaarder",
+      footprint: { width: 12, depth: 8 },
+      stages: [
+        { id: "wreck", title: "Het wrak onderzoeken", cost: {}, questions: 1, visual: "wreck" },
+        { id: "keel", title: "Kiel en spanten", cost: { hout: 4, planken: 3 }, questions: 2, visual: "keel" },
+        { id: "gondola", title: "De gondel timmeren", cost: { planken: 5, steen: 2 }, questions: 1, visual: "gondola" },
+        { id: "envelope", title: "De ballon vullen", cost: { hout: 2, steen: 3 }, questions: 2, visual: "envelope" },
+        { id: "engine", title: "Motor en roer", cost: { hout: 2, steen: 2, planken: 3 }, questions: 2, visual: "engine" }
+      ]
+    },
+    wolkentuin: {
+      id: "wolkentuin",
+      title: "De Wolkentuin",
+      footprint: { width: 14, depth: 14 },
+      stages: [
+        { id: "spring", title: "De bron vrijmaken", cost: {}, questions: 1, visual: "spring" },
+        { id: "beds", title: "Terrassen metselen", cost: { steen: 5, hout: 1 }, questions: 2, visual: "beds" },
+        { id: "trough", title: "De waterloop timmeren", cost: { planken: 4, hout: 2 }, questions: 2, visual: "trough" },
+        { id: "kas", title: "De kas bouwen", cost: { planken: 4, hout: 2, steen: 1 }, questions: 2, visual: "kas" },
+        { id: "flow", title: "Het water laten stromen", cost: { steen: 2, planken: 1 }, questions: 2, visual: "flow" }
+      ]
+    },
     wachttoren_ruine: {
       id: "wachttoren_ruine",
       title: "Herstel de oude wachttoren",

@@ -16,6 +16,34 @@ const ConstructionStory = (() => {
         { id: "roof",npc:"linde",prompt:"Linde heeft nog één raadsel over de richting van de oude lichttoren.",goal:"Breng het dak en de uitkijkpost aan en ontdek de verborgen kaart.",completedText:"De toren is hersteld en de verzegelde kaart is gevonden.",visuals:{reveal:["roof","lantern","archive_door","lookout"],hide:["scaffolding"]}}
       ]
     },
+    luchtschip: {
+      id: "de-hemelvaarder",
+      title: "De Hemelvaarder",
+      intro: "In de verzegelde kaart uit de wachttoren staat een zesde eiland, hoog boven de wolken: de Wolkenkruin. Wie er ooit was, zag er een boom van kristal. Op de noordrand van de Valkenrots ligt het wrak van het oude luchtschip De Hemelvaarder, nog vastgebonden aan zijn mast. Herstel het schip en vlieg erheen.",
+      ending: "De motor bromt, de ballon trekt aan de touwen. Vanaf de landingsplaats zie je de Wolkenkruin boven de wolken liggen. Stap aan boord en vlieg erheen.",
+      rewards: { coins: 20, unlocks: ["wolkenkruin"] },
+      steps: [
+        { id: "wreck", npc: "linde", prompt: "Linde legt de verzegelde kaart naast het wrak en vraagt je eerst iets uit te zoeken.", goal: "Onderzoek het wrak van De Hemelvaarder en ontdek wat er nog bruikbaar is.", completedText: "Het wrak is onderzocht. De kiel is gebroken, maar de motor en de ballonstof zijn te redden.", visuals: { reveal: ["survey"], hide: [] } },
+        { id: "keel", npc: "bram", prompt: "Bram wil weten hoe je spanten zo neerzet dat de kiel recht blijft.", goal: "Bouw een nieuwe kiel met negen spanten op de schragen.", completedText: "De kiel ligt recht op de schragen. Het luchtschip heeft weer een ruggengraat.", visuals: { reveal: ["keel"], hide: ["wreck"] } },
+        { id: "gondola", npc: "joost", prompt: "Joost vraagt hoe zwaar de ballast mag zijn voordat het schip niet meer opstijgt.", goal: "Timmer de gondel dicht en leg de stenen ballast in het ruim.", completedText: "De gondel is klaar: planken, ramen en een reling. De ballast ligt in het ruim.", visuals: { reveal: ["gondola"], hide: ["keel"] } },
+        { id: "envelope", npc: "wies", prompt: "Wies verkoopt je zeildoek, maar wil eerst weten of je goed hebt opgelet.", goal: "Naai de ballon dicht en vul hem, zodat het schip aan de mast gaat zweven.", completedText: "De ballon staat bol. De Hemelvaarder zweeft naast de landingsplaats en trekt aan de touwen.", visuals: { reveal: ["ship"], hide: ["gondola"] } },
+        { id: "engine", npc: "mara", prompt: "Mara smeedt een nieuwe schroef. Eerst heeft ze nog een vraag voor je.", goal: "Plaats de motor, de schroeven en het roer.", completedText: "De schroeven draaien. De Hemelvaarder is klaar voor de reis naar de Wolkenkruin.", visuals: { reveal: ["engine"], hide: [] } }
+      ]
+    },
+    wolkentuin: {
+      id: "de-wolkentuin",
+      title: "De Wolkentuin",
+      intro: "Naast de kristalboom ligt een droge bron vol puin. Op de steen ernaast staat een oude inscriptie: hier lag ooit een tuin die water gaf aan het hele eiland. Maak de bron vrij, metsel terrassen, timmer een waterloop en bouw een kas. Dan stroomt het water weer.",
+      ending: "Het water klatert uit de bron, loopt door de goot en valt als een waterval over de rand de wolken in. De bedden bloeien en de kristalboom gloeit feller dan ooit. In de kas groeien wolkenbessen: elke dag kun je er een handvol plukken.",
+      rewards: { coins: 25, unlocks: ["wolkentuin"] },
+      steps: [
+        { id: "spring", npc: "bron", prompt: "De inscriptie op de bronsteen is half uitgesleten. Lees hem goed voordat je begint.", goal: "Ruim het puin uit de bron en ontcijfer de inscriptie.", completedText: "De bron is leeg geschept. De inscriptie gloeit op: wie het water terugbrengt, laat de tuin weer bloeien.", visuals: { reveal: ["spring"], hide: ["rubble"] } },
+        { id: "beds", npc: "bron", prompt: "Onder de inscriptie staat hoe de oude tuiniers hun terrassen bouwden. Eerst een vraag.", goal: "Metsel drie gebogen terrasbedden rond de bron en vul ze met aarde.", completedText: "Drie terrassen liggen in een boog rond de bron, vol donkere aarde.", visuals: { reveal: ["beds"], hide: [] } },
+        { id: "trough", npc: "bron", prompt: "De bronsteen laat zien hoe het water vroeger naar de rand stroomde. Lees verder.", goal: "Timmer een houten waterloop op schragen, van de bron tot over de rand.", completedText: "De goot loopt licht schuin van de bron naar de rand. Nu nog water.", visuals: { reveal: ["trough"], hide: [] } },
+        { id: "kas", npc: "bron", prompt: "Op de achterkant van de steen staat een tekening van een glazen huisje. Wat betekent het?", goal: "Bouw een kas van hout en glas voor de jonge planten.", completedText: "De kas staat. Het glas vangt het licht van de kristalboom.", visuals: { reveal: ["kas"], hide: [] } },
+        { id: "flow", npc: "bron", prompt: "De laatste regel van de inscriptie is een raadsel. Los het op en de bron gaat open.", goal: "Zet de bronsteen recht en laat het water stromen.", completedText: "Het water stroomt! De bedden bloeien en over de rand valt een waterval de wolken in.", visuals: { reveal: ["flow"], hide: [] } }
+      ]
+    },
     vakwerkhuis: {
       id: "een-plek-voor-jezelf",
       title:"Bouw je eigen vakwerkhuis",
