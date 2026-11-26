@@ -1,0 +1,99 @@
+<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#133941"><meta name="robots" content="noindex">
+<title>Skybound · Inloggen</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23183f49'/%3E%3Cpath d='M8 46 30 12l7 17 8-10 12 27z' fill='%23facc68'/%3E%3C/svg%3E">
+<style>
+@font-face{font-family:Barlow;src:url(vendor/display.ttf)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#0d2329;color:#fff;font:500 16px system-ui,-apple-system,Segoe UI,sans-serif}
+button,input{font:inherit}button{cursor:pointer;touch-action:manipulation}
+body{min-height:100dvh;display:flex;background:linear-gradient(90deg,#091b21f2 0%,#10272bdc 30%,#12252b66 62%,transparent 88%),linear-gradient(0deg,#091c24cc,transparent 40%),url(art/archipel.jpg) center/cover fixed}
+main{width:min(440px,100%);padding:max(28px,env(safe-area-inset-top)) clamp(20px,6vw,72px) 28px;display:flex;flex-direction:column;gap:18px}
+.brand{display:flex;align-items:center;gap:10px;font-size:15px;letter-spacing:.14em;font-weight:700}.brand i{color:#ffcd70;font-style:normal;font-size:20px}
+h1{font:900 clamp(64px,13vw,120px)/.94 Barlow,Impact,sans-serif;letter-spacing:-.025em;margin:28px 0 0;color:#fff3d8;text-shadow:0 5px 0 #122f402e}
+.tag{margin:0;color:#ebe9d9;font-size:17px;line-height:1.45}
+.card{margin-top:6px;padding:20px;border-radius:18px;background:#0f2a31b8;border:1px solid #ffffff26;-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 20px 50px #0007}
+.label{font-size:11px;letter-spacing:.16em;color:#ffdc8a;font-weight:800;margin:0 0 12px}
+.who{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.who button{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:16px;border-radius:14px;border:1px solid #ffffff3a;background:#173b48d9;color:#fff;text-align:left;transition:transform .15s,background .2s}
+.who button b{font-size:21px}.who button small{color:#cfe0d8;font-size:12px;font-weight:600}
+.who button:hover{transform:translateY(-2px);background:#1f4b5a}
+.who .parent{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;padding:11px 16px;background:transparent}.who .parent b{font-size:15px}
+.dots{display:flex;gap:12px;justify-content:center;margin:6px 0 16px;min-height:22px}.dots span{width:16px;height:16px;border-radius:50%;border:2px solid #ffdc8a;transition:background .15s}.dots span.on{background:#ffcd70}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.pad button{height:58px;border-radius:13px;border:1px solid #ffffff2e;background:#173b48d9;color:#fff;font-size:24px;font-weight:700}.pad button:active{background:#2a5a6a}
+.pad .ok{background:#ffcd70;color:#24363d;border:0;border-bottom:4px solid #d89c48;font-size:19px}.pad .ok:disabled{opacity:.45}
+.pad .back{font-size:20px}
+.msg{min-height:22px;margin:12px 0 0;font-size:14px;color:#ffd7a8;text-align:center}.msg.good{color:#bdf0c8}
+.link{background:none;border:0;color:#cfe0d8;padding:6px 0;font-size:14px;text-decoration:underline;text-underline-offset:3px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px}
+.primary{display:flex;justify-content:space-between;align-items:center;width:100%;background:#ffcd70;color:#24363d;border:0;border-bottom:4px solid #d89c48;border-radius:11px;padding:14px 20px;font-weight:850;font-size:17px;text-decoration:none}
+.codes label{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0}.codes label span{font-weight:700}.codes small{display:block;color:#cfe0d8;font-weight:500;font-size:12px}
+.codes input{width:132px;padding:11px 12px;border-radius:10px;border:1px solid #ffffff44;background:#0b2026;color:#fff;font-size:20px;letter-spacing:.3em;text-align:center}
+.note{font-size:13px;color:#cfe0d8;line-height:1.5;margin:10px 0 0}
+[hidden]{display:none!important}
+@media(max-width:560px){body{background-position:62% center;align-items:flex-end}main{padding-top:24px}h1{margin-top:8px}}
+@media(prefers-reduced-motion:no-preference){.card{animation:in .6s cubic-bezier(.2,.9,.25,1) both}@keyframes in{from{opacity:0;transform:translateY(14px)}}}
+</style></head><body><main>
+<div class="brand"><i>◈</i> STUDYQUEST</div>
+<h1>SKYBOUND</h1>
+<p class="tag">De windarchipel wacht op je. Log eerst in, zodat niemand anders met jouw expeditie verder speelt.</p>
+
+<section class="card" id="pick">
+ <p class="label">WIE SPEELT ER?</p>
+ <div class="who">
+  <button data-who="Niek"><b>Niek</b><small>havo 2</small></button>
+  <button data-who="Floor"><b>Floor</b><small>havo 3</small></button>
+  <button data-who="Ouder" class="parent"><b>Ouder</b><small>pincode</small></button>
+ </div>
+</section>
+
+<section class="card" id="enter" hidden>
+ <p class="label" id="enterLabel">CODE</p>
+ <div class="dots" id="dots" aria-live="polite"></div>
+ <div class="pad" id="pad"></div>
+ <p class="msg" id="msg" role="status"></p>
+ <div class="row"><button class="link" id="other">Andere speler</button><span></span></div>
+</section>
+
+<section class="card" id="done" hidden>
+ <p class="label" id="doneLabel">INGELOGD</p>
+ <a class="primary" href="/">Naar de expeditie <span>➜</span></a>
+ <div class="codes" id="codes" hidden>
+  <p class="note">Stel hier de inlogcodes van de kinderen in: 4 tot 8 cijfers, voor ieder een eigen code. De codes worden alleen versleuteld bewaard; ook hier zie je ze daarna niet meer terug.</p>
+  <label><span>Niek<small id="stNiek">…</small></span><input id="cNiek" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="····"></label>
+  <label><span>Floor<small id="stFloor">…</small></span><input id="cFloor" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="····"></label>
+  <button class="primary" id="save" style="justify-content:center">Codes opslaan</button>
+  <p class="msg" id="codeMsg" role="status"></p>
+ </div>
+ <div class="row"><a class="link" href="/api/logout">Uitloggen op dit apparaat</a><span></span></div>
+</section>
+</main>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);let who=null,code='';
+const loggedIn=()=>{const m=/(?:^|;\s*)sq_who=(Niek|Floor|Ouder)/.exec(document.cookie);return m?m[1]:null};
+function show(id){for(const s of ['pick','enter','done'])$(s).hidden=s!==id}
+function dots(){const max=who==='Ouder'?4:Math.max(4,code.length);$('dots').innerHTML=Array.from({length:Math.min(8,max)},(_,i)=>'<span class="'+(i<code.length?'on':'')+'"></span>').join('');$('ok').disabled=code.length<4}
+function pick(w){who=w;code='';$('enterLabel').textContent=w==='Ouder'?'PINCODE OUDER':'CODE VAN '+w.toUpperCase();$('msg').textContent='';$('msg').className='msg';show('enter');dots()}
+function press(k){if(k==='back')code=code.slice(0,-1);else if(k==='ok')return send();else if(code.length<8)code+=k;dots()}
+async function send(){if(code.length<4)return;$('ok').disabled=true;$('msg').className='msg';$('msg').textContent='Even kijken…';
+ try{const r=await fetch('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({who,code})}),b=await r.json().catch(()=>({}));
+  if(r.ok){done(who,true);return}
+  code='';dots();
+  $('msg').textContent=b.error==='geen-code'?'Voor '+who+' is nog geen code ingesteld. Vraag je ouder om in te loggen en een code te kiezen.':b.error==='wacht'?'Te vaak een verkeerde code. Probeer het over '+Math.ceil(b.seconds/60)+' minuten opnieuw.':b.error==='code'?'Die code klopt niet.'+(b.left!=null&&b.left<4?' Nog '+b.left+' '+(b.left===1?'poging':'pogingen')+'.':''):r.status===503?'Inloggen kan nu even niet. Probeer het later opnieuw.':'Er ging iets mis. Probeer het opnieuw.'}
+ catch{code='';dots();$('msg').textContent='Geen verbinding. Probeer het opnieuw.'}}
+async function done(w,fresh){$('doneLabel').textContent='INGELOGD ALS '+w.toUpperCase();show('done');$('codes').hidden=w!=='Ouder';if(w==='Ouder')status();else if(fresh)setTimeout(()=>{location.href='/'},700)}
+async function status(){try{const r=await fetch('/api/codes'),b=await r.json();for(const k of ['Niek','Floor'])$('st'+k).textContent=b.set?.[k]?'code ingesteld · leeg laten om te houden':'nog geen code'}catch{}}
+$('save').onclick=async()=>{const body={Niek:$('cNiek').value.trim(),Floor:$('cFloor').value.trim()};const m=$('codeMsg');m.className='msg';
+ if(!body.Niek&&!body.Floor){m.textContent='Vul minstens één code in.';return}
+ for(const [k,v] of Object.entries(body))if(v&&!/^\d{4,8}$/.test(v)){m.textContent='De code van '+k+' moet 4 tot 8 cijfers zijn.';return}
+ try{const r=await fetch('/api/codes',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}),b=await r.json().catch(()=>({}));
+  if(r.ok){m.className='msg good';m.textContent='Opgeslagen voor '+b.changed.join(' en ')+'.';$('cNiek').value=$('cFloor').value='';status()}
+  else m.textContent=b.error==='gelijk'?'Niek en Floor hebben elk een eigen code nodig.':b.error==='vorm'?'Een code is 4 tot 8 cijfers.':b.error==='ouder'?'Log opnieuw in als ouder.':'Opslaan lukte niet.'}
+ catch{m.textContent='Geen verbinding.'}};
+$('pad').innerHTML=['1','2','3','4','5','6','7','8','9','back','0','ok'].map(k=>'<button data-k="'+k+'"'+(k==='ok'?' class="ok" id="ok"':k==='back'?' class="back" aria-label="Wissen"':'')+'>'+(k==='back'?'⌫':k==='ok'?'OK':k)+'</button>').join('');
+$('pad').onclick=e=>{const b=e.target.closest('button');if(b)press(b.dataset.k)};
+document.querySelectorAll('[data-who]').forEach(b=>b.onclick=()=>pick(b.dataset.who));
+$('other').onclick=()=>show('pick');
+addEventListener('keydown',e=>{if($('enter').hidden)return;if(/^\d$/.test(e.key))press(e.key);else if(e.key==='Backspace')press('back');else if(e.key==='Enter')press('ok');else if(e.key==='Escape')show('pick')});
+{const w=loggedIn();if(w)done(w)}
+</script></body></html>

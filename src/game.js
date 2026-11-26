@@ -50,7 +50,7 @@ function adminOpen(){if(admin.on){adminPanel();return}
  $('pinform').onsubmit=async e=>{e.preventDefault();let hex='';try{const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('skybound:'+$('pin').value.trim()));hex=[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('')}catch{}
   if(hex===admin.hash){admin.on=true;admin.pin=$('pin').value.trim();notify('Beheermodus aan: er wordt niets meer opgeslagen.');adminPanel()}else{$('pinmsg').textContent='Die pincode klopt niet.';$('pin').value=''}}}
 function adminPanel(){
- const st=[['Begin, alles dicht',0,1],['Havenbrug klaar',1,1],['Bergbrug klaar',2,1],['Baken brandt',3,1],['Level 2 gestart',3,2],['Molen draait',4,2],['Kraan hijst',5,2],['Alles klaar',6,2],['L3 gestart',6,3,0],['L3 · 2 fases',6,3,2],['L3 · 4 fases',6,3,4],['L3 klaar',6,3,5],['L4 ontwerp',6,4,-1],['L4 · 2 fases',6,4,2],['L4 · 4 fases',6,4,4],['L4 klaar',6,4,5]];
+ const st=[['Begin, alles dicht',0,1],['Havenbrug klaar',1,1],['Bergbrug klaar',2,1],['Baken brandt',3,1],['Level 2 gestart',3,2],['Molen draait',4,2],['Kraan hijst',5,2],['Alles klaar',6,2],['L3 gestart',6,3,0],['L3 · 2 fases',6,3,2],['L3 · 4 fases',6,3,4],['L3 klaar',6,3,5],['L4 ontwerp',6,4,-1],['L4 · 2 fases',6,4,2],['L4 · 4 fases',6,4,4],['L4 klaar',6,4,5],['L5 gestart',6,5,0],['L5 · 3 fases',6,5,3],['L5 klaar',6,5,5]];
  const isl=world.islands.map((I,i)=>'<button data-go="'+i+'">'+I.name+'</button>').join('');
  const homes=world.rooms.map((r,i)=>'<button data-house="'+i+'">'+r.house.place+'</button>').join('');
  show('<small>BEHEERMODUS · WORDT NIET OPGESLAGEN</small><h2>Godmodus</h2><p>Alles wat je hier doet is tijdelijk. Ververs de pagina zonder <b>?beheer</b> om terug te gaan naar de echte voortgang.</p>'+
@@ -59,7 +59,7 @@ function adminPanel(){
   '<div class="question">Ouders</div><p>'+(Track.linked()?'Dit apparaat is gekoppeld aan het ouderoverzicht.':'Dit apparaat is nog niet gekoppeld. Koppel elk apparaat waarop de kinderen spelen één keer.')+'</p><div class="row"><button id="admOverview" class="primary">Ouderoverzicht</button><button id="admLink">'+(Track.linked()?'Ontkoppelen':'Dit apparaat koppelen')+'</button></div>'+
   '<div class="question">Naar een eiland</div><div class="row">'+isl+'<button id="admCable">Kabelbaanstation</button></div>'+
   '<div class="question">Binnen kijken</div><div class="row">'+homes+'</div>'+buttons());back();
- const setStage=(n,l,k)=>{s.stage=n;s.level=l;s.seals=0;if(l===4){const t=ConstructionCampaign.state(s,L3.id).ok?s:ConstructionCampaign.start(s,{id:L3.id,blueprintId:L3.blueprint,plotId:L3.plot,x:L3.x,z:L3.z}).save;s=t;s.constructionProjects=s.constructionProjects.map(p=>p.id===L3.id?{...p,completed:5}:p);
+ const setStage=(n,l,k)=>{s.stage=n;s.level=l;s.seals=0;if(l===5){setStage(n,4,5);s.level=5;if(!ConstructionCampaign.state(s,L5.id).ok)s=ConstructionCampaign.start(s,{id:L5.id,blueprintId:L5.blueprint,plotId:L5.plot,x:L5.x,z:L5.z}).save;s.constructionProjects=s.constructionProjects.map(p=>p.id===L5.id?{...p,completed:k}:p);s.constructionStudy={};s.skyAt=0;world.sync(s);updateHUD();return}if(l===4){const t=ConstructionCampaign.state(s,L3.id).ok?s:ConstructionCampaign.start(s,{id:L3.id,blueprintId:L3.blueprint,plotId:L3.plot,x:L3.x,z:L3.z}).save;s=t;s.constructionProjects=s.constructionProjects.map(p=>p.id===L3.id?{...p,completed:5}:p);
    if(k<0){s.constructionProjects=s.constructionProjects.filter(p=>p.id!==L4.id);if(s.constructionDesigns)delete s.constructionDesigns[L4.id];s.houseFurnitureStorage=[]}
    else{if(!houseInfo()){const d=houseDraft(),r=HousePlanner.begin(s,d,siteCtx(d));if(r.ok){s=r.save;delete s.houseDraft}}s.constructionProjects=s.constructionProjects.map(p=>p.id===L4.id?{...p,completed:k}:p)}s.constructionStudy={};houseView()}
   if(l===3){if(!ConstructionCampaign.state(s,L3.id).ok)s=ConstructionCampaign.start(s,{id:L3.id,blueprintId:L3.blueprint,plotId:L3.plot,x:L3.x,z:L3.z}).save;s.constructionProjects=s.constructionProjects.map(p=>p.id===L3.id?{...p,completed:k}:p);s.constructionStudy={}}world.sync(s);updateHUD()};
@@ -103,7 +103,7 @@ async function linkThisDevice(){const b=$('admLink');if(Track.linked()){Track.un
 const houseOf=key=>world.rooms.find(r=>r.house.key===key).house;
 const repair=[{x:0,z:-21},{x:0,z:-81},{x:0,z:-130},{x:-63.5,z:-63.5},{x:56.5,z:-84},{x:63,z:-128}];
 const key=()=> 'studyquest.skybound.v1.'+(profile==='Floor'?'Nova':'Flint');
-function persist(){if(!playing||admin.on)return;try{s.position=currentRoom?{...outdoorPose}:{x:p.x,y:p.y,z:p.z,yaw:view.yaw};localStorage.setItem(key(),JSON.stringify(s))}catch{notify('Opslaan lukt niet in deze browser.')}}
+function persist(){if(!playing||admin.on)return;try{s.position=currentRoom?{...outdoorPose}:ride?.kind==='air'?(()=>{const d=ride.from?world.sky.data.dockB:world.sky.data.dock;return {x:d.x,y:ride.from?world.sky.data.isle.lift:13,z:d.z,yaw:0}})():{x:p.x,y:p.y,z:p.z,yaw:view.yaw};localStorage.setItem(key(),JSON.stringify(s))}catch{notify('Opslaan lukt niet in deze browser.')}}
 function notify(str){$('toast').textContent=str;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').textContent='',3500)}
 function dist(o){return Math.hypot(o.x-p.x,o.z-p.z)}
 function area(){return world.islands.reduce((a,b)=>dist(a)<dist(b)?a:b)}
@@ -117,6 +117,12 @@ function closePanel(){$('panel').close();updateHUD()}
 function buttons(){return '<div class="row"><button id="back">Terug naar het eiland</button></div>'}
 function back(){$('back').onclick=closePanel}
 function start(){if(!world){try{world=createWorld($('world'));window.addEventListener('resize',world.resize)}catch(error){$('start').textContent='Spelwereld laden mislukt';console.error(error);return false}}playing=true;if(world.walkers)world.walkers.onGreet=(name,line)=>{if(!$('panel').open)notify(name+': “'+line+'”')};restore();houseView();if(s.hand===undefined)s.hand=HAND.find(k=>s.tools[k])||null;world.hold?.(s.tools[s.hand]?s.hand:null);$('entry').hidden=true;$('hud').hidden=false;world.animate(0,s,p,view,false,1);updateHUD();notify(s.log.turn||s.hout?'Welkom terug, '+profile+'!':'Loop naar de gemarkeerde houtstapel.')}
+// (1.26) Who is logged in on this device (front-door login): a child plays only as themselves, a parent may pick.
+// Without the login cookie (local tests) both profiles stay open.
+const loginWho=(()=>{const m=/(?:^|;\s*)sq_who=(Niek|Floor|Ouder)/.exec(document.cookie);return m?m[1]:null})();
+if(loginWho==='Niek'||loginWho==='Floor'){profile=loginWho;document.querySelectorAll('[data-profile]').forEach(b=>{b.hidden=b.dataset.profile!==loginWho;b.classList.toggle('selected',b.dataset.profile===loginWho)})}
+if(loginWho){const a=document.createElement('a');a.href='/api/logout';a.className='logout';a.textContent='Uitloggen · '+loginWho;document.querySelector('.landing nav div')?.appendChild(a);
+ if(loginWho==='Ouder'){const c=document.createElement('a');c.href='/login.html';c.className='logout';c.textContent='Inlogcodes';document.querySelector('.landing nav div')?.appendChild(c)}}
 document.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>{profile=b.dataset.profile;updateProfileMenu();world?.outfit(profile==="Floor"?"Nova":"Flint");document.querySelectorAll('[data-profile]').forEach(c=>c.classList.toggle('selected',c===b))});$('start').onclick=start;$('history').onclick=()=>{start();if(playing)historyMenu()};
 function needs(){const cp=cur(),t3=cp?.r;if(t3){const c=t3.progress.next.cost,planks=Math.max(0,(c.planken||0)-s.planken);return {hout:Math.max(0,(c.hout||0)+planks-s.hout),steen:Math.max(0,(c.steen||0)-s.steen),planks}}
  const c=stepCost();if(!c)return null;const planks=Math.max(0,c.planken-s.planken);
@@ -126,6 +132,7 @@ function reachable(n){const I=world.islands.find(i=>Math.hypot(i.x-n.x,i.z-n.z)<
 function objective(){
  const m=mission(),cp=cur(),t3=cp?.r;
  if(!m&&!t3&&(s.level||1)>=4&&!houseInfo()&&houseReady()){const d=houseDraft();return {obj:{x:d.x,z:d.z},name:'Bouwkavel · '+plotById(d.plotId).name}}
+ if(!m&&!t3&&l5Done()&&!s.skyVisited&&s.skyAt!==1)return {obj:L5.site,name:'De Hemelvaarder · vlieg naar de Wolkenkruin'};
  if(!m&&!t3)return race?{obj:world.gates[race.hit],name:'Tijdrit · windring '+(race.hit+1)}:null;
  const n=needs(),visit=(id)=>{const h=houseOf(TOOLS[id].owner);return {obj:h,name:TOOLS[id].name+' · '+h.name}};
  if(t3&&t3.answersNeeded>0){const h=houseOf(t3.stepStory.npc);return {obj:h,name:cp.P.name+' · vraag '+h.name}}
@@ -175,7 +182,9 @@ let m=mission();$('region').textContent=area().name;$('chapter').textContent=m?'
   $('progress').textContent=['Antwoorden '+t3.correctAnswers+'/'+st.questions,...['hout','steen','planken'].filter(k=>c[k]).map(k=>k[0].toUpperCase()+k.slice(1)+' '+Math.min(s[k],c[k])+'/'+c[k])].join(' · ')}
   else if(lv>=4&&houseReady()){const hi=houseInfo();if(!hi){$('chapter').textContent='LEVEL 4  /  ONTWERP';$('objective').textContent='Ontwerp je huis';$('progress').textContent='Kavel: '+plotById(houseDraft().plotId).name}
    else{$('chapter').textContent='ALLE LEVELS VOLTOOID';$('objective').textContent='Richt je huis in';$('progress').textContent=hi.design.furniture.length+' meubels in je huis'}}
-  else if(l3Done()){$('chapter').textContent='LEVEL 3 VOLTOOID';$('objective').textContent='Klaar voor level 4 · open je logboek'}}
+  else if(l3Done()){$('chapter').textContent='LEVEL 3 VOLTOOID';$('objective').textContent='Klaar voor level 4 · open je logboek'}
+  if(!t3&&l5Done()){$('chapter').textContent='ALLE LEVELS VOLTOOID';$('objective').textContent=s.skyVisited?'Ontdek de Wolkenkruin':'Vlieg naar de Wolkenkruin';$('progress').textContent='De Hemelvaarder ligt aan '+(s.skyAt===1?'de Wolkenkruin':'de Valkenrots')}
+  else if(!t3&&houseDone()&&(s.level||1)<5){$('chapter').textContent='LEVEL 4 VOLTOOID';$('objective').textContent='Klaar voor level 5 · open je logboek'}}
  $('inventory').textContent=inventoryText();
  context=null;
  if(placement){context={kind:'place'};$('act').textContent='Plaatsen · E'}
@@ -189,6 +198,10 @@ let m=mission();$('region').textContent=area().name;$('chapter').textContent=m?'
  else if((s.level||1)>=4&&houseReady()&&!placement&&!race){const hi=houseInfo(),d=hi?hi.design:houseDraft(),near=Math.hypot(p.x-d.x,p.z-d.z)<6.5;
   if(near&&(!context||context.kind!=='resource')){context={kind:'house'};$('act').textContent=(!hi?'Ontwerp je huis':hi.progress.finished?'Inrichten':'Bouwplek mijn huis')+' · E'}}
  else if(l3Done()&&!context&&!placement&&dist(L3.site)<3){context={kind:'tower'};$('act').textContent='Wachttoren · E'}
+ if(world.sky&&!placement&&!race&&!ride&&(!context||context.kind!=='resource')){const sk=world.sky.data;
+  if((s.level||1)>=5&&dist(L5.site)<4.2){context={kind:'dock'};$('act').textContent=(l5Done()?'Aan boord · vlieg naar de Wolkenkruin':'Luchtschipdok')+' · E'}
+  else if(l5Done()&&sk.dockB&&dist(sk.dockB)<3.8){context={kind:'dockB'};$('act').textContent='Aan boord · terug naar de Valkenrots · E'}
+  else if(sk.ped&&dist(sk.ped)<2.4&&Math.abs(p.y-sk.isle.lift)<3){context={kind:'skymap'};$('act').textContent='De hemelkaart · E'}}
  const cab=world.cable,station=[cab.a,cab.b].findIndex(st=>Math.hypot(st.x-p.x,st.z-p.z)<3.4&&Math.abs(p.y-st.y-world.liftAt(st.x,st.z))<2.5);
  if(station>=0&&!context&&!placement&&!ride){context={kind:'cable',from:station};$('act').textContent=(station?'Kabelbaan naar de berg':'Kabelbaan naar de Bloesemvallei')+' · E'}
  const door=world.rooms.find(room=>dist(room.house)<1.8);
@@ -229,6 +242,9 @@ function act(){if(!playing||$('panel').open)return;updateHUD();if(!context)retur
  if(context.kind==='cable'){if(s.stage<1){notify('De kabelbaan draait pas als de havenbrug weer heel is.');return}ride={from:context.from,t:0,dur:15};p.ride=true;notify('Instappen! Geniet van het uitzicht.');return}
  if(context.kind==='resource'){harvest(context.n);return}
  if(context.kind==='tower'){projPanel(L3);return}
+ if(context.kind==='dock'){if(l5Done())fly(0);else projPanel(L5);return}
+ if(context.kind==='dockB'){fly(1);return}
+ if(context.kind==='skymap'){skymapPanel();return}
  if(context.kind==='house'){housePanel();return}
  workshop()}
 // Taken is taken: an emptied pile stays gone (for about 30 years of play).
@@ -362,14 +378,17 @@ function startLevel2(){s.level=2;persist();closePanel();notify('Level 2 begonnen
 // each question once per stage.
 const L3={id:'wachttoren',blueprint:'wachttoren_ruine',plot:'dennenhoek-ruine',x:-54,z:-10.5,site:{x:-53.4,z:-6.4},level:3,name:'Wachttoren',there:'naar de wachttoren'};
 const L4={id:'mijn-huis',blueprint:'vakwerkhuis',level:4,name:'Mijn huis',there:'naar je bouwplek'};
+// (1.26) Level 5 · De Hemelvaarder: rebuild the old airship on the Valkenrots and fly it to the Wolkenkruin
+const L5={id:'luchtschip',blueprint:'luchtschip',plot:'valkenrots-dok',x:55,z:-145.4,site:{x:55,z:-143.6},level:5,name:'Luchtschip',there:'naar het luchtschipdok op de Valkenrots'};
 const l3Ready=()=>typeof ConstructionCampaign!=='undefined';
 const houseReady=()=>l3Ready()&&typeof HouseDesigner!=='undefined'&&typeof HousePlanner!=='undefined'&&!!world?.housePlots;
 function pstate(P){if(!l3Ready()||(s.level||1)<P.level)return null;const r=ConstructionCampaign.state(s,P.id);return r.ok?r:null}
 function l3(){return pstate(L3)}
 function l3On(){const r=l3();return !!r&&!r.progress.finished}
 function l3Done(){const r=l3();return !!r&&r.progress.finished}
+const l5=()=>world?.sky?pstate(L5):null,l5Done=()=>!!l5()?.progress.finished,houseDone=()=>!!houseInfo()?.progress.finished;
 // the project being built right now, if any
-function cur(){for(const P of [L3,L4]){const r=pstate(P);if(r&&!r.progress.finished)return {P,r}}return null}
+function cur(){for(const P of [L3,L4,L5]){const r=pstate(P);if(r&&!r.progress.finished)return {P,r}}return null}
 // level 4 texts: the house story has goals but no conversation lines yet
 const L4TEXT={foundation:{prompt:'Joost vraagt waarom een fundering breder is dan de muur die erop komt.',done:'De fundering ligt. Nu zie je precies waar je huis komt.'},
  frame:{prompt:'Bram wil weten hoe je de balken haaks en stevig neerzet.',done:'Het houten skelet staat. Je huis heeft zijn vorm.'},
@@ -380,7 +399,7 @@ function stepText(P,r){const sto=r.stepStory||{},t=P===L4?L4TEXT[r.progress.next
 const doneText=(P,stageId,story)=>story?.completedText||(P===L4?L4TEXT[stageId]?.done:'')||'Fase voltooid.';
 // where the player builds: the tower gate, or the front door of the planned house
 function houseInfo(){if(!houseReady()||(s.level||1)<4)return null;const g=HousePlanner.get(s,L4.id);return g.ok?g:null}
-function siteOf(P){if(P===L3)return L3.site;const h=houseInfo();if(h)return h.plan.entrance;const d=s.houseDraft;return d?{x:d.x,z:d.z}:null}
+function siteOf(P){if(P===L3)return L3.site;if(P===L5)return L5.site;const h=houseInfo();if(h)return h.plan.entrance;const d=s.houseDraft;return d?{x:d.x,z:d.z}:null}
 function startLevel3(){if(!l3Ready())return;if(!ConstructionCampaign.state(s,L3.id).ok){const r=ConstructionCampaign.start(s,{id:L3.id,blueprintId:L3.blueprint,plotId:L3.plot,x:L3.x,z:L3.z});if(!r.ok){notify('Level 3 starten lukt niet.');return}s=r.save}
  s.level=3;world.sync(s);persist();const story=ConstructionStory.get(L3.blueprint);
  show('<small>LEVEL 3 · DENNENHOEK</small><h2>'+story.title+'</h2><p>'+story.intro+'</p><p>Je herstelt de toren in vijf fases. Elke fase begint met een gesprek met een bewoner: goede antwoorden in jouw vak tellen mee. Daarna heb je soms hout, steen of planken nodig. Je kompas wijst steeds de weg.</p><div class="row"><button class="primary" id="l3go">Op weg naar de ruïne</button></div>');$('l3go').onclick=closePanel;updateHUD()}
@@ -394,7 +413,7 @@ function projQuestion(P,h){const r=pstate(P);if(!r||!r.answersNeeded){projTalk(P
   return {head:ok?(counted?'Goed! '+now.correctAnswers+' van '+st.questions:'Goed, maar deze vraag telde al mee'):'Nog niet goed',note:left?'':'Genoeg antwoorden voor deze fase. '+(ready?'Ga '+P.there+' om te bouwen.':'Verzamel nu het materiaal; je kompas wijst de weg.'),
    buttons:left?[['Volgende vraag',()=>projQuestion(P,h),true],['Later verder',closePanel]]:[['Gesprek sluiten',closePanel,true]]}})}
 function projPanel(P){const r=pstate(P);if(!r)return;const story=r.story;
- if(r.progress.finished){if(P===L4){furnishPanel();return}show('<small>DENNENHOEK · WACHTTOREN</small><h2>De wachttoren staat weer</h2><p>'+story.ending+'</p><p>Klim via de trap langs de muur en om de toren heen naar de uitkijkpost.</p>'+buttons());back();return}
+ if(r.progress.finished){if(P===L4){furnishPanel();return}if(P===L5){show('<small>VALKENROTS · DE HEMELVAARDER</small><h2>Klaar voor vertrek</h2><p>'+story.ending+'</p><div class="row"><button class="primary" id="flyNow">Vlieg naar de Wolkenkruin</button></div>'+buttons());back();$('flyNow').onclick=()=>{closePanel();fly(0)};return}show('<small>DENNENHOEK · WACHTTOREN</small><h2>De wachttoren staat weer</h2><p>'+story.ending+'</p><p>Klim via de trap langs de muur en om de toren heen naar de uitkijkpost.</p>'+buttons());back();return}
  const st=r.progress.next,tx=stepText(P,r),c=st.cost,h=houseOf(r.stepStory.npc);
  const meters='<div class="meter">Goede antwoorden bij '+h.name+' <b>'+r.correctAnswers+' / '+st.questions+'</b></div>'+['hout','steen','planken'].filter(k=>c[k]).map(k=>'<div class="meter">'+k[0].toUpperCase()+k.slice(1)+' <b>'+s[k]+' / '+c[k]+'</b></div>').join('');
  const saw=c.planken&&s.planken<c.planken?(s.tools.zaag?'<button id="saw">Planken zagen · '+s.hout+' hout</button>':'<p>Voor planken heb je de zaag van '+houseOf('bram').name+' nodig.</p>'):'';
@@ -404,6 +423,7 @@ function buildStage(P){const r=ConstructionCampaign.complete(s,P.id);if(!r.ok){n
  s=r.save;world.sync(s);const at=P===L3?{x:L3.x,z:L3.z}:siteOf(P);world.burst(at.x,P===L3?3.5:world.liftAt(at.x,at.z)+3,at.z,0xffd27a);persist();
  const stage=ConstructionProjects.blueprint(P.blueprint).stages[r.project.completed-1],text=doneText(P,stage.id,r.stageStory);
  if(r.finished&&P===L3){const story=ConstructionStory.get(L3.blueprint);show('<small>LEVEL 3 VOLTOOID</small><h2>De wachttoren staat weer!</h2><p>'+text+'</p><p>'+story.ending+'</p><p>Beloning: '+r.rewards.coins+' munten en de verzegelde kaart in de kist op de toren.</p><p>Klim via de trap naar de uitkijkpost en kijk uit over de handelsroute. Daarna wacht level 4: je eigen huis.</p><div class="row"><button class="primary" id="lvl4">Start level 4</button><button id="back">Eerst naar de toren</button></div>');back();$('lvl4').onclick=startLevel4}
+ else if(r.finished&&P===L5){const story=ConstructionStory.get(L5.blueprint);show('<small>LEVEL 5 VOLTOOID</small><h2>De Hemelvaarder vliegt weer!</h2><p>'+text+'</p><p>'+story.ending+'</p><p>Beloning: '+r.rewards.coins+' munten en een reis naar de Wolkenkruin.</p><div class="row"><button class="primary" id="flyNow">Aan boord</button><button id="back">Later</button></div>');back();$('flyNow').onclick=()=>{closePanel();fly(0)}}
  else if(r.finished){const story=ConstructionStory.get(L4.blueprint);show('<small>LEVEL 4 VOLTOOID</small><h2>Je huis is klaar!</h2><p>'+text+'</p><p>'+story.ending+'</p><p>Ga naar binnen en zet er meubels neer. Een nieuw meubel kost hout of planken; verplaatsen en opbergen is gratis.</p><div class="row"><button class="primary" id="furnish">Inrichten</button><button id="back">Terug naar het eiland</button></div>');back();$('furnish').onclick=furnishPanel}
  else{show('<small>'+P.name.toUpperCase()+' · FASE '+r.project.completed+' VAN 5 KLAAR</small><h2>'+stage.title+'</h2><p>'+text+'</p><div class="row"><button class="primary" id="t3next">Volgende fase bekijken</button><button id="back">Terug naar het eiland</button></div>');back();$('t3next').onclick=()=>projPanel(P)}
  updateHUD()}
@@ -418,6 +438,15 @@ const siteMsg=errs=>(errs||[]).map(e=>e.startsWith('world-rejected:')?'Hier kan 
 function houseDraft(){if(!houseReady())return null;if(!s.houseDraft||!HouseDesigner.valid(s.houseDraft).valid){const pl=world.housePlots[0];s.houseDraft=HouseDesigner.create({projectId:L4.id,plotId:pl.id,x:pl.x,z:pl.z})}return s.houseDraft}
 // what the world shows: the draft as a pale ghost until building starts, then the real house (world.sync)
 function houseView(){if(!world?.houseGhost)return;world.houseGhost((s.level||1)>=4&&houseReady()&&!houseInfo()?houseDraft():null)}
+function startLevel5(){if(!l3Ready()||!world?.sky){notify('Level 5 laden lukt niet.');return}if(!ConstructionCampaign.state(s,L5.id).ok){const r=ConstructionCampaign.start(s,{id:L5.id,blueprintId:L5.blueprint,plotId:L5.plot,x:L5.x,z:L5.z});if(!r.ok){notify('Level 5 starten lukt niet.');return}s=r.save}
+ s.level=5;world.sync(s);persist();updateHUD();const story=ConstructionStory.get(L5.blueprint);
+ show('<small>LEVEL 5 · DE WOLKENKRUIN</small><h2>'+story.title+'</h2><p>'+story.intro+'</p><p>Je herstelt het luchtschip in vijf fases: onderzoek het wrak, bouw een kiel, timmer de gondel, vul de ballon en zet de motor erin. Elke fase begint bij een bewoner met een vraag in jouw vak. Je kompas wijst de weg.</p><div class="row"><button class="primary" id="l5go">Op weg naar de Valkenrots</button></div>');$('l5go').onclick=closePanel}
+// The flight takes 28 seconds: you stand on the gondola roof, steering is off, the camera stays yours to turn.
+function fly(from){if(!l5Done())return;if(from===0&&s.skyAt===1){notify('De Hemelvaarder ligt aan de Wolkenkruin. Vlieg eerst terug.');return}ride={kind:'air',from,t:0,dur:28};p.ride=true;closePanel();{const q=world.sky.fly(from?1:0,!!from);view.yaw=q.h;view.look=0}notify(from?'Terug naar de Valkenrots. Houd je vast!':'Alle touwen los! De Hemelvaarder stijgt op.');updateHUD()}
+function arrivePanel(){show('<small>DE WOLKENKRUIN</small><h2>Boven de wolken</h2><p>Je bent de eerste in honderd jaar die hier aanlegt. In het midden staat de kristalboom, verderop een kring van runenstenen. Bij de boom staat een zuil met de hemelkaart.</p><p>Beloning: 10 munten. Vlieg terug met De Hemelvaarder vanaf de landingsplaats.</p>'+buttons());back()}
+function skymapPanel(){const today=new Date().toDateString(),done=s.skyChart===today;
+ show('<small>WOLKENKRUIN · DE HEMELKAART</small><h2>De hemelkaart</h2><p>In het brons staan sterrenbeelden die de oude zeevaarders gebruikten om de weg te vinden. Wie elke dag een vraag van de kaart goed beantwoordt, krijgt 3 munten.</p><div class="row">'+(done?'<p>Kom morgen terug voor een nieuwe sterrenvraag.</p>':'<button class="primary" id="star">Sterrenvraag</button>')+'</div>'+buttons());back();
+ if($('star'))$('star').onclick=()=>askOne(subject(),{kicker:'WOLKENKRUIN · HEMELKAART',title:'De sterrenvraag',lead:'Eén goed antwoord en de kaart licht op.'},ok=>{if(ok){s.skyChart=today;s.munten=(s.munten||0)+3;persist();updateHUD()}return {head:ok?'De kaart licht op! +3 munten':'Nog niet goed',note:ok?'Morgen staat er een nieuwe vraag op de kaart.':'Probeer het nog eens.',buttons:[['Sluiten',closePanel,true]]}})}
 function startLevel4(){if(!houseReady()){notify('Level 4 laden lukt niet.');return}s.level=4;houseDraft();persist();houseView();updateHUD();const story=ConstructionStory.get(L4.blueprint);
  show('<small>LEVEL 4 · MIJN HUIS</small><h2>'+story.title+'</h2><p>'+story.intro+'</p><p>Eerst ontwerp je het: kies een bouwkavel, draai het huis, kies gevel, houtwerk, dak, vloer, deur en ramen. Het ontwerp staat als doorzichtig huis op de kavel. Daarna bouw je het in vijf fases, net als de wachttoren.</p><div class="row"><button class="primary" id="design">Ontwerp je huis</button><button id="back">Later</button></div>');back();$('design').onclick=designPanel}
 // design: one panel for everything that may still change; parts already built are locked
@@ -520,7 +549,7 @@ function site(){let x=Math.round((p.x-Math.sin(p.heading)*2.9)/2)*2,z=Math.round
  return {x,y,z,valid}}
 function place(){let b=site();if(!b.valid){notify('Zoek een vrije plek op het eiland.');return}const item=!['blok','lamp'].includes(placement);let material=placement==='blok'?'hout':'steen';if(item?!s.items[placement]:!s[material]){clearPlacement();return}
  s.builds.push({x:b.x,y:b.y,z:b.z,type:placement});if(item)s.items[placement]--;else s[material]--;clearPlacement();world.sync(s);persist();updateHUD();notify('Bouwwerk geplaatst')}
-function logbook(){show('<small>VLUCHTLOG · '+profile.toUpperCase()+'</small><h2>Jouw expeditie</h2><p>'+(s.stage<3?'Level 1: '+s.stage+' van 3 missies voltooid.':(s.level||1)<2?'Level 1 voltooid. Level 2 staat klaar.':l3On()?'Level 3: '+l3().progress.current+' van 5 fases van de wachttoren hersteld.':(s.level||1)>=4&&houseReady()?(houseInfo()?(houseInfo().progress.finished?'Alle vier de levels voltooid. Je huis staat; richt het in.':'Level 4: '+houseInfo().progress.current+' van 5 fases van je huis gebouwd.'):'Level 4: ontwerp je huis.'):l3Done()?'Level 3 voltooid. Level 4 staat klaar.':s.stage>=6?'Level 2 voltooid. Level 3 staat klaar.':'Level 2: '+(s.stage-3)+' van 3 missies voltooid.')+' Vandaag heb je '+Track.minutesToday()+' minuten geoefend. Per vaardigheid zie je hoeveel antwoorden goed waren van alle pogingen.</p>'+(profile==='Niek'?German.groups.map((g,i)=>{let entries=Object.values(s.log.items).filter(e=>German.bank[e.id].skill===i);return '<div class="meter">'+g+'<b>'+entries.reduce((a,e)=>a+e.good,0)+' / '+entries.reduce((a,e)=>a+e.attempts,0)+'</b></div>'}).join('')+'<p>'+Object.values(s.log.items).filter(e=>e.due!==null).length+' opdrachten staan klaar voor herhaling.</p>':'<p>Geschiedenis wordt toegevoegd zodra je havo 3-stof er is.</p>')+dutchStats()+(s.best?'<p>Persoonlijk record windrace: '+s.best.toFixed(1)+' seconden.</p>':'')+'<h3>Dorpsonderzoeken</h3>'+villageHomes.map(h=>'<div class="meter">'+h.place+' · '+h.name+'<b>'+(s.village?.[h.key]?'Afgerond':'Open')+'</b></div>').join('')+'<div class="row"><button id="historyLog">Oefen geschiedenis</button><button id="practiceNL">Oefen Nederlands</button><button id="pilot">Wissel personage</button>'+(s.stage===3&&(s.level||1)<2?'<button id="lvl2" class="primary">Start level 2</button>':'')+(s.stage>=6&&(s.level||1)<3?'<button id="lvl3" class="primary">Start level 3</button>':'')+(l3Done()&&(s.level||1)<4?'<button id="lvl4" class="primary">Start level 4</button>':'')+((s.level||1)>=4&&houseReady()?'<button id="myhouse">Mijn huis</button>':'')+'<button id="restart">Opnieuw beginnen</button></div><p><a href="art/credits.txt" target="_blank" rel="noopener">Makers van de 3D-beelden</a></p>'+buttons());back();$('practiceNL').onclick=()=>dutchRound(false);if($('lvl2'))$('lvl2').onclick=startLevel2;if($('lvl3'))$('lvl3').onclick=startLevel3;if($('lvl4'))$('lvl4').onclick=startLevel4;if($('myhouse'))$('myhouse').onclick=housePanel;$('restart').onclick=restartGame;$('historyLog').disabled=profile==='Floor';$('historyLog').onclick=historyMenu;$('pilot').onclick=()=>{persist();playing=false;clearPlacement();$('panel').close();$('hud').hidden=true;$('entry').hidden=false}}
+function logbook(){show('<small>VLUCHTLOG · '+profile.toUpperCase()+'</small><h2>Jouw expeditie</h2><p>'+(s.stage<3?'Level 1: '+s.stage+' van 3 missies voltooid.':(s.level||1)<2?'Level 1 voltooid. Level 2 staat klaar.':l3On()?'Level 3: '+l3().progress.current+' van 5 fases van de wachttoren hersteld.':(s.level||1)>=4&&houseReady()?(houseInfo()?(houseInfo().progress.finished?((s.level||1)>=5?(l5Done()?'Alle vijf de levels voltooid. De Hemelvaarder brengt je naar de Wolkenkruin.':'Level 5: '+(l5()?.progress.current||0)+' van 5 fases van De Hemelvaarder hersteld.'):'Level 4 voltooid. Level 5 staat klaar: De Wolkenkruin.'):'Level 4: '+houseInfo().progress.current+' van 5 fases van je huis gebouwd.'):'Level 4: ontwerp je huis.'):l3Done()?'Level 3 voltooid. Level 4 staat klaar.':s.stage>=6?'Level 2 voltooid. Level 3 staat klaar.':'Level 2: '+(s.stage-3)+' van 3 missies voltooid.')+' Vandaag heb je '+Track.minutesToday()+' minuten geoefend. Per vaardigheid zie je hoeveel antwoorden goed waren van alle pogingen.</p>'+(profile==='Niek'?German.groups.map((g,i)=>{let entries=Object.values(s.log.items).filter(e=>German.bank[e.id].skill===i);return '<div class="meter">'+g+'<b>'+entries.reduce((a,e)=>a+e.good,0)+' / '+entries.reduce((a,e)=>a+e.attempts,0)+'</b></div>'}).join('')+'<p>'+Object.values(s.log.items).filter(e=>e.due!==null).length+' opdrachten staan klaar voor herhaling.</p>':'<p>Geschiedenis wordt toegevoegd zodra je havo 3-stof er is.</p>')+dutchStats()+(s.best?'<p>Persoonlijk record windrace: '+s.best.toFixed(1)+' seconden.</p>':'')+'<h3>Dorpsonderzoeken</h3>'+villageHomes.map(h=>'<div class="meter">'+h.place+' · '+h.name+'<b>'+(s.village?.[h.key]?'Afgerond':'Open')+'</b></div>').join('')+'<div class="row"><button id="historyLog">Oefen geschiedenis</button><button id="practiceNL">Oefen Nederlands</button><button id="pilot">Wissel personage</button>'+(s.stage===3&&(s.level||1)<2?'<button id="lvl2" class="primary">Start level 2</button>':'')+(s.stage>=6&&(s.level||1)<3?'<button id="lvl3" class="primary">Start level 3</button>':'')+(l3Done()&&(s.level||1)<4?'<button id="lvl4" class="primary">Start level 4</button>':'')+(houseDone()&&(s.level||1)<5?'<button id="lvl5" class="primary">Start level 5</button>':'')+((s.level||1)>=4&&houseReady()?'<button id="myhouse">Mijn huis</button>':'')+'<button id="restart">Opnieuw beginnen</button></div><p><a href="art/credits.txt" target="_blank" rel="noopener">Makers van de 3D-beelden</a></p>'+buttons());back();$('practiceNL').onclick=()=>dutchRound(false);if($('lvl2'))$('lvl2').onclick=startLevel2;if($('lvl3'))$('lvl3').onclick=startLevel3;if($('lvl4'))$('lvl4').onclick=startLevel4;if($('lvl5'))$('lvl5').onclick=startLevel5;if($('myhouse'))$('myhouse').onclick=housePanel;$('restart').onclick=restartGame;$('historyLog').disabled=profile==='Floor';$('historyLog').onclick=historyMenu;$('pilot').onclick=()=>{persist();playing=false;clearPlacement();$('panel').close();$('hud').hidden=true;$('entry').hidden=false}}
 $('journal').onclick=logbook;$('adminbtn').hidden=!admin.asked;$('adminbtn').onclick=adminOpen;$('mapbtn').onclick=()=>{show('<small>ATLAS · NOORD ↑</small><h2>De windroute</h2><canvas id="atlas" width="600" height="420" aria-label="Kaart met eilanden, bruggen en je positie"></canvas>'+missionOverview()+buttons());drawAtlas();back()};
 $('act').onclick=act;$('build').onclick=chooseBuild;$('eat').onclick=eat;function jump(){if(currentRoom||admin.fly)return;if(p.on){p.vy=7.8;p.on=false}else if(s.stage>=2&&p.y>.35){p.glide=!p.glide;if(p.glide)notify('Zwever open · stuur met je gewone besturing')}}$('jump').onclick=jump;
 // Physical keys (e.code) keep WASD working with Shift, Caps Lock or another layout. Synthetic test events without a code fall back to e.key.
@@ -543,6 +572,13 @@ const canvas=$('world');canvas.onpointerdown=e=>{if(playing){canvas.setPointerCa
 // from above. Before, only the right mouse button could look up, so on a tablet or touchpad you never could.
 function pitchBy(d){let pt=(view.look||0)>0?view.look:-(view.height-3.9)/6.1;pt=Math.max(-1,Math.min(1,pt+d));if(pt>=0){view.look=pt;view.height=3.9}else{view.look=0;view.height=3.9-pt*6.1}}
 function move(dt){
+ // (1.26) Flying De Hemelvaarder: you stand on the gondola roof; on arrival you step onto the landing stage.
+ if(ride&&ride.kind==='air'){ride.t+=dt;const k=Math.min(1,ride.t/ride.dur),e=k*k*(3-2*k),f=ride.from?1-e:e,q=world.sky.fly(f,!!ride.from);
+  Object.assign(p,{x:q.x,y:q.y,z:q.z,vy:0,on:true,speed:0,glide:false,heading:q.h});
+  if(k>=1){const to=ride.from?0:1,sk=world.sky.data,d=to?sk.dockB:sk.dock;world.sky.land(to);s.skyAt=to;const h=to?Math.atan2(sk.dir.x,sk.dir.z):Math.PI;
+   Object.assign(p,{x:d.x,z:d.z,y:world.ground(d.x,d.z,s,(to?sk.isle.lift:13)+2),heading:h,vy:0,on:true});view.yaw=h;p.ride=false;ride=null;resetSteering();
+   if(to===1&&!s.skyVisited){s.skyVisited=true;s.munten=(s.munten||0)+10;arrivePanel()}else notify(to?'Welkom terug op de Wolkenkruin.':'Terug op de Valkenrots.');persist();updateHUD()}
+  return}
  // Riding the cable car: the gondola carries you, steering is off until you arrive.
  if(ride){ride.t+=dt;const k=Math.min(1,ride.t/ride.dur),e=k*k*(3-2*k),f=ride.from?1-e:e,c=world.cable.at(f);
   Object.assign(p,{x:c.x,y:c.y-4.05,z:c.z,vy:0,on:true,speed:0,glide:false});world.cable.gondola.userData.f=f;
@@ -717,5 +753,5 @@ function updateProfileMenu(){
 }
 $('dutch').onclick=()=>{start();if(playing)dutchRound(false)};
 let remembered;try{remembered=sessionStorage.getItem('skybound.pupil')}catch{}
-document.querySelector('[data-profile="'+(remembered==='Floor'?'Floor':'Niek')+'"]').click();
+document.querySelector('[data-profile="'+(loginWho==='Niek'||loginWho==='Floor'?loginWho:remembered==='Floor'?'Floor':'Niek')+'"]').click();
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing&&!admin.on){Track.save();Track.sync(snapshot,true)}});

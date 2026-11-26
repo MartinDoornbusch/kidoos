@@ -20,6 +20,18 @@ const ConstructionProjects = (() => {
         { id: "interior", title: "Deuren en inrichting", cost: { steen: 1, planken: 3 }, questions: 1, visual: "interior" }
       ]
     },
+    luchtschip: {
+      id: "luchtschip",
+      title: "De Hemelvaarder",
+      footprint: { width: 12, depth: 8 },
+      stages: [
+        { id: "wreck", title: "Het wrak onderzoeken", cost: {}, questions: 1, visual: "wreck" },
+        { id: "keel", title: "Kiel en spanten", cost: { hout: 4, planken: 3 }, questions: 2, visual: "keel" },
+        { id: "gondola", title: "De gondel timmeren", cost: { planken: 5, steen: 2 }, questions: 1, visual: "gondola" },
+        { id: "envelope", title: "De ballon vullen", cost: { hout: 2, steen: 3 }, questions: 2, visual: "envelope" },
+        { id: "engine", title: "Motor en roer", cost: { hout: 2, steen: 2, planken: 3 }, questions: 2, visual: "engine" }
+      ]
+    },
     wachttoren_ruine: {
       id: "wachttoren_ruine",
       title: "Herstel de oude wachttoren",

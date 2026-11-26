@@ -100,3 +100,7 @@ dialog .opts button:disabled,dialog .wingrid button:disabled{opacity:.45;transfo
 @media(pointer:fine){#hud.withTools #act{bottom:116px}}@media(pointer:coarse){#toolbar{bottom:22px}#hud #toolbar button{min-height:44px;padding:8px 10px}}
 @media(max-width:620px) and (pointer:coarse){#toolbar{bottom:128px}#hud.withTools #waypoint{bottom:182px}}
 #hud #toolbar button.held kbd{background:rgba(42,29,8,.85);color:#ffe29e;border-color:rgba(42,29,8,.9)}
+
+/* 1.26 start screen: Nederlands styled like Geschiedenis; logout and login-code links */
+#dutch{color:#e2e9df;background:transparent;border:0;border-bottom:1px solid #b5c7b94f;border-radius:0;padding:8px 0;margin:10px 18px 0 0;font-size:13px}
+.landing nav a.logout{display:inline-block;color:#cfe0d8;font-size:13px;padding:8px 0;margin:10px 18px 0 0;text-decoration:none;border-bottom:1px solid #b5c7b94f;opacity:.85}
