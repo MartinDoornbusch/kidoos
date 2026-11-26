@@ -166,5 +166,39 @@ const Crafts=(()=>{
    k.add(j%3===2?'crystalB':'crystal',g,new T.Matrix4().compose(pos,new T.Quaternion().setFromUnitVectors(Y,d),S1))}
   return k.build(new T.Group())}
  const soilMat=()=>M().soil||(M().soil=new T.MeshStandardMaterial({color:0x3a2a1c,roughness:1}));soilMat();
- return {stoneCart,telescope,block,bench,planter,mast,landing,keel,gondola,crystalTree,mats:M}
+ // (1.26, level 6) The Wolkentuin's waterloop: a plank trough on splayed trestles, running along +x from h0 down to h1
+ // over len metres. Legs stand at the given distances; the world lays the water ribbon in it (inner floor at y(x)+.06).
+ function aqueduct(len,h0,h1,legs){seed=101;const k=kit(),drop=h0-h1,ang=Math.atan2(drop,len),slen=Math.hypot(len,drop),yAt=x=>h0-drop*x/len;
+  const tr=(x,y,z,rz=0)=>mx(x,y,z,0,0,rz-ang);
+  k.add('wood',board(slen,.04,.4),tr(len/2,(h0+h1)/2,0));for(const sz of [-1,1]){k.add('wood',board(slen,.22,.04),tr(len/2,(h0+h1)/2+.11,sz*.18));k.add('darkWood',board(slen,.035,.07),tr(len/2,(h0+h1)/2+.235,sz*.18))}
+  for(let x=.6;x<len-.2;x+=1.1)for(const sz of [-1,1])k.add('iron',board(.05,.24,.012),tr(x,yAt(x)+.11,sz*.207));
+  k.add('wood',board(.04,.22,.36),mx(.02,h0+.11,0));
+  for(const x of legs){const y=yAt(x)-.03;for(const sz of [-1,1]){const [L,m]=span(new T.Vector3(x,0,sz*.42),new T.Vector3(x,y-.05,sz*.2));k.add('darkWood',rod(.045,.038,L,7),m)}
+   k.add('wood',board(.08,.08,.62),mx(x,y-.07,0));const [L2,m2]=span(new T.Vector3(x,.25,-.36),new T.Vector3(x,y-.12,.22));k.add('darkWood',rod(.025,.025,L2,6),m2)}
+  return {group:k.build(new T.Group()),yAt,ang}}
+ // (1.26, level 6) A small glasshouse: plank skirt, oak frame, glass walls and a glass gable roof, a door at the -x end
+ // and two potting benches inside. Along +x, L long, W wide; the floor is at y 0.
+ function greenhouse(L=3.2,W=2.3,H=1.9,R=.9){seed=113;const k=kit(),sk=.45,hw=W/2,hl=L/2;
+  if(!M().pane)M().pane=new T.MeshStandardMaterial({color:0xdff0f2,transparent:true,opacity:.24,roughness:.04,metalness:.15,envMapIntensity:1.6,depthWrite:false,side:T.DoubleSide});
+  // skirt (with the door gap at -x) and the floor
+  for(const sz of [-1,1])k.add('wood',board(L,sk,.05),mx(0,sk/2,sz*(hw-.025)));k.add('wood',board(.05,sk,W),mx(hl-.025,sk/2,0));for(const sz of [-1,1])k.add('wood',board(.05,sk,hw-.45),mx(-hl+.025,sk/2,sz*(hw/2+.225)));
+  k.add('paleWood',board(L-.1,.04,W-.1),mx(0,.02,0));
+  // posts, plates, sills and the door frame
+  const xs=[-hl,-hl/2,0,hl/2,hl];for(const x of xs)for(const sz of [-1,1])k.add('darkWood',board(.08,H,.08),mx(x+(x===-hl?.04:x===hl?-.04:0),H/2,sz*(hw-.04)));
+  for(const sz of [-.42,.42])k.add('darkWood',board(.08,H,.08),mx(-hl+.04,H/2,sz));for(const sz of [-hw/2,hw/2])k.add('darkWood',board(.08,H,.08),mx(hl-.04,H/2,sz));
+  for(const sz of [-1,1]){k.add('darkWood',board(L,.09,.1),mx(0,H,sz*(hw-.04)));k.add('darkWood',board(L,.06,.08),mx(0,sk+.03,sz*(hw-.04)))}
+  for(const sx of [-1,1])k.add('darkWood',board(.1,.09,W),mx(sx*(hl-.04),H,0));k.add('darkWood',board(.08,.06,W),mx(hl-.04,sk+.03,0));k.add('darkWood',board(.08,.08,.92),mx(-hl+.04,H-.1,0));
+  // gable rafters at every post line and the ridge
+  const pitch=Math.atan2(R,hw),raf=Math.hypot(R,hw);for(const x of xs)for(const sz of [-1,1])k.add('darkWood',board(.07,.08,raf+.08),mx(x+(x===-hl?.04:x===hl?-.04:0),H+R/2,sz*hw/2,sz*pitch,0,0));
+  k.add('darkWood',board(L+.12,.1,.1),mx(0,H+R+.02,0));
+  // glass: long walls, roof planes, the closed end, beside and above the door, and the two gable triangles
+  for(const sz of [-1,1]){k.add('pane',new T.BoxGeometry(L-.06,H-sk-.04,.012),mx(0,(H+sk)/2,sz*(hw-.04)));k.add('pane',new T.BoxGeometry(L+.06,.012,raf+.06),mx(0,H+R/2+.03,sz*hw/2,sz*pitch,0,0))}
+  k.add('pane',new T.BoxGeometry(.012,H-sk-.04,W-.06),mx(hl-.04,(H+sk)/2,0));for(const sz of [-1,1])k.add('pane',new T.BoxGeometry(.012,H-sk-.04,hw-.46),mx(-hl+.04,(H+sk)/2,sz*(hw/2+.23)));k.add('pane',new T.BoxGeometry(.012,.14,.84),mx(-hl+.04,H-.18,0));
+  const tri=new T.BufferGeometry();tri.setAttribute('position',new T.Float32BufferAttribute([0,0,-hw,0,0,hw,0,R,0],3));tri.setAttribute('uv',new T.Float32BufferAttribute([0,0,1,0,.5,1],2));tri.computeVertexNormals();
+  for(const sx of [-1,1])k.add('pane',tri,mx(sx*(hl-.04),H,0));
+  // the door, standing open a little, and the two potting benches
+  {k.add('darkWood',board(.05,1.5,.06),mx(-hl-.32,.78,-.4,0,.9,0));k.add('darkWood',board(.05,.06,.8),mx(-hl-.06,1.5,-.12,0,.9,0));k.add('darkWood',board(.05,.06,.8),mx(-hl-.06,.08,-.12,0,.9,0));k.add('wood',board(.04,.55,.78),mx(-hl-.06,.38,-.12,0,.9,0));k.add('pane',new T.BoxGeometry(.012,.9,.74),mx(-hl-.06,1.08,-.12,0,.9,0))}
+  for(const sz of [-1,1]){k.add('wood',board(L-.5,.05,.5),mx(.1,.8,sz*(hw-.36)));for(const x of [-hl+.4,hl-.3])k.add('darkWood',board(.06,.78,.06),mx(x,.39,sz*(hw-.36)));k.add('wood',board(L-.5,.04,.4),mx(.1,.3,sz*(hw-.36)))}
+  return k.build(new T.Group())}
+ return {stoneCart,telescope,block,bench,planter,mast,landing,keel,gondola,crystalTree,aqueduct,greenhouse,mats:M}
 })();

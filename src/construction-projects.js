@@ -32,6 +32,18 @@ const ConstructionProjects = (() => {
         { id: "engine", title: "Motor en roer", cost: { hout: 2, steen: 2, planken: 3 }, questions: 2, visual: "engine" }
       ]
     },
+    wolkentuin: {
+      id: "wolkentuin",
+      title: "De Wolkentuin",
+      footprint: { width: 14, depth: 14 },
+      stages: [
+        { id: "spring", title: "De bron vrijmaken", cost: {}, questions: 1, visual: "spring" },
+        { id: "beds", title: "Terrassen metselen", cost: { steen: 5, hout: 1 }, questions: 2, visual: "beds" },
+        { id: "trough", title: "De waterloop timmeren", cost: { planken: 4, hout: 2 }, questions: 2, visual: "trough" },
+        { id: "kas", title: "De kas bouwen", cost: { planken: 4, hout: 2, steen: 1 }, questions: 2, visual: "kas" },
+        { id: "flow", title: "Het water laten stromen", cost: { steen: 2, planken: 1 }, questions: 2, visual: "flow" }
+      ]
+    },
     wachttoren_ruine: {
       id: "wachttoren_ruine",
       title: "Herstel de oude wachttoren",

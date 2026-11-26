@@ -1335,7 +1335,9 @@ void main(){float u=vUv.x,v=vUv.y;
    sky.dockB={x:W.x+dir.x*(W.r-3.2),z:W.z+dir.z*(W.r-3.2)};sky.B={x:W.x+dir.x*(W.r+7),z:W.z+dir.z*(W.r+7)};sky.ped={x:W.x+2.6,z:W.z+3.4};sky.ring={x:W.x-7.5,z:W.z-1.5};
    keepOut(W.x,W.z,3.6);keepOut(sky.dockB.x,sky.dockB.z,5.4);keepOut(sky.ped.x,sky.ped.z,1.6);keepOut(sky.ring.x,sky.ring.z,4.6);
    sky.work={x:49.6,z:-143.2};keepOut(sky.work.x,sky.work.z,4.8);
-   if(typeof Crafts!=='undefined'){buildSky(W,dir);trail(W,[[sky.dockB.x-dir.x*2.6,sky.dockB.z-dir.z*2.6],[W.x+dir.x*8,W.z+dir.z*8+1],[W.x+dir.x*3.8,W.z+dir.z*3.8],[W.x-4.6,W.z-.6],[sky.ring.x+2.6,sky.ring.z]]);}
+   // (1.26, level 6) the old garden north of the crystal tree: spring, terraces, the trough to the rim and the glasshouse
+   {const S={x:W.x+.5,z:W.z-5.8};keepOut(S.x+1,S.z-2.5,7.6);keepOut(S.x+4.6,S.z-7.9,3.2);keepOut(S.x+5,S.z+.8,2.6)}
+   if(typeof Crafts!=='undefined'){buildSky(W,dir);trail(W,[[sky.dockB.x-dir.x*2.6,sky.dockB.z-dir.z*2.6],[W.x+dir.x*8,W.z+dir.z*8+1],[W.x+dir.x*3.8,W.z+dir.z*3.8],[W.x-4.6,W.z-.6],[sky.ring.x+2.6,sky.ring.z]]);trail(W,[[W.x-2.4,W.z-2.2],[W.x-.6,W.z-3.6],[W.x+.5,W.z-3.4]]);}
    for(let i=0;i<7;i++)tree(W,3,4.6,true);for(let i=0;i<5;i++)boulder(W,0xc9d2d6,.45,1.0);tufts(W,46)}
   for(let i=0;i<10;i++)tree(peakI,4.5,7);for(let i=0;i<6;i++)boulder(peakI,0xa7a397,.6,1.3);tufts(peakI,30);
 
@@ -2132,7 +2134,78 @@ void main(){float u=vUv.x,v=vUv.y;
     vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader:'uniform float t;varying vec2 vUv;void main(){float band=.55+.45*sin(vUv.x*34.+t*.7+sin(vUv.x*9.-t*.4)*2.);float a=smoothstep(0.,.25,vUv.y)*smoothstep(1.,.45,vUv.y)*band*(.55+.45*sin(vUv.x*7.+t*.25));vec3 c=mix(vec3(.15,.95,.6),vec3(.55,.35,1.),smoothstep(.35,1.,vUv.y+.25*sin(vUv.x*5.+t*.3)));gl_FragColor=vec4(c*a*.55,1.);}'});
    const au=new T.Mesh(geo,mat);au.position.set(W.x,W.lift+30,W.z);au.frustumCulled=false;au.renderOrder=-1;scene.add(au);skyAnim.aurora=mat}
+  buildGarden(W)
  }
+ // ---- (1.26) Level 6 · De Wolkentuin. North of the crystal tree lies a dry spring full of rubble beside a stone with
+ // an inscription. In five stages the pupil clears it, lays three curved stone terraces, builds a timber trough on
+ // trestles from the spring to the rim, a glasshouse, and lets the water run: the spring fills, the trough carries the
+ // water to the rim where it falls into the clouds, the beds flower and the crystal tree glows brighter.
+ function gardenLevel(s){const pr=Array.isArray(s?.constructionProjects)?s.constructionProjects.find(p=>p.id==='wolkentuin'):null;return pr?pr.completed||0:-1}
+ function buildGarden(W){
+  const S={x:W.x+.5,z:W.z-5.8},aT=-1.05,dir={x:Math.cos(aT),z:Math.sin(aT)},L=W.lift,G=sky.garden={S,aT,dir,site:{x:S.x,z:S.z+2.3},kas:{x:S.x+4.9,z:S.z+.8},door:{x:S.x+2.75,z:S.z+.8}};
+  let q=4242;const R=()=>(q=(q*16807)%2147483647)/2147483647;
+  const stone=scanReady&&typeof Models!=='undefined'?triplanar(new T.MeshStandardMaterial({map:Models.texture('wallslate_diff.jpg',true),normalMap:Models.texture('wallslate_nor.jpg'),roughness:.92,color:0xd2cdc4}),{scale:1/2.1,moss:.6,bounce:.55,desat:.12}):new T.MeshStandardMaterial({color:0xbab3a6,roughness:.95});
+  const m4=new T.Matrix4(),qq=new T.Quaternion(),ee=new T.Euler();
+  const blocks=(list,parent,mat=stone)=>{const im=new T.InstancedMesh(new T.BoxGeometry(1,1,1),mat,list.length);list.forEach(([x,y,z,sx,sy,sz,ry,rx=0],i)=>{m4.compose(new T.Vector3(x,y,z),qq.setFromEuler(ee.set(rx,ry,0)),new T.Vector3(sx,sy,sz));im.setMatrixAt(i,m4)});im.castShadow=im.receiveShadow=true;im.frustumCulled=false;parent.add(im);return im};
+  const when=k=>s=>gardenLevel(s)>=k;
+  // the spring: a ring of dressed stones with a capstone course, a stone column with a bronze spout, a dry cracked floor
+  {const g=skyG.gBase=group(S.x,0,S.z),ring=[],caps=[];for(let i=0;i<16;i++){const a=i/16*Math.PI*2,h=.44+R()*.1;ring.push([Math.cos(a)*1.3,h/2,Math.sin(a)*1.3,.54,h,.3,-a-Math.PI/2]);const b=a+Math.PI/16;caps.push([Math.cos(b)*1.3,.53,Math.sin(b)*1.3,.56,.08,.42,-b-Math.PI/2])}
+   blocks(ring,g);blocks(caps,g);
+   const dry=canvasTex(256,256,c=>{c.fillStyle='#7a654c';c.fillRect(0,0,256,256);for(let i=0;i<900;i++){c.fillStyle=`rgba(${60+R()*50|0},${48+R()*36|0},30,${.15+R()*.2})`;c.fillRect(R()*256,R()*256,3,3)}c.strokeStyle='rgba(40,30,20,.75)';c.lineWidth=1.6;
+    for(let k=0;k<26;k++){let x=R()*256,y=R()*256;c.beginPath();c.moveTo(x,y);for(let j=0;j<5;j++){x+=(R()-.5)*50;y+=(R()-.5)*50;c.lineTo(x,y)}c.stroke()}});
+   skyG.dry=skyMesh(new T.CircleGeometry(1.16,40),new T.MeshStandardMaterial({map:dry,roughness:1}),0,.1,0,g,-Math.PI/2);
+   skyMesh(new T.CylinderGeometry(.19,.25,1.72,14),stone,0,.86,0,g);skyMesh(new T.CylinderGeometry(.3,.27,.12,16),stone,0,1.78,0,g);skyMesh(new T.SphereGeometry(.16,14,10),skyMat('bronze'),0,1.9,0,g);
+   const sp=new T.Group();sp.position.set(0,1.68,0);sp.rotation.y=-aT;g.add(sp);skyMesh(new T.CylinderGeometry(.045,.055,1.6,10),skyMat('bronze'),.95,0,0,sp,0,0,Math.PI/2);skyMesh(new T.CylinderGeometry(.075,.06,.1,12),skyMat('bronze'),1.76,-.03,0,sp);
+   solids.add({x:S.x,z:S.z,r:1.48,base:0,top:.56});
+   // the inscription stone: a slab leaning back a little, its carved lines dark until the spring is cleared
+   const ins=new T.Group();ins.position.set(-1.95,0,1.15);ins.rotation.y=.55;g.add(ins);skyMesh(new T.BoxGeometry(.86,1.35,.2),stone,0,.66,0,ins,-.06);skyMesh(new T.BoxGeometry(1.0,.18,.36),stone,0,.06,0,ins);
+   skyG.glyphs=[];for(let r=0;r<5;r++)for(let c=0;c<4;c++){if(R()<.18)continue;const m=new T.Mesh(new T.BoxGeometry(.11+R()*.06,.025,.01),skyAnim.runeDim);m.position.set(-.27+c*.18,1.12-r*.17,.106-.06*(1.12-r*.17)*.06);m.rotation.set(-.06,0,(R()-.5)*.5);ins.add(m);skyG.glyphs.push(m)}
+   solids.add({x:S.x-1.95,z:S.z+1.15,r:.55,base:0,top:1.35})}
+  // rubble in the dry spring and withered shrubs where the terraces will come
+  {const g=skyG.gRubble=group(S.x,0,S.z),list=[];for(let i=0;i<9;i++){const a=R()*6.28,d=R()*.8;list.push([Math.cos(a)*d,.18+R()*.08,Math.sin(a)*d,.28+R()*.25,.18+R()*.16,.25+R()*.22,R()*3,R()*.5])}blocks(list,g);
+   const twig=new T.MeshStandardMaterial({color:0x5b4632,roughness:1});const dg=skyG.gDead=group(S.x,0,S.z);
+   for(let i=0;i<6;i++){const a=-2.5+i*.38,d=3.4+(i%3)*1.3,x=Math.cos(a)*d,z=Math.sin(a)*d;for(let j=0;j<6;j++){const t=new T.Mesh(new T.CylinderGeometry(.012,.022,.5+R()*.35,5),twig);t.position.set(x+(R()-.5)*.2,.25,z+(R()-.5)*.2);t.rotation.set((R()-.5)*.9,R()*3,(R()-.5)*.9);dg.add(t)}}}
+  // survey stakes with red ribbons while the terraces are being planned
+  {const g=skyG.gStakes=group(S.x,0,S.z),rib=new T.MeshStandardMaterial({color:0xc8322a,roughness:.8,side:T.DoubleSide});
+   for(const [a,d] of [[-2.6,2.4],[-2.6,6.7],[-.55,2.4],[-.55,6.7],[-1.6,6.9],[-1.05,12]]){const x=Math.cos(a)*d,z=Math.sin(a)*d;skyMesh(new T.CylinderGeometry(.03,.03,1.1,6),skyMat('darkWood'),x,.55,z,g);skyMesh(new T.PlaneGeometry(.06,.34),rib,x+.03,.92,z,g,0,0,.4)}}
+  // three curved terraces, stepping down away from the spring, with a gap to walk through towards the north rim
+  G.beds=[[2.6,.56],[4.1,.43],[5.6,.3]];const soil=new T.MeshStandardMaterial({map:loadSurface('p_rockygravel.jpg'),color:0x4a3626,roughness:1});
+  {const g=skyG.gBeds=group(S.x,0,S.z),list=[],segs=[[-2.6,-1.98],[-1.66,-.55]];
+   for(const [r0,h] of G.beds){const r1=r0+.9;for(const [a0,a1] of segs){for(const r of [r0,r1]){const n=Math.ceil((a1-a0)*r/.5);for(let i=0;i<n;i++){const a=a0+(i+.5)/n*(a1-a0),hh=h*(.94+R()*.1);list.push([Math.cos(a)*r,hh/2,Math.sin(a)*r,(a1-a0)*r/n+.03,hh,.2,-a-Math.PI/2])}}
+     for(const a of [a0,a1])list.push([Math.cos(a)*(r0+.45),h/2,Math.sin(a)*(r0+.45),1.1,h,.2,-a]);
+     const top=new T.Mesh(new T.RingGeometry(r0+.08,r1-.08,Math.ceil((a1-a0)*16),1,-a1,a1-a0),soil);top.rotation.x=-Math.PI/2;top.position.y=h-.05;top.receiveShadow=true;g.add(top);
+     const n=Math.ceil((a1-a0)*(r0+.45)/.55);for(let i=0;i<=n;i++){const a=a0+i/n*(a1-a0);solids.add({x:S.x+Math.cos(a)*(r0+.45),z:S.z+Math.sin(a)*(r0+.45),r:.48,base:0,top:h,when:when(2)})}}}
+   blocks(list,g)}
+  // the trough: from under the spout to just past the rim, falling 35 cm, on six trestles
+  {let rim=8;while(rim<16&&Math.hypot(S.x+dir.x*rim-W.x,S.z+dir.z*rim-W.z)<W.r*.93)rim+=.1;const len=rim+1.15-1.6;G.len=len;G.rim=rim;
+   const legs=[.4,2.2,3.7,5.8,7.8,Math.min(9.6,rim-2.1)],a=Crafts.aqueduct(len,1.3,.95,legs),g=skyG.gTrough=group(S.x+dir.x*1.6,0,S.z+dir.z*1.6);g.rotation.y=-aT;g.add(a.group);G.yAt=a.yAt;
+   for(const x of legs)solids.add({x:S.x+dir.x*(1.6+x),z:S.z+dir.z*(1.6+x),r:.45,base:0,top:1.55,when:when(3)});for(let x=.9;x<len-1;x+=1.0)solids.add({x:S.x+dir.x*(1.6+x),z:S.z+dir.z*(1.6+x),r:.3,base:.85,top:1.6,when:when(3)})}
+  // the glasshouse east of the spring, its door towards the spring
+  {const g=skyG.gKas=group(G.kas.x,0,G.kas.z);g.add(Crafts.greenhouse(3.2,2.3,1.9,.9));solids.add({x:G.kas.x,z:G.kas.z,w:1.66,d:1.2,base:0,top:2.9,when:when(4)})}
+  // the water: the spring fills, a thin jet from the spout into the trough, a ribbon along the trough and the fall
+  {const g=skyG.gFlow=group(S.x,0,S.z),pm=new T.MeshStandardMaterial({map:loadSurface('cascade.png').clone(),color:0x7fbccc,transparent:true,opacity:.86,roughness:.08,metalness:.1,depthWrite:false});pm.map.wrapS=pm.map.wrapT=T.RepeatWrapping;pm.map.needsUpdate=true;
+   skyG.pool=skyMesh(new T.CircleGeometry(1.15,40),pm,0,.4,0,g,-Math.PI/2);skyG.pool.castShadow=false;skyAnim.poolMap=pm.map;
+   const jet=new T.Mesh(fallGeo(.1,.34,2),cascadeMaterial(0xd5ecf3,.9,1));jet.material.uniforms.time=cascadeUniforms.time;jet.position.set(dir.x*1.76,1.62-.17,dir.z*1.76);jet.rotation.y=Math.atan2(dir.x,dir.z);jet.renderOrder=3;g.add(jet);
+   const len=G.len,N=Math.ceil(len*3),pos=[],uv=[],idx=[];for(let i=0;i<=N;i++){const x=i/N*len,y=G.yAt(x)+.075;for(const [zz,u] of [[-.15,0],[.15,1]]){pos.push(x,y,zz);uv.push(u,i/N*len/3)}if(i){const k=i*2;idx.push(k-2,k,k-1,k-1,k,k+1)}}
+   const rg=new T.BufferGeometry();rg.setAttribute('position',new T.Float32BufferAttribute(pos,3));rg.setAttribute('uv',new T.Float32BufferAttribute(uv,2));rg.setIndex(idx);rg.computeVertexNormals();
+   const run=new T.Group();run.position.set(dir.x*1.6,0,dir.z*1.6);run.rotation.y=-aT;g.add(run);const rib=new T.Mesh(rg,brookMaterial(len/3));rib.material.uniforms.time=cascadeUniforms.time;rib.renderOrder=2;run.add(rib);
+   const ex=dir.x*(1.6+len),ez=dir.z*(1.6+len),H=40,ang=Math.atan2(dir.x,dir.z);
+   for(const [wd,op,sd] of [[.46,.95,1],[.95,.5,3]]){const f=new T.Mesh(fallGeo(wd,H,sd),cascadeMaterial(0xd5ecf3,op,sd===1?1:0));f.material.uniforms.time=cascadeUniforms.time;f.position.set(ex+Math.sin(ang)*.05,.95-H/2+.03,ez+Math.cos(ang)*.05);f.rotation.y=ang;f.renderOrder=3;g.add(f)}
+   for(let k=0;k<3;k++){const m=new T.Sprite(new T.SpriteMaterial({map:mistTex,transparent:true,opacity:.42,depthWrite:false,color:0xf2f6f8}));m.position.set(ex+Math.sin(ang)*(1.6+k*.6),.95-H+4+k*1.4,ez+Math.cos(ang)*(1.6+k*.6));m.scale.set(7,4.2,1);g.add(m)}}
+  for(const k of ['gRubble','gDead','gStakes','gBeds','gTrough','gKas','gFlow'])skyG[k].visible=false}
+ // flowers in the terraces and pots of glowing cloudberries in the glasshouse, made the first time the water runs
+ function gardenBloom(){if(skyG.gPlants)return;const G=sky.garden,S=G.S,g=skyG.gPlants=group(S.x,0,S.z);let q=777;const R=()=>(q=(q*16807)%2147483647)/2147483647;
+  const tones=[0xe2475b,0xf6c443,0xf4f0f2,0xd45a9b,0x7a6ad8,0xff9a52],spots=[];
+  for(const [r0,h] of G.beds)for(const [a0,a1] of [[-2.6,-1.98],[-1.66,-.55]]){const r=r0+.45,n=Math.floor((a1-a0)*r/.4);for(let i=0;i<n;i++){const a=a0+(i+.5)/n*(a1-a0);spots.push([Math.cos(a)*(r+(R()-.5)*.25),h-.04,Math.sin(a)*(r+(R()-.5)*.25),1.25+R()*.55,R()*6.28,i%tones.length])}}
+  const leafM=new T.MeshStandardMaterial({color:0x4f7d32,roughness:.75,side:T.DoubleSide}),inst=(geo,mat,list)=>{const im=new T.InstancedMesh(geo,mat,list.length);list.forEach(([x,y,z,sc,ry],i)=>{m4.compose(new T.Vector3(x,y,z),new T.Quaternion().setFromEuler(new T.Euler(0,ry,0)),new T.Vector3(sc,sc,sc));im.setMatrixAt(i,m4)});im.castShadow=true;im.frustumCulled=false;g.add(im)},m4=new T.Matrix4();
+  inst(leafGeo,leafM,spots);tones.forEach((c,k)=>{const l=spots.filter(p=>p[5]===k);if(l.length)inst(flowerGeo,new T.MeshStandardMaterial({color:c,roughness:.7,side:T.DoubleSide}),l)});
+  const k=G.kas,dx=k.x-S.x,dz=k.z-S.z,pots=[],berries=[];for(const sz of [-1,1])for(let i=0;i<5;i++){const x=dx-1.2+i*.62,z=dz+sz*(1.15-.36);pots.push([x,.86,z,1,0]);for(let b=0;b<4;b++)berries.push([x+(R()-.5)*.16,1.05+R()*.14,z+(R()-.5)*.16,1,0])}
+  inst(new T.CylinderGeometry(.11,.08,.16,10).translate(0,.08,0),new T.MeshStandardMaterial({color:0xb4643c,roughness:.9}),pots);inst(leafGeo,leafM,pots.map(([x,y,z])=>[x,y+.14,z,.9,R()*6]));
+  inst(new T.SphereGeometry(.035,8,6),skyAnim.crystal?.[0]?.material||new T.MeshStandardMaterial({color:0x9fe8ff,emissive:0x5fd0ff,emissiveIntensity:2}),berries)}
+ function gardenSync(s){if(!skyG.gBase)return;const n=gardenLevel(s);sky.gn=n;
+  skyG.gRubble.visible=n<1;skyG.gDead.visible=n<2;skyG.gStakes.visible=n===1;skyG.gBeds.visible=n>=2;skyG.gTrough.visible=n>=3;skyG.gKas.visible=n>=4;skyG.gFlow.visible=n>=5;skyG.dry.visible=n<5;
+  for(const m of skyG.glyphs)m.material=n>=1?skyAnim.runes:skyAnim.runeDim;if(n>=5)gardenBloom();if(skyG.gPlants)skyG.gPlants.visible=n>=5;skyAnim.bloom=n>=5}
+
  // (1.26) Windvonken: eight glowing wind sparks hang along the flight path, a little left, right, above or below the
  // course. The pilot steers De Hemelvaarder sideways (A/D or the stick) and up or down (W/S) to fly through them.
  // Offsets are relative to the outward flight; on the way back the same sparks sit mirrored to the pilot's own hands.
@@ -2150,7 +2223,7 @@ void main(){float u=vUv.x,v=vUv.y;
  function sparksCheck(f,back){let got=0;const fox=back?-steerS.ox:steerS.ox;if(steerS.lastF>=0)for(const k of skyAnim.sparks){if(k.got||(steerS.lastF-k.t)*(f-k.t)>0)continue;if(Math.hypot(fox-k.ox,steerS.oy-k.oy)<2.6){k.got=true;k.pop=0;got++}}steerS.lastF=f;return got}
  function skyRunes(n){if(!skyAnim.strips)return;skyAnim.strips.forEach((r,i)=>r.children.forEach(m=>m.material=i<n?skyAnim.runes:skyAnim.runeDim));skyAnim.disc.material=n>=7?skyAnim.runes:skyAnim.runeDim;skyAnim.beam.visible=n>=7}
  const skyLevel=s=>{const pr=Array.isArray(s?.constructionProjects)?s.constructionProjects.find(p=>p.id==='luchtschip'):null;return pr?pr.completed||0:-1};
- function skySync(s){if(!skyG.wreck)return;skyRunes(Math.min(7,s?.skyRunes||0));const n=skyLevel(s);sky.n=n;sky.at=s?.skyAt===1&&n>=5?1:0;
+ function skySync(s){if(!skyG.wreck)return;skyRunes(Math.min(7,s?.skyRunes||0));gardenSync(s);const n=skyLevel(s);sky.n=n;sky.at=s?.skyAt===1&&n>=5?1:0;
   skyG.wreck.visible=n<2;skyG.survey.visible=n===1;skyG.keel.visible=n===2;skyG.gondola.visible=n===3;
   const afloat=n>=4;skyShip.g.visible=afloat;skyG.gang.visible=afloat&&sky.at===0&&sky.flight<0;skyG.moor.visible=afloat&&sky.flight<0;if(afloat&&sky.flight<0)skyPark()}
  function skyPark(){const atB=sky.at===1,P=atB?skyPath.points[skyPath.points.length-1]:skyPath.points[0];skyShip.g.position.copy(P);skyShip.g.rotation.set(0,atB?Math.atan2(sky.dir.z,-sky.dir.x):Math.PI/2,0);
@@ -2164,7 +2237,7 @@ void main(){float u=vUv.x,v=vUv.y;
  function skyLand(at){sky.flight=-1;sky.at=at;skySteer(0,0,0,0);skyPark();skyG.moor.visible=true;for(const k of skyAnim.sparks)k.g.visible=false}
  function skyUpdate(t,dt){if(!skyShip)return;const spin=sky.n>=5||sky.flight>=0;for(const pr of skyShip.props||[])if(spin)pr.rotation.z=t*(sky.flight>=0?16:5);
   if(skyAnim.aurora)skyAnim.aurora.uniforms.t.value=t;if(skyAnim.runes)skyAnim.runes.emissiveIntensity=1.6+.8*Math.sin(t*1.3);if(skyAnim.beam?.visible)skyAnim.beam.material.uniforms.t.value=t;
-  for(const c of skyAnim.crystal||[])c.material.emissiveIntensity=1.2+.5*Math.sin(t*1.7+(c.name.length));
+  for(const c of skyAnim.crystal||[])c.material.emissiveIntensity=(skyAnim.bloom?1.9:1.2)+.5*Math.sin(t*1.7+(c.name.length));if(skyAnim.poolMap&&skyG.gFlow?.visible){skyAnim.poolMap.offset.set(Math.sin(t*.3)*.08,t*.05)}
   for(const k of skyAnim.sparks){k.g.visible=sky.flight>=0&&(!k.got||k.pop>=0);if(!k.g.visible)continue;k.ring.rotation.set(t*.9+k.t*9,t*1.3,0);k.halo.scale.setScalar(5.2+.5*Math.sin(t*4+k.t*20));
    if(k.pop>=0){k.pop+=dt;const e=Math.min(1,k.pop/.6);k.g.scale.setScalar(1+e*2.2);k.halo.material.opacity=1-e;k.ring.material.opacity=.85*(1-e);if(e>=1)k.pop=-1}}
   for(const o of skyAnim.islets){const a=o.a+t*o.sp;o.m.position.set(o.x+Math.cos(a)*o.r,o.y+.7*Math.sin(t*.5+o.ph),o.z+Math.sin(a)*o.r);o.m.rotation.y=a*.5}}
@@ -2319,5 +2392,5 @@ void main(){float u=vUv.x,v=vUv.y;
   moss.forEach((list,k)=>scanInstances('rmoss_'+(k+1),list));
   window.__cliffCounts={hi:hi.length,mid:mid.length,lo:lo.length,moss:moss.reduce((n,l)=>n+l.length,0)}}
  if(context&&typeof Models!=='undefined'){Models.setAnisotropy(Math.min(4,renderer.capabilities.getMaxAnisotropy()));Models.load('sf_bookshelf').then(r=>r.material.color.setHex(0xa8876a)).catch(()=>{});dressStones(stoneMeshes,['stone_a','stone_b','stone_c'],true);dressStones(hangMeshes,['stone_lo','stone_lo2'],false,0xb6b0a6,1.1,triplanar(new T.MeshStandardMaterial({map:Models.texture('cliff_diff.jpg',true),normalMap:Models.texture('cliff_nor.jpg'),normalScale:new T.Vector2(1.35,1.35),roughness:.93,color:new T.Color(1.5,1.47,1.45)}),{scale:1/2.2}));dressCrags();dressStumps();plantFirs()}
- return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),hold:n=>hero.hold?.(n),sky:{data:sky,fly:skyFly,land:skyLand,level:skyLevel,path:()=>skyPath,steer:skySteer,runes:skyRunes,sparksReset,sparks:()=>skyAnim.sparks.map(k=>({t:k.t,ox:k.ox,oy:k.oy,got:k.got}))},portalPeek:()=>{if(!doorRT)return null;const sc=doorRT.scissor,buf=new Uint16Array(4*9),out=[];for(const [fx,fy] of [[.5,.5],[.5,.2],[.5,.8]]){const b=new Uint16Array(4);renderer.readRenderTargetPixels(doorRT,Math.floor(sc.x+sc.z*fx),Math.floor(sc.y+sc.w*fy),1,1,b);out.push([...b].map(v=>+T.DataUtils.fromHalfFloat(v).toFixed(3)))}return out},portalState:()=>{const d=doors.find(d=>d.portal&&d.portal.visible);return d?{key:d.home.house.key,open:+d.open.toFixed(2),rt:[doorRT.width,doorRT.height],sc:doorRT.scissor.toArray(),cam:doorPortalCam.position.toArray().map(v=>+v.toFixed(2))}:{none:doors.filter(d=>d.home).map(d=>+d.open.toFixed(2))}},doorways:()=>doors.filter(d=>d.way).map(d=>({key:d.home?.house.key||'-',x:d.way.x,y:d.way.y+liftAt(d.way.x,d.way.z),z:d.way.z,ry:d.way.ry})),heroVisible:()=>hero.root.visible,rooms,enterRoom,outfit:hero.outfit,rig:()=>hero.rig?.(),appleTrees,trees:pines.map((t,i)=>({i:'t'+i,type:'hout',kind:'tree',x:t.x,z:t.z,y:t.y,max:2,regrow:300000})),rocks:rocks.map((r,i)=>({i:'r'+i,type:'steen',kind:'rock',x:r.x,z:r.z,y:r.y,r:r.r,max:2,regrow:180000})),fellSync,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,housePlots,siteCheck,houseGhost:d=>{houseGhostDesign=d||null;houseSync(houseLastS,houseGhostDesign)},houseLocal:(x,z)=>houseNow?houseLocal(x,z):null,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
+ return {burst:(x,y,z,c)=>life&&life.burst(x,y,z,c),liftAt,bridges,airships,fauna,walkers,cable:{a:cableA,b:cableB,at:cableAt,gondola,stations:[stationA,stationB]},scarf:c=>hero.scarf(c),hold:n=>hero.hold?.(n),garden:{level:s=>gardenLevel(s),data:()=>sky.garden},sky:{data:sky,fly:skyFly,land:skyLand,level:skyLevel,path:()=>skyPath,steer:skySteer,runes:skyRunes,sparksReset,sparks:()=>skyAnim.sparks.map(k=>({t:k.t,ox:k.ox,oy:k.oy,got:k.got}))},portalPeek:()=>{if(!doorRT)return null;const sc=doorRT.scissor,buf=new Uint16Array(4*9),out=[];for(const [fx,fy] of [[.5,.5],[.5,.2],[.5,.8]]){const b=new Uint16Array(4);renderer.readRenderTargetPixels(doorRT,Math.floor(sc.x+sc.z*fx),Math.floor(sc.y+sc.w*fy),1,1,b);out.push([...b].map(v=>+T.DataUtils.fromHalfFloat(v).toFixed(3)))}return out},portalState:()=>{const d=doors.find(d=>d.portal&&d.portal.visible);return d?{key:d.home.house.key,open:+d.open.toFixed(2),rt:[doorRT.width,doorRT.height],sc:doorRT.scissor.toArray(),cam:doorPortalCam.position.toArray().map(v=>+v.toFixed(2))}:{none:doors.filter(d=>d.home).map(d=>+d.open.toFixed(2))}},doorways:()=>doors.filter(d=>d.way).map(d=>({key:d.home?.house.key||'-',x:d.way.x,y:d.way.y+liftAt(d.way.x,d.way.z),z:d.way.z,ry:d.way.ry})),heroVisible:()=>hero.root.visible,rooms,enterRoom,outfit:hero.outfit,rig:()=>hero.rig?.(),appleTrees,trees:pines.map((t,i)=>({i:'t'+i,type:'hout',kind:'tree',x:t.x,z:t.z,y:t.y,max:2,regrow:300000})),rocks:rocks.map((r,i)=>({i:'r'+i,type:'steen',kind:'rock',x:r.x,z:r.z,y:r.y,r:r.r,max:2,regrow:180000})),fellSync,reach:hero.reach,equip:hero.equip,ceiling:solids.ceiling,housePlots,siteCheck,houseGhost:d=>{houseGhostDesign=d||null;houseSync(houseLastS,houseGhostDesign)},houseLocal:(x,z)=>houseNow?houseLocal(x,z):null,animate,resize,ground,blocked,sync,nodes,islands,gates,ports,construction,scene,cam}
 }
