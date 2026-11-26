@@ -3,11 +3,9 @@
 import crypto from 'node:crypto';
 import {put,get,list} from '@vercel/blob';
 
-const PIN_HASH='9caefa318f0fca222dc0efb95e4587ef916a1a78395cf9aeb07a812fbbbe602d';
 // The device token is derived from the store's own server-side secret, so no extra secret is needed.
 const secret=()=>process.env.BLOB_READ_WRITE_TOKEN||'';
 export const configured=()=>!!secret();
-export const pinOk=pin=>typeof pin==='string'&&crypto.createHash('sha256').update('skybound:'+pin.trim()).digest('hex')===PIN_HASH;
 export const deviceToken=()=>crypto.createHmac('sha256',secret()).update('skybound-device-v1').digest('hex');
 export function tokenOk(t){if(typeof t!=='string'||!configured())return false;const a=Buffer.from(t),b=Buffer.from(deviceToken());return a.length===b.length&&crypto.timingSafeEqual(a,b)}
 export const sleep=ms=>new Promise(r=>setTimeout(r,ms));

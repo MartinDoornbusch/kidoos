@@ -1,9 +1,10 @@
-// The parent overview: merges every device's statistics per child. Needs the parent pincode.
-import {pinOk,configured,store,sleep} from './_shared.js';
+// The parent overview: merges every device's statistics per child. Only for a device logged in as Ouder.
+import {configured,store} from './_shared.js';
+import {whoFrom} from './_auth.js';
 export default async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'method'});
  if(!configured())return res.status(503).json({error:'opslag'});
- if(!pinOk(req.body?.pin)){await sleep(900);return res.status(403).json({error:'pincode'})}
+ if(whoFrom(req)!=='Ouder')return res.status(403).json({error:'ouder'});
  const kids={};
  for(const path of await store.paths('progress/')){const d=await store.read(path);if(!d?.kid)continue;
   const k=kids[d.kid]??={updated:0,game:null,devices:0,days:{},skills:{},sessions:[]};k.devices++;

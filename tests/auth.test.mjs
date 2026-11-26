@@ -1,5 +1,7 @@
 // Unit test for the login gate: in-memory store, fake request/response, real crypto. Never touches the real store.
 process.env.BLOB_READ_WRITE_TOKEN='unit-test-secret';
+// a stand-in for the old parent pincode: the real one is never in the repo, only its old hash
+const {createHash}=await import('node:crypto');const OLD='246813';process.env.SQ_LEGACY_PARENT_HASH=createHash('sha256').update('skybound:'+OLD).digest('hex');
 const R=new URL('../',import.meta.url).href;
 const sh=await import(R+'api/_shared.js'),au=await import(R+'api/_auth.js');
 const mem=new Map();sh.store.read=async p=>mem.has(p)?JSON.parse(mem.get(p)):null;sh.store.write=async(p,o)=>{mem.set(p,JSON.stringify(o))};sh.store.paths=async pre=>[...mem.keys()].filter(k=>k.startsWith(pre));
@@ -36,5 +38,37 @@ m=mw(req('/',niek));ok(m===undefined,'with Niek\'s cookie the game is served');
 const forged=niek.replace('Niek.','Floor.');m=mw(req('/',forged));ok(m&&m.status===302,'a renamed cookie is refused');
 const old='sq_auth='+au.signLogin('Niek',Date.now()-500*86400e3);m=mw(req('/',old));ok(m&&m.status===302,'an expired cookie is refused');
 r=await call(logout,{method:'GET',cookie:niek});ok(r.code===302&&/Max-Age=0/.test(r.headers['set-cookie'][0]),'logout clears the cookie');
+// (1.26.1) parent pincode on the server only
+const parentApi=(await import(R+'api/parent.js')).default,overviewApi=(await import(R+'api/overview.js')).default,linkApi=(await import(R+'api/link.js')).default,whoamiApi=(await import(R+'api/whoami.js')).default,syncApi=(await import(R+'api/sync.js')).default;
+r=await call(login,{body:{who:'Ouder',code:OLD}});ok(r.code===200&&r.body.mustChange===true,'old parent pincode still opens the parent account, with mustChange');
+r=await call(parentApi,{method:'GET',cookie:parent});ok(r.code===200&&r.body.mustChange===true,'parent page says: choose a new pincode first');
+r=await call(parentApi,{method:'GET',cookie:niek});ok(r.code===403,'a child cannot see or change the parent pincode');
+r=await call(parentApi,{body:{current:'111111',next:'97531864'},cookie:parent});ok(r.code===403&&r.body.error==='huidig','change needs the current pincode');
+r=await call(parentApi,{body:{current:OLD,next:'12345'},cookie:parent});ok(r.code===400&&r.body.error==='vorm','new parent pincode must be 6 to 8 digits');
+r=await call(parentApi,{body:{current:OLD,next:OLD},cookie:parent});ok(r.code===400&&r.body.error==='zelfde','new pincode must differ from the old one');
+r=await call(parentApi,{body:{current:OLD,next:'90210'},cookie:parent});ok(r.code===400,'a 5-digit pincode is refused');
+r=await call(codes,{body:{Floor:'908172'},cookie:parent});ok(r.code===200,'Floor gets a 6-digit code');
+r=await call(parentApi,{body:{current:OLD,next:'908172'},cookie:parent});ok(r.code===400&&r.body.error==='kindcode','parent pincode may not equal a child code');
+r=await call(parentApi,{body:{current:OLD,next:'97531864'},cookie:parent});ok(r.code===200,'parent chooses a new pincode');
+ok(!JSON.stringify([...mem.values()]).includes('97531864')&&mem.has('auth/parent.json'),'new pincode stored only as a salted hash');
+r=await call(login,{body:{who:'Ouder',code:OLD}});ok(r.code===403,'old pincode no longer works');
+r=await call(login,{body:{who:'Ouder',code:'97531864'}});ok(r.code===200&&r.body.mustChange===false,'new pincode works, no more mustChange');
+r=await call(codes,{body:{Niek:'97531864'},cookie:parent});ok(r.code===400&&r.body.error==='ouder-code','a child code may not equal the parent pincode');
+{const keep=sh.store.read;sh.store.read=async p=>{if(p==='auth/parent.json')throw Error('down');return keep(p)};r=await call(login,{body:{who:'Ouder',code:OLD}});ok(r.code===503,'storage error: no fallback to the old pincode');sh.store.read=keep}
+// overview, device link and whoami go by the signed cookie, not by a pincode in the request
+r=await call(overviewApi,{body:{pin:OLD}});ok(r.code===403,'overview: a pincode in the request no longer opens it');
+r=await call(overviewApi,{body:{},cookie:niek});ok(r.code===403,'overview: not for a child');
+r=await call(overviewApi,{body:{},cookie:parent});ok(r.code===200&&r.body.kids,'overview: for the parent');
+r=await call(linkApi,{body:{},cookie:niek});ok(r.code===403,'device link: not for a child');
+r=await call(linkApi,{body:{},cookie:parent});ok(r.code===200&&r.body.token,'device link: for the parent');
+r=await call(whoamiApi,{method:'GET',cookie:niek});ok(r.body.who==='Niek','whoami reads the signed cookie');
+r=await call(whoamiApi,{method:'GET',cookie:forged});ok(r.body.who===null,'whoami: forged cookie is nobody');
+const sbody=kid=>({kid,device:'a1b2c3d4e5f60718',game:{stage:6,level:6,garden:6},stats:{}});
+r=await call(syncApi,{body:sbody('Niek'),cookie:niek});ok(r.code===200&&mem.has('progress/Niek/a1b2c3d4e5f60718.json'),'a logged-in child syncs without linking');
+r=await call(syncApi,{body:sbody('Floor'),cookie:niek});ok(r.code===403,'a child cannot write the other child\'s progress');
+r=await call(syncApi,{body:sbody('Floor')});ok(r.code===403,'no cookie and no token: refused');
+r=await call(syncApi,{body:{...sbody('Floor'),token:(await import(R+'api/_shared.js')).deviceToken()}});ok(r.code===200,'an old linked device still syncs with its token');
+ok(JSON.parse(mem.get('progress/Niek/a1b2c3d4e5f60718.json')).game.garden===6,'level 6 progress is stored for the overview');
+m=mw(req('/api/whoami'));ok(m&&m.status===401,'no cookie: whoami answers 401 at the gate');
 delete process.env.BLOB_READ_WRITE_TOKEN;m=mw(req('/',niek));ok(m&&m.status===302,'without a server secret nothing is let through');
 console.log(fail?fail+' FAILED':'ALL PASS')

@@ -1,5 +1,6 @@
 // Stores one child's practice statistics from one device. Only whitelisted fields are kept.
 import {tokenOk,configured,store,KIDS} from './_shared.js';
+import {whoFrom} from './_auth.js';
 const num=v=>Number.isFinite(v)?Math.max(0,Math.min(v,1e13)):0;
 const pair=a=>Array.isArray(a)?[num(a[0]),num(a[1])]:[0,0];
 function cleanStats(st){const days={},skills={};
@@ -13,7 +14,9 @@ export default async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'method'});
  if(!configured())return res.status(503).json({error:'opslag'});
  const b=req.body||{};
- if(!tokenOk(b.token))return res.status(403).json({error:'token'});
+ // (1.26.1) a device logged in as a child syncs as that child without linking; the parent may sync any profile
+ const who=whoFrom(req);if(KIDS.includes(who)&&b.kid!==who)return res.status(403).json({error:'kind'});
+ if(!tokenOk(b.token)&&!who)return res.status(403).json({error:'token'});
  if(!KIDS.includes(b.kid)||!/^[a-f0-9]{8,32}$/.test(b.device||''))return res.status(400).json({error:'invoer'});
  await store.write('progress/'+b.kid+'/'+b.device+'.json',{at:Date.now(),kid:b.kid,device:b.device,game:cleanGame(b.game),stats:cleanStats(b.stats)});
  res.status(200).json({ok:true})}

@@ -12,6 +12,13 @@ Het spel staat achter een inlogscherm (`src/login.html`). `middleware.js` laat e
 ondertekende inlogcookie; zonder cookie ga je naar het inlogscherm en krijgen API-aanroepen 401.
 
 - **Ouder** logt in met de ouderpincode en stelt daarna op het inlogscherm de codes van Niek en Floor in (4 tot 8 cijfers).
+- **Ouderpincode (vanaf 1.26.1)** staat alleen op de server, als gezouten scrypt-hash in `auth/parent.json`. Wie nog met de
+  oude pincode inlogt, moet eerst een nieuwe kiezen (6 tot 8 cijfers); daarna werkt de oude niet meer. Wijzigen kan
+  altijd via "Pincode wijzigen" op het inlogscherm, met de huidige pincode erbij.
+- **Beheer** (`?beheer`) en het ouderoverzicht openen alleen op een apparaat dat als Ouder is ingelogd; de server
+  controleert dat via de cookie (`/api/whoami`). Er staat geen pincode of hash meer in het spel.
+- **Ouderoverzicht:** elk apparaat waarop iemand is ingelogd stuurt de oefentijd vanzelf mee; koppelen is niet meer nodig.
+  Een kind kan alleen zijn eigen voortgang versturen.
 - **Niek** en **Floor** loggen in met hun eigen code en spelen alleen als zichzelf.
 - Codes staan alleen als gezouten scrypt-hash in de Blob-opslag (`auth/codes.json`); na 8 foute pogingen binnen 15 minuten
   is die naam even geblokkeerd.
