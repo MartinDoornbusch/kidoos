@@ -2219,7 +2219,7 @@ void main(){float u=vUv.x,v=vUv.y;
   // back slowly. Before, the camera was snapped in after its smooth move out every frame, which made it shake against
   // walls, and it could end up inside mountains and rocks.
   let aim=null;
-  if(!start&&!inside&&sky.flight>=0&&skyShip){const P=skyShip.g.position,goal=new T.Vector3(P.x+Math.sin(a)*31,P.y+9+Math.max(0,look)*6,P.z+Math.cos(a)*31);cam.position.lerp(goal,dt>=1?1:1-Math.exp(-dt*2.2));target.set(P.x,P.y-2.4,P.z);hero.root.visible=true}
+  if(!start&&!inside&&sky.flight>=0&&skyShip){const P=skyShip.g.position,cd=cam.aspect<.85?46:31,goal=new T.Vector3(P.x+Math.sin(a)*cd,P.y+(cam.aspect<.85?12:9)+Math.max(0,look)*6,P.z+Math.cos(a)*cd);cam.position.lerp(goal,dt>=1?1:1-Math.exp(-dt*2.2));target.set(P.x,P.y-2.4,P.z);hero.root.visible=true}
   else if(!start&&!inside){
    const want=eye.clone().sub(target),wd=want.length();want.normalize();
    const near=canopies.filter(o=>Math.abs(o.x-target.x)<16&&Math.abs(o.z-target.z)<16);

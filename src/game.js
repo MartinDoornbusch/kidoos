@@ -214,7 +214,7 @@ let m=mission();$('region').textContent=area().name;$('chapter').textContent=m?'
  if(!context&&!race&&!placement&&!ride&&s.builds.length){const fx=p.x-Math.sin(p.heading)*1.9,fz=p.z-Math.cos(p.heading)*1.9;let best=null,bd=1.8;
   for(const b of s.builds){const d=Math.hypot(b.x-fx,b.z-fz);if(b.type!=='werkbank'&&d<bd&&b.y<=p.y+1.3&&b.y>=p.y-1.3&&!s.builds.some(o=>o!==b&&Math.abs(o.x-b.x)<.5&&Math.abs(o.z-b.z)<.5&&o.y>b.y)){best=b;bd=d}}
   if(best){context={kind:'pickup',b:best};$('act').textContent=BUILD_NAME[best.type]+' oppakken · E'}}
- guide=objective();if(guide){let dx=guide.obj.x-p.x,dz=guide.obj.z-p.z;let angle=Math.atan2(dx,-dz)+view.yaw;$('waypoint').style.setProperty('--bearing',angle+'rad');$('waypoint').textContent=guide.name+' · '+Math.round(dist(guide.obj))+' m'}else $('waypoint').textContent='';
+ guide=ride?.kind==='air'?null:objective();if(guide){let dx=guide.obj.x-p.x,dz=guide.obj.z-p.z;let angle=Math.atan2(dx,-dz)+view.yaw;$('waypoint').style.setProperty('--bearing',angle+'rad');$('waypoint').textContent=guide.name+' · '+Math.round(dist(guide.obj))+' m'}else $('waypoint').textContent='';
 }
 // ---- Hunger (1.20): a mild bar that empties in about 25 minutes of play once the Molenhoeve orchard is reachable.
 // Empty means you walk a little slower; nothing worse happens. Eat with F or the Eten button: an apple gives a quarter.
@@ -574,6 +574,8 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseCont
 window.addEventListener('contextmenu',e=>{releaseControls();if(playing&&!$('panel').open)e.preventDefault()});
 // A clicked HUD button keeps focus; Space would then press it again instead of only jumping.
 $('hud').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&e.detail)b.blur()});
+// (1.26) on a touch screen the action button is tapped, so the ' · E' key hint is left off (it made long labels wrap)
+if(matchMedia('(pointer:coarse)').matches)new MutationObserver(()=>{const a=$('act'),t=a.textContent;if(/ · E$/.test(t))a.textContent=t.slice(0,-4)}).observe($('act'),{childList:true,characterData:true,subtree:true});
 const joy=$('joy');function stick(e){let b=joy.getBoundingClientRect(),x=(e.clientX-b.left-b.width/2)/36,z=(e.clientY-b.top-b.height/2)/36,l=Math.max(1,Math.hypot(x,z));joyX=x/l;joyZ=z/l;joy.firstElementChild.style.transform='translate('+joyX*25+'px,'+joyZ*25+'px)'}
 function releaseStick(){joyX=joyZ=0;joy.firstElementChild.style.transform=''}
 joy.onpointerdown=e=>{try{joy.setPointerCapture(e.pointerId)}catch{}stick(e)};joy.onpointermove=e=>{if(joy.hasPointerCapture(e.pointerId))stick(e)};joy.onlostpointercapture=joy.onpointerup=joy.onpointercancel=releaseStick;
