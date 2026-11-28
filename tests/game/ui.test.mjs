@@ -1,10 +1,11 @@
 // Desktop checks: subjects per child, management mode only for the parent, the toolbar, the atlas with the Wolkenkruin.
 import {installHelpers} from './helpers.mjs';
 export default async function(pg,{ok}){
- ok(await pg.evaluate(()=>!document.getElementById('school')&&/Geschiedenis/.test(document.getElementById('history')?.textContent||'')),'landing: history practice, no German button');
+ ok(await pg.evaluate(()=>!document.getElementById('history')&&!!document.getElementById('floorGerman')&&document.getElementById('floorGerman').hidden),'landing: history removed, Floor German hidden for Niek');
  await pg.evaluate(()=>{localStorage.clear();document.getElementById('start').click()});await pg.waitForTimeout(5000);await installHelpers(pg);
- ok(await pg.evaluate(()=>['','kaart','tree'].map(k=>subject(k)).join()==='hist,hist,hist'),'Niek gets history in the game');
- ok(await pg.evaluate(()=>{askOne(subject(),{kicker:'T',title:'T'},()=>({head:'x',buttons:[['Sluiten',closePanel,true]]}));const q=document.querySelector('.question')?.textContent;closePanel();return HistoryCourse.bank.some(b=>b.prompt===q)}),'a game question for Niek comes from the history bank');
+ ok(await pg.evaluate(()=>['','kaart','tree'].map(k=>subject(k)).join()==='nl,nl,nl'),'Niek gets Dutch in the game');
+ ok(await pg.evaluate(()=>{askOne(subject(),{kicker:'T',title:'T'},()=>({head:'x',buttons:[['Sluiten',closePanel,true]]}));const q=document.querySelector('.question')?.textContent;closePanel();return dutchBanks.Niek.some(b=>b[1]===q)}),'a game question for Niek comes from the Dutch bank');
+ ok(await pg.evaluate(()=>{document.querySelector('[data-profile="Floor"]').click();const yes=subject()==='de'&&!document.getElementById('floorGerman').hidden&&German.bank.length===260;document.querySelector('[data-profile="Niek"]').click();return yes}),'Floor has 260 German questions and her German button, Niek retains Dutch');
  // management mode: no pincode hash in the page; only the parent (according to the server) may open it
  let r=await pg.evaluate(async()=>{const src=[...document.scripts].map(s=>s.src).filter(Boolean);let txt='';for(const u of src)txt+=await (await fetch(u)).text();
   const real=window.fetch,as=who=>window.fetch=async(u,o)=>/whoami/.test(u)?new Response(JSON.stringify({who}),{status:200}):real(u,o);
