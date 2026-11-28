@@ -82,28 +82,532 @@ const dutchBanks={"Niek":[
  ["Formuleren", "“Het meisje … de prijs won, zat bij mij in de klas.” Welk betrekkelijk voornaamwoord hoort op de puntjes?", "dat", "Meisje is een het-woord. Bij een het-woord gebruik je dat.", "Typ alleen het ontbrekende woord."]
 ]};
 function dutchStats(){const d=s.dutch||{};return '<div class="meter">Nederlands · goede antwoorden<b>'+(d.good||0)+' / '+(d.total||0)+'</b></div>'}
-function dutchRound(mission){
+function dutchRound(isMission){
  const bank=dutchBanks[profile],stats=s.dutch ||= {good:0,total:0,cursor:0};
- let turn=0,score=0;const count=mission?mission()[3]-s.seals:5;
+ let turn=0,score=0;const count=isMission?mission()[3]-s.seals:5;
  function ask(){
   const [topic,prompt,answer,why,task]=bank[stats.cursor%bank.length];
-  show('<small>NEDERLANDS · '+profile.toUpperCase()+' · '+(profile==='Floor'?'HAVO 3':'HAVO 2')+'</small><h2>'+topic+'</h2><p>'+(mission?'Werkplaats · '+s.seals+' van '+mission()[3]+' instructies opgelost':'Vraag '+(turn+1)+' van '+count)+'</p><div class="question"></div><p id="nlTask"></p><form id="nlForm"></form>'+buttons());back();
+  show('<small>NEDERLANDS · '+profile.toUpperCase()+' · '+(profile==='Floor'?'HAVO 3':'HAVO 2')+'</small><h2>'+topic+'</h2><p>'+(isMission?'Werkplaats · '+s.seals+' van '+mission()[3]+' instructies opgelost':'Vraag '+(turn+1)+' van '+count)+'</p><div class="question"></div><p id="nlTask"></p><form id="nlForm"></form>'+buttons());back();
   document.querySelector('.question').textContent=prompt;$('nlTask').textContent=task||(Array.isArray(answer)?'Kies het beste antwoord.':'Typ je antwoord.');const form=$('nlForm');
   function grade(value){
    // Quotes, commas and end punctuation never decide whether an answer is right.
    const norm=v=>v.trim().toLocaleLowerCase('nl').replace(/[“”"‘’',;:]/g,'').replace(/[.!?]+$/,'').replace(/\s+/g,' ').trim();
    const typed=typeof answer==='string',accepted=typed?answer.split('|'):[answer[0]],ok=accepted.some(v=>norm(v)===norm(value));
-   Track.answer('Nederlands',topic,ok);stats.total++;stats.cursor++;turn++;if(ok){stats.good++;score++;if(mission)s.seals++;else coin()}persist();
+   Track.answer('Nederlands',topic,ok);stats.total++;stats.cursor++;turn++;if(ok){stats.good++;score++;if(isMission)s.seals++;else coin()}persist();
    show('<small>NEDERLANDS · '+topic.toUpperCase()+'</small><h2>'+(ok?'Goed geantwoord':'Bekijk het antwoord')+'</h2><p class="youranswer"></p><div class="question"></div><p id="why"></p><button class="primary" id="nlNext">Verder</button>'+buttons());back();
    document.querySelector('.youranswer').textContent=ok?'':'Jouw antwoord: '+value.trim()+' · Het goede antwoord is:';
    document.querySelector('.question').textContent=accepted[0];$('why').textContent=why;
-   const done=mission?s.seals>=mission()[3]:turn>=count;
-   $('nlNext').textContent=done?(mission?'Naar de reparatie':'Bekijk je resultaat'):'Volgende opdracht';
-   $('nlNext').onclick=()=>{if(!done)return ask();if(mission)return workshop();
+   const done=isMission?s.seals>=mission()[3]:turn>=count;
+   $('nlNext').textContent=done?(isMission?'Naar de reparatie':'Bekijk je resultaat'):'Volgende opdracht';
+   $('nlNext').onclick=()=>{if(!done)return ask();if(isMission)return workshop();
     show('<small>NEDERLANDS · '+profile.toUpperCase()+'</small><h2>'+score+' van '+count+' goed</h2>'+dutchStats()+'<button id="againNL">Nog een ronde</button>'+buttons());back();$('againNL').onclick=()=>dutchRound(false)}
   }
   if(Array.isArray(answer)){const opts=answer.slice();for(let i=opts.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[opts[i],opts[j]]=[opts[j],opts[i]]}for(const opt of opts){const b=document.createElement('button');b.type='button';b.textContent=opt;b.onclick=()=>grade(opt);form.append(b)}}
   else {form.innerHTML='<input required id="nlWord" aria-label="Jouw antwoord" autocomplete="off"><button class="primary">Controleer antwoord</button>';form.onsubmit=e=>{e.preventDefault();if($('nlWord').value.trim())grade($('nlWord').value)}}
  }
  ask()
+}
+
+ 
+// T5b: same 110 words for both pupils; original banks and question IDs stay intact.
+const t5bWords=[
+ [
+  "Interpreteren",
+  "Begrijpen; opvatten."
+ ],
+ [
+  "Complexe",
+  "Ingewikkelde of moeilijke."
+ ],
+ [
+  "Routinematig",
+  "Volgens een steeds herhaalde handeling of gewoonte."
+ ],
+ [
+  "Naïef",
+  "Onnozel; nietsvermoedend; goedgelovig."
+ ],
+ [
+  "Drijfveer",
+  "Aanleiding; reden; motief."
+ ],
+ [
+  "Analytische vaardigheden",
+  "Vermogens om een probleem in kleinere stukjes op te splitsen."
+ ],
+ [
+  "Geïntegreerd",
+  "Opgenomen in; onderdeel gemaakt van."
+ ],
+ [
+  "Compenseerde",
+  "Goedmaakte; met iets goeds aanvulde."
+ ],
+ [
+  "Om de haverklap",
+  "Heel vaak, telkens opnieuw."
+ ],
+ [
+  "Geavanceerde",
+  "Met de nieuwste technieken of mogelijkheden gemaakte."
+ ],
+ [
+  "Tekstgenerator",
+  "Softwareprogramma dat teksten kan produceren."
+ ],
+ [
+  "Uitbesteed",
+  "Overgedragen; overgelaten."
+ ],
+ [
+  "Frauderen",
+  "Oneerlijk handelen."
+ ],
+ [
+  "Plagiaatdetectie",
+  "Methode om te controleren of iemand tekst heeft overgenomen van een ander."
+ ],
+ [
+  "Expliciet",
+  "Heel duidelijk; uitdrukkelijk."
+ ],
+ [
+  "Houterig",
+  "Niet vlot of soepel."
+ ],
+ [
+  "Achterhaald",
+  "Niet meer van toepassing; verouderd."
+ ],
+ [
+  "Niet-representatieve",
+  "Geen goed beeld gevend van een hele groep."
+ ],
+ [
+  "Gaan er stemmen op",
+  "Hoor je in het openbaar zeggen; mensen pleiten ergens voor."
+ ],
+ [
+  "Veganistische",
+  "Zonder dierlijke producten bereide."
+ ],
+ [
+  "Aanzienlijk",
+  "Veel; flink."
+ ],
+ [
+  "Relatief",
+  "Naar verhouding; vergeleken met iets anders."
+ ],
+ [
+  "Aandoeningen",
+  "Ziekten; kwalen."
+ ],
+ [
+  "Propageert",
+  "Maakt reclame voor; bepleit."
+ ],
+ [
+  "Volwaardige",
+  "Aan alle benodigde kwaliteiten voldoende."
+ ],
+ [
+  "Per se",
+  "Automatisch; noodzakelijk (in deze context)."
+ ],
+ [
+  "In principe",
+  "Normaal gesproken."
+ ],
+ [
+  "Zonder slag of stoot",
+  "Moeiteloos; gemakkelijk; zonder tegenstand."
+ ],
+ [
+  "Geschuwd",
+  "Vermeden; uit de weg gegaan."
+ ],
+ [
+  "Verwikkelingen",
+  "Ontwikkelingen; voorvallen; gebeurtenissen."
+ ],
+ [
+  "Complex",
+  "Ingewikkeld; moeilijk te begrijpen."
+ ],
+ [
+  "Pageturners",
+  "Boeken die zo spannend zijn dat je steeds verder wilt lezen."
+ ],
+ [
+  "Plots",
+  "Verhaallijnen."
+ ],
+ [
+  "Er je hoofd over breken",
+  "Erover tobben; je er zorgen om maken."
+ ],
+ [
+  "Bezwaarlijk",
+  "Problematisch; niet goed."
+ ],
+ [
+  "Beslommeringen",
+  "Bezigheden."
+ ],
+ [
+  "Marginale",
+  "Niet zo belangrijke; bijkomstige."
+ ],
+ [
+  "Voor lief nemen",
+  "Accepteren, ook al is het eigenlijk niet zoals je zou willen."
+ ],
+ [
+  "Evidente",
+  "Zeer duidelijke."
+ ],
+ [
+  "Autonoom",
+  "Zelfstandig; onafhankelijk."
+ ],
+ [
+  "Reflex",
+  "Onmiddellijke reactie."
+ ],
+ [
+  "Feilbaar",
+  "Vatbaar voor vergissing."
+ ],
+ [
+  "No-brainer",
+  "Vanzelfsprekendheid; iets waarover je niet hoeft na te denken."
+ ],
+ [
+  "Grillen",
+  "Plotseling opkomende, onberedeneerde gedachten; rare ideeën."
+ ],
+ [
+  "Onbezonnen",
+  "Onnadenkend; roekeloos."
+ ],
+ [
+  "Aan het hart gaat",
+  "Bezorgd maakt."
+ ],
+ [
+  "Fasen",
+  "Momenten of tijdelijke toestanden in de ontwikkeling van iets."
+ ],
+ [
+  "Cyclus",
+  "Kringloop; terugkerende, regelmatige reeks."
+ ],
+ [
+  "Micro",
+  "Erg klein."
+ ],
+ [
+  "Weefsels",
+  "Cellen die samen lichaamsmateriaal vormen."
+ ],
+ [
+  "Recuperatief",
+  "Herstellend; gericht op herstel (recuperatie)."
+ ],
+ [
+  "Gedesoriënteerd",
+  "Verward; het spoor bijster."
+ ],
+ [
+  "Getriggerd",
+  "In gang gezet; gestimuleerd."
+ ],
+ [
+  "Paradoxale",
+  "Schijnbaar tegenstrijdige."
+ ],
+ [
+  "Motorische",
+  "Met lichamelijke bewegingen te maken hebbend."
+ ],
+ [
+  "Zinnige interactie",
+  "Betekenisvol en nuttig contact tussen mensen of systemen."
+ ],
+ [
+  "Episode",
+  "Een afzonderlijke gebeurtenis of periode."
+ ],
+ [
+  "Zwaarmoedigheid",
+  "Somberheid; neerslachtigheid."
+ ],
+ [
+  "Extreme",
+  "Zeer sterke of uitzonderlijke."
+ ],
+ [
+  "Continu",
+  "Voortdurend; zonder onderbreking."
+ ],
+ [
+  "Abrupt",
+  "Plotseling."
+ ],
+ [
+  "Uit je slof schieten",
+  "Plotseling boos of driftig worden."
+ ],
+ [
+  "Zint",
+  "Bevalt."
+ ],
+ [
+  "Structureel",
+  "Blijvend; voortdurend."
+ ],
+ [
+  "Genetisch",
+  "Erfelijk."
+ ],
+ [
+  "Erbij inschiet",
+  "Er niet van komt; achterwege blijft."
+ ],
+ [
+  "Averechts",
+  "Anders dan je bedoeld had; precies het tegenovergestelde."
+ ],
+ [
+  "Alert",
+  "Wakker; oplettend."
+ ],
+ [
+  "Los … in",
+  "Maak goed; compenseer."
+ ],
+ [
+  "Logge",
+  "Onhandelbare; zware."
+ ],
+ [
+  "Gezeuld",
+  "Met veel moeite gedragen."
+ ],
+ [
+  "Op … aankomt",
+  "Betreft; geldt."
+ ],
+ [
+  "Revalidatie",
+  "Herstel."
+ ],
+ [
+  "Receptoren",
+  "Orgaantjes die prikkels waarnemen en die omzetten in signalen."
+ ],
+ [
+  "Microscopische",
+  "Heel erg kleine."
+ ],
+ [
+  "Prangendste",
+  "Dringendste; urgentste."
+ ],
+ [
+  "Kruipruimte",
+  "Lage ruimte tussen de vloer van de begane grond en de bodem."
+ ],
+ [
+  "Exotische",
+  "Uitheemse; uit een ander klimaat afkomstige."
+ ],
+ [
+  "Chemicaliën",
+  "Scheikundige stoffen."
+ ],
+ [
+  "Detecteren",
+  "Ontdekken; opsporen."
+ ],
+ [
+  "Kompres",
+  "Natte, gevouwen doek om zwellingen tegen te gaan."
+ ],
+ [
+  "Claimen",
+  "Beweren."
+ ],
+ [
+  "Ultrasoon",
+  "Niet met het gewone oor te horen vanwege de hoge frequentie."
+ ],
+ [
+  "Bijsluiter",
+  "Bijgesloten blaadje bij medicijnen met aanwijzingen voor het gebruik."
+ ],
+ [
+  "Bestuiven",
+  "Stuifmeel op de stamper van een bloem overbrengen."
+ ],
+ [
+  "Kenmerkt",
+  "Typeert; bepaalt."
+ ],
+ [
+  "Geassocieerd",
+  "Verbonden."
+ ],
+ [
+  "Gekweel",
+  "Sentimenteel gezang."
+ ],
+ [
+  "Een groot goed",
+  "Erg belangrijk; iets heel waardevols."
+ ],
+ [
+  "Voorhouden",
+  "Voorspiegelen; iets onwaars vertellen."
+ ],
+ [
+  "Opbiechten",
+  "Bekennen."
+ ],
+ [
+  "Stabiliteit",
+  "Stevigheid."
+ ],
+ [
+  "Loont",
+  "Iets oplevert."
+ ],
+ [
+  "Cliché",
+  "Een uitspraak of idee dat zo vaak is gebruikt dat het niet origineel meer is."
+ ],
+ [
+  "Paternalistische",
+  "Bevoogdende; voor anderen bepalen wat goed voor hen is."
+ ],
+ [
+  "Betutteld",
+  "Behandeld alsof je niet zelf kunt beslissen."
+ ],
+ [
+  "Wrok",
+  "Een langdurig gevoel van boosheid of bitterheid tegenover iemand."
+ ],
+ [
+  "Comfort",
+  "Gemak en een aangenaam gevoel."
+ ],
+ [
+  "Oprechtheid",
+  "Eerlijkheid en gemeend gedrag."
+ ],
+ [
+  "Rechtvaardigen",
+  "Met argumenten uitleggen waarom iets juist of aanvaardbaar is."
+ ],
+ [
+  "Idyllische",
+  "Aangename en vredige."
+ ],
+ [
+  "Per saldo",
+  "Uiteindelijk; tenslotte."
+ ],
+ [
+  "Settelen zich",
+  "Gaan ergens wonen en een regelmatig leven leiden."
+ ],
+ [
+  "Voorzieningen",
+  "Nuttige zaken voor inwoners, zoals scholen, winkels, theaters en zorginstellingen."
+ ],
+ [
+  "Sociologische",
+  "Betrekking hebbend op de manier waarop mensen binnen de samenleving met elkaar omgaan."
+ ],
+ [
+  "Millennial",
+  "Geboren in 1980–1999, handig met nieuwe technologieën en minder gericht op zekerheid rond wonen en werken (volgens het lesboek)."
+ ],
+ [
+  "Identificeren zich met",
+  "Herkennen zich in; voelen zich betrokken bij."
+ ],
+ [
+  "Materialistisch",
+  "Sterk gericht op geld en bezit."
+ ],
+ [
+  "Atmosfeer",
+  "Gevoel dat de omgeving oproept."
+ ],
+ [
+  "Klassieke",
+  "Traditionele; gebruikelijke."
+ ]
+];
+const t5bTopic='Woordenschat T5b';
+function t5bShuffle(items){const a=items.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function t5bChoices(i,reverse=false){
+ const col=reverse?0:1, correct=t5bWords[i][col];
+ // Fixed, semantically distant distractors for stable game-bank answers.
+ const wrong=[17,43,67,83,29,53].map(n=>t5bWords[(i+n)%t5bWords.length][col]).filter(v=>v!==correct);
+ return [correct,...new Set(wrong)].slice(0,4)
+}
+for(const who of ['Floor','Niek']){
+ dutchBanks[who].push(...t5bWords.map(([word,meaning],i)=>[
+  t5bTopic,'Wat betekent “'+word+'”?',t5bChoices(i),word+' = '+meaning,'Kies de juiste betekenis.'
+ ]));
+}
+function t5bProgress(){return s.t5b||=( {items:{}} )}
+function t5bMenu(){
+ const items=t5bProgress().items, known=Object.values(items).filter(x=>x.known).length, missed=Object.values(items).filter(x=>!x.known).length;
+ show('<small>NEDERLANDS · '+profile.toUpperCase()+' · T5b</small><h2>Woordenschat · 110 woorden</h2><p>Leer alle woorden uit het lesboek. Voor beide spelers is de volledige lijst beschikbaar.</p><div class="meter">Bekend<b>'+known+' / 110</b></div><div class="meter">Nog oefenen<b>'+missed+'</b></div><div class="row"><button id="t5bFlash" class="primary">Flashcards</button><button id="t5bMC">Meerkeuze</button><button id="t5bReverse">Omgekeerd</button><button id="t5bOpen">Zelf typen</button><button id="t5bMissed">Moeilijke woorden</button><button id="t5bAll">Alle woorden</button><button id="t5bGeneral">Andere Nederlandse oefeningen</button></div>'+buttons());back();
+ $('t5bFlash').onclick=()=>t5bRound('flash');$('t5bMC').onclick=()=>t5bRound('mc');$('t5bReverse').onclick=()=>t5bRound('reverse');$('t5bOpen').onclick=()=>t5bRound('open');$('t5bMissed').onclick=()=>t5bRound('flash',true);$('t5bGeneral').onclick=()=>dutchRound(false);
+ $('t5bAll').onclick=()=>{show('<small>NEDERLANDS · T5b</small><h2>Alle 110 woorden</h2><div id="t5bList"></div><button id="t5bMenu">Naar trainer</button>'+buttons());back();const list=$('t5bList');for(const [w,m] of t5bWords){const row=document.createElement('p'), b=document.createElement('b');b.textContent=w+' — ';row.append(b,document.createTextNode(m));list.append(row)}$('t5bMenu').onclick=t5bMenu}
+}
+function t5bRound(mode,missedOnly=false){
+ const items=t5bProgress().items;
+ const ids=t5bShuffle(t5bWords.map((_,i)=>i).filter(i=>!missedOnly||items[i]?.known===false));
+ if(!ids.length){show('<small>NEDERLANDS · T5b</small><h2>Geen moeilijke woorden</h2><p>Oefen eerst de volledige lijst.</p><button id="t5bMenu">Naar trainer</button>'+buttons());back();$('t5bMenu').onclick=t5bMenu;return}
+ // Short rounds allow both players to repeat independently; full list remains available.
+ const deck=ids.slice(0,20);let turn=0,score=0;
+ function finish(){show('<small>NEDERLANDS · T5b</small><h2>'+score+' van '+deck.length+' goed</h2><button class="primary" id="t5bAgain">Nog een ronde</button><button id="t5bMenu">Naar trainer</button>'+buttons());back();$('t5bAgain').onclick=()=>t5bRound(mode,missedOnly);$('t5bMenu').onclick=t5bMenu}
+ function ask(){
+  const i=deck[turn], [word,meaning]=t5bWords[i], reverse=mode==='reverse';
+  show('<small>NEDERLANDS · '+profile.toUpperCase()+' · T5b</small><h2>Vraag '+(turn+1)+' van '+deck.length+'</h2><div class="question"></div><p id="t5bHint"></p><form id="t5bForm"></form><button id="t5bMenu">Naar trainer</button>'+buttons());back();$('t5bMenu').onclick=t5bMenu;
+  document.querySelector('.question').textContent=reverse?meaning:word;
+  $('t5bHint').textContent=reverse?'Kies het woord bij deze betekenis.':'Wat betekent dit woord?';
+  const form=$('t5bForm');let graded=false;
+  function button(label,fn){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;form.append(b)}
+  function grade(ok){
+   if(graded)return;graded=true;
+   const prev=items[i]||{attempts:0,good:0};items[i]={attempts:prev.attempts+1,good:prev.good+(ok?1:0),known:ok};
+   Track.answer('Nederlands',t5bTopic,ok);if(ok)score++;persist();turn++;
+   form.replaceChildren();$('t5bHint').textContent=word+' = '+meaning;button(turn===deck.length?'Resultaat':'Volgende',()=>turn===deck.length?finish():ask());
+  }
+  function reveal(typed){
+   form.replaceChildren();$('t5bHint').textContent=(typed?'Jouw antwoord: '+typed+' · ':'')+word+' = '+meaning;
+   button('Ik wist het',()=>grade(true));button('Nog oefenen',()=>grade(false))
+  }
+  if(mode==='flash')button('Toon betekenis',()=>reveal(''));
+  else if(mode==='open'){
+   const input=document.createElement('input');input.required=true;input.autocomplete='off';input.setAttribute('aria-label','Jouw betekenis');form.append(input);
+   const b=document.createElement('button');b.type='submit';b.textContent='Vergelijk antwoord';form.append(b);form.onsubmit=e=>{e.preventDefault();if(input.value.trim())reveal(input.value.trim())}
+  }else for(const v of t5bShuffle(t5bChoices(i,reverse)))button(v,()=>grade(v===(reverse?word:meaning)))
+ }
+ ask()
+}
+// Dedicated trainer link on the existing character-selection screen.
+if(typeof document!=='undefined'){
+ const nav=document.querySelector('#entry nav div');
+ if(nav&&!document.getElementById('t5bTrainer')){
+  const b=document.createElement('button');b.id='t5bTrainer';b.textContent='Woordenschat · 110 woorden';b.onclick=()=>{start();if(playing)t5bMenu()};nav.append(b)
+ }
 }
