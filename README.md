@@ -1,6 +1,6 @@
 # Skybound · StudyQuest
 
-3D-leergame voor Niek (havo 2) en Floor (havo 3): een archipel van zwevende eilanden in zes levels, van een gedoofd baken tot een tuin boven de wolken, en onderweg oefenen met geschiedenis en Nederlands (Duits als losse trainer).
+3D-leergame voor Niek (havo 2) en Floor (havo 3): een archipel van zwevende eilanden in zes levels, van een gedoofd baken tot een tuin boven de wolken, en onderweg oefenen met Nederlands (Niek, havo 2) en Duits uit Floors overhoring (Floor, havo 3). Nederlands blijft voor Floor apart beschikbaar.
 
 - Live: https://studyquest-dativ-maze.vercel.app
 - Alles staat in `src/`: gewone HTML, CSS en JavaScript met three.js, zonder buildstap.
@@ -55,10 +55,17 @@ Open daarna http://localhost:8080.
 | `game.js` | Spelregels, besturing, missies, opslag (localStorage) |
 | `world.js` | 3D-wereld: eilanden, gebouwen, camera |
 | `scenery.js`, `pilot.js` | Personages en animatie |
-| `learning.js`, `history.js`, `nederlands.js` | Vragenbanken Duits, geschiedenis, Nederlands |
-| `woorden.html`, `trainer.js` | Losse woordentrainer |
+| `floor-german.js`, `nederlands.js` | Actieve vragenbanken: Duits Floor (260 vragen) en Nederlands Niek/Floor |
+| `woorden.html`, `trainer.js` | Losse Duits-oefentrainer voor Floor: woorden, zinnen en grammatica in beide richtingen |
 | `crafts.js` | Handgebouwde props: steenkar, telescoop, luchtschipdok, kas, waterloop |
 | `checks/*.test.js` | Unit-tests voor bouwprojecten, campagne en huisplanner (`node src/checks/<bestand>`) |
+
+## Leerinhoud (vanaf deze PR)
+
+- **Niek:** Nederlands havo 2 voor alle bouw-, verzamel- en leeropdrachten; daarnaast losse Nederlandse training.
+- **Floor:** Duits havo 3 voor opdrachten in de game, met 99 woorden Nederlands → Duits, 99 woorden Duits → Nederlands, 9 zinnen per richting en 22 grammaticaopgaven per richting (totaal **260**). Ook losse oefening via `/woorden.html`, plus behoud van Nederlands havo 3.
+- **Uit de actieve game gehaald:** geschiedenis 2.2–2.6 en de oude Duits H7-oefeningen. Bestaande voortgang en bouwwerken blijven onaangetast.
+- Bron: het door de gebruiker aangeleverde Word-bestand `Overhoring_Duits_Floor.docx`; de beide vertaalrichtingen leveren de antwoordparen, er was geen apart antwoordenblad.
 
 ## Tests
 
