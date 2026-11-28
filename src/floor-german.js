@@ -61,7 +61,7 @@ const German=(()=>{
  // Compare punctuation and redundant whitespace flexibly. Preserve capitalization for sie / Sie.
  // A dash between an infinitive and a participle or between singular / plural is compulsory.
  const normalized=s=>String(s).normalize("NFC").trim().replace(/[.,!?;:“”‘’'–—/\-]/g," ").replace(/\s+/g," ").trim();
- function accepts(q,value){return q.answers.some(a=>normalized(a)===normalized(value))}
+ function accepts(q,value){const norm=v=>q.language==="nl"?normalized(v).toLocaleLowerCase("nl"):normalized(v);return q.answers.some(a=>norm(a)===norm(value))}
  function nearMiss(q,value){return q.language==="de"&&q.answers.some(a=>normalized(a).toLocaleLowerCase("de")===normalized(value).toLocaleLowerCase("de"))}
  function next(log,skill=null){const pool=bank.filter(q=>skill==null||q.skill===skill),due=pool.filter(q=>log.items?.[q.id]?.due!=null&&log.items[q.id].due<=log.turn);
   if(due.length)return due.sort((a,b)=>log.items[a.id].due-log.items[b.id].due)[0];
