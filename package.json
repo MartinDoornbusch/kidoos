@@ -6,6 +6,6 @@
     "@vercel/blob": "^2.9.0"
   },
   "scripts": {
-    "test": "node tests/auth.test.mjs && node src/checks/construction-projects.test.js && node src/checks/construction-campaign.test.js && node src/checks/house-planner.test.js && node src/checks/construction-demo.test.js && node tests/game/run.mjs"
+    "test": "node tests/auth.test.mjs && node tests/floor-german.test.mjs && node src/checks/construction-projects.test.js && node src/checks/construction-campaign.test.js && node src/checks/house-planner.test.js && node src/checks/construction-demo.test.js && node tests/game/run.mjs"
   }
 }

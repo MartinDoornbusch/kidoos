@@ -14,7 +14,7 @@ export default async function(pg,{ok}){
    if(context?.kind!=='repair')return {err:'geen werkplaats, context '+context?.kind};act();
    let guard=0;while(s.stage===start&&guard++<60){
     if(document.querySelector('#panel .question')&&document.querySelector('#panel form')){__answer();continue}
-    if($('historyNext')){$('historyNext').click();continue}
+    if($('nlNext')){$('nlNext').click();continue}
     if($('part')){$('part').click();continue}
     if($('work')){$('work').click();continue}
     closePanel();updateHUD();act()}
@@ -32,7 +32,7 @@ export default async function(pg,{ok}){
  r=await pg.evaluate(()=>{$('lvl4').click();closePanel();const d=houseDraft(),b=HousePlanner.begin(s,d,siteCtx(d));if(b.ok){s=b.save;delete s.houseDraft}world.sync(s);for(let k=1;k<=5;k++)__stage(L4,k);return {level:s.level,done:houseDone(),offer:(logbook(),!!$('lvl5'))}});
  ok(r.level===4&&r.done&&r.offer,'level 4 house designed and built, logbook offers level 5');
  r=await pg.evaluate(()=>{$('lvl5').click();if($('l5go'))$('l5go').click();for(let k=1;k<=4;k++)__stage(L5,k);const st=l5().progress.next,c=st.cost;for(const q of ['hout','steen','planken'])s[q]+=c[q]||0;
-  for(let i=0;i<st.questions;i++){const a=ConstructionCampaign.answer(s,L5.id,{correct:true,verified:true,stageId:st.id,subject:'Geschiedenis',questionId:'l5e'+i,eventId:'l5e'+i+Date.now()});if(a.ok)s=a.save}
+  for(let i=0;i<st.questions;i++){const a=ConstructionCampaign.answer(s,L5.id,{correct:true,verified:true,stageId:st.id,subject:'Nederlands',questionId:'l5e'+i,eventId:'l5e'+i+Date.now()});if(a.ok)s=a.save}
   const coins=s.munten;buildStage(L5);const board=!!$('flyNow');if(board)$('flyNow').click();return {done:l5Done(),board,ride:ride?.kind,reward:s.munten-coins}});
  ok(r.done&&r.board&&r.ride==='air'&&r.reward===20,'level 5 airship rebuilt (+20), boarding starts the flight');
  await pg.evaluate(()=>{ride.t=ride.dur-.01});await pg.waitForFunction(()=>!ride,null,{timeout:120000});

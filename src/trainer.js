@@ -9,7 +9,7 @@ el('options').onsubmit=e=>{
 };
 function question(){
  current=remaining.shift();el('counter').textContent=(retry?'Herhaling':'Oefenronde')+' · '+(retry?(remaining.length+1)+' te gaan':(completed+1)+' van '+total);
- el('meter').max=total;el('meter').value=completed;el('instruction').textContent='Vertaal naar het '+(current.language==='de'?'Duits':'Nederlands')+'.';
+ el('meter').max=total;el('meter').value=completed;el('instruction').textContent=current.task||('Vertaal naar het '+(current.language==='de'?'Duits':'Nederlands')+'.');
  el('prompt').textContent=current.sentence;el('answerForm').hidden=false;el('answer').value='';el('feedback').textContent='';el('next').hidden=true;el('chars').hidden=current.language!=='de';el('answer').focus()
 }
 for(const ch of 'äöüßÄÖÜ'){const b=document.createElement('button');b.type='button';b.textContent=ch;b.onclick=()=>{const a=el('answer');a.setRangeText(ch,a.selectionStart,a.selectionEnd,'end');a.focus()};el('chars').append(b)}
